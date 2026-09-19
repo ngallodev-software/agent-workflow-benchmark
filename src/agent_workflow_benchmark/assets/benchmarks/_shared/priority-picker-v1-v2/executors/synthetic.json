@@ -1,0 +1,60 @@
+{
+  "schema": "agent-workflow/benchmark-executor-config/v1",
+  "provider": "synthetic",
+  "executor": "priority-picker-fixture-agent",
+  "executor_version": "1.0.0",
+  "model": "synthetic-paired-v1",
+  "effort": "deterministic",
+  "argv_template": [
+    "python",
+    "{suite}/executors/synthetic_agent.py",
+    "--worktree",
+    "{worktree}",
+    "--prompt",
+    "{prompt_file}",
+    "--phase",
+    "{phase_id}",
+    "--usage",
+    "{usage_file}"
+  ],
+  "timeout_seconds": 120,
+  "max_stdout_bytes": 1048576,
+  "max_stderr_bytes": 1048576,
+  "environment_allowlist": [],
+  "environment": {},
+  "unsafe_inherit_environment": false,
+  "nonzero_classification": "task",
+  "sandbox": {
+    "adapter": "benchmark-neutral-none-development",
+    "verified_isolation": false,
+    "argv_prefix": []
+  },
+  "tool_policy": {
+    "network": "disabled-by-fixture",
+    "filesystem": "worktree-instruction-and-post-run-audit",
+    "hidden_oracle": "not-present-in-target-repository",
+    "synthetic_executor": true
+  },
+  "currency": "USD",
+  "price_catalog_id": "synthetic-fixed-v1",
+  "authentication": {
+    "mode": "synthetic-none",
+    "status_argv": [],
+    "status_timeout_seconds": 5,
+    "credential_environment": []
+  },
+  "prompt_delivery": {
+    "source": "argv",
+    "append_newline": false
+  },
+  "billing": {
+    "mode": "synthetic",
+    "provider_billed_cost_semantics": "synthetic",
+    "subscription_plan": null,
+    "subscription_allocation": {
+      "method": "none",
+      "amount": null
+    }
+  },
+  "pricing": null
+}

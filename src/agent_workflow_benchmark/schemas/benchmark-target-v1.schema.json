@@ -1,0 +1,14 @@
+{
+  "$id": "agent-workflow/benchmark-target/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow/benchmark-target/v1"},
+    "target_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "remote": {"type": "string", "pattern": "^(https://|ssh://|git@|file://).+"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+    "tree": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"}
+  },
+  "required": ["schema", "target_id", "remote", "commit", "tree"],
+  "type": "object"
+}

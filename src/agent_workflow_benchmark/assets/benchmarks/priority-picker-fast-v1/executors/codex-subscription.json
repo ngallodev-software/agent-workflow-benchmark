@@ -1,0 +1,91 @@
+{
+  "argv_template": [
+    "codex",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--skip-git-repo-check",
+    "--model",
+    "{model}",
+    "-"
+  ],
+  "authentication": {
+    "credential_environment": [
+      "OPENAI_API_KEY"
+    ],
+    "mode": "subscription-session",
+    "status_argv": [
+      "codex",
+      "login",
+      "status"
+    ],
+    "status_timeout_seconds": 30
+  },
+  "billing": {
+    "mode": "subscription",
+    "provider_billed_cost_semantics": "not-attributable",
+    "subscription_allocation": {
+      "amount": null,
+      "method": "none"
+    },
+    "subscription_plan": "ChatGPT subscription"
+  },
+  "currency": "USD",
+  "effort": "high",
+  "environment": {},
+  "environment_allowlist": [
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_DATA_HOME",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "CODEX_HOME"
+  ],
+  "executor": "codex-cli",
+  "executor_version": "runtime-detected",
+  "max_stderr_bytes": 4194304,
+  "max_stdout_bytes": 16777216,
+  "model": "gpt-5.6-luna",
+  "nonzero_classification": "infrastructure",
+  "price_catalog_id": "openai-gpt-5.6-standard-20260802",
+  "pricing": {
+    "input_tokens_include_cached": true,
+    "usd_per_million_tokens": {
+      "cache_write_input": 0.25,
+      "cached_input": 0.02,
+      "input": 0.2,
+      "output": 1.2,
+      "reasoning_output": 0
+    }
+  },
+  "prompt_delivery": {
+    "append_newline": true,
+    "source": "stdin-prompt-file"
+  },
+  "provider": "openai",
+  "sandbox": {
+    "adapter": "codex-workspace-write",
+    "argv_prefix": [],
+    "verified_isolation": false
+  },
+  "schema": "agent-workflow/benchmark-executor-config/v1",
+  "timeout_seconds": 150,
+  "tool_policy": {
+    "authentication": "ChatGPT subscription session",
+    "filesystem": "provider workspace-write plus post-run scope audit",
+    "hidden_oracle": "not present in target worktree",
+    "network": "provider-cli-policy"
+  },
+  "unsafe_inherit_environment": false
+}

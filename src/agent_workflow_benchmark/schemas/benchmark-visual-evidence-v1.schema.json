@@ -1,0 +1,97 @@
+{
+  "$id": "agent-workflow/benchmark-visual-evidence/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arm": {
+      "enum": [
+        "control_raw",
+        "workflow_full"
+      ]
+    },
+    "artifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "assessment_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "attempt": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "captured_at": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_level": {
+      "enum": [
+        "development",
+        "internal",
+        "publication"
+      ]
+    },
+    "pair_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "runtime_attestation": {
+      "type": "object"
+    },
+    "runtime_lock_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "runtime_state": {
+      "enum": [
+        "development-verified",
+        "publication-verified",
+        "not-verified"
+      ]
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-visual-evidence/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "pair_id",
+    "arm",
+    "attempt",
+    "claim_level",
+    "runtime_lock_sha256",
+    "runtime_attestation",
+    "runtime_state",
+    "assessment_sha256",
+    "artifacts",
+    "captured_at"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,93 @@
+{
+  "schema": "agent-workflow/benchmark-executor-config/v1",
+  "provider": "anthropic",
+  "executor": "claude-code-cli",
+  "executor_version": "runtime-detected",
+  "model": "sonnet",
+  "effort": "default",
+  "argv_template": [
+    "claude",
+    "--print",
+    "--verbose",
+    "--output-format",
+    "stream-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--no-session-persistence",
+    "--model",
+    "{model}"
+  ],
+  "timeout_seconds": 1800,
+  "max_stdout_bytes": 16777216,
+  "max_stderr_bytes": 4194304,
+  "environment_allowlist": [
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_DATA_HOME",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "CLAUDE_CONFIG_DIR"
+  ],
+  "environment": {},
+  "unsafe_inherit_environment": false,
+  "nonzero_classification": "infrastructure",
+  "sandbox": {
+    "adapter": "claude-accept-edits",
+    "verified_isolation": false,
+    "argv_prefix": []
+  },
+  "tool_policy": {
+    "network": "provider-cli-policy",
+    "filesystem": "Claude acceptEdits plus post-run scope audit",
+    "hidden_oracle": "not present in target worktree",
+    "authentication": "Claude subscription session"
+  },
+  "currency": "USD",
+  "price_catalog_id": null,
+  "authentication": {
+    "mode": "subscription-session",
+    "status_argv": [
+      "claude",
+      "auth",
+      "status"
+    ],
+    "status_timeout_seconds": 30,
+    "credential_environment": [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN"
+    ]
+  },
+  "prompt_delivery": {
+    "source": "stdin-prompt-file",
+    "append_newline": true
+  },
+  "billing": {
+    "mode": "subscription",
+    "provider_billed_cost_semantics": "not-attributable",
+    "subscription_plan": "Claude subscription",
+    "subscription_allocation": {
+      "method": "none",
+      "amount": null
+    }
+  },
+  "pricing": {
+    "input_tokens_include_cached": true,
+    "usd_per_million_tokens": {
+      "input": null,
+      "cached_input": null,
+      "cache_write_input": null,
+      "output": null,
+      "reasoning_output": null
+    }
+  }
+}

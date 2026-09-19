@@ -1,0 +1,152 @@
+{
+  "$id": "agent-workflow/benchmark-report/v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregates": {
+      "type": "object"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "benchmark_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_level": {
+      "enum": [
+        "development",
+        "internal",
+        "publication"
+      ]
+    },
+    "composite": {
+      "type": "object"
+    },
+    "cost_policy": {
+      "type": "object"
+    },
+    "eligible_pairs": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "generated_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "human_complete_pairs": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "minimum_reviewers": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "operating_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "overrides": {
+          "type": "object"
+        },
+        "policy": {
+          "type": "object"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "runtime_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "runtime_lock_source": {
+          "type": "string"
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "policy",
+        "policy_sha256",
+        "source",
+        "overrides",
+        "runtime_lock_source",
+        "runtime_lock_sha256"
+      ],
+      "type": "object"
+    },
+    "pairs": {
+      "type": "array"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-report/v2"
+    },
+    "state": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "statistics": {
+      "type": "object"
+    },
+    "timing": {
+      "type": "object"
+    },
+    "total_pairs": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "winner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "winner_policy": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "benchmark_version",
+    "generated_at",
+    "claim_level",
+    "state",
+    "winner",
+    "eligible_pairs",
+    "total_pairs",
+    "human_complete_pairs",
+    "minimum_reviewers",
+    "composite",
+    "winner_policy",
+    "timing",
+    "aggregates",
+    "pairs",
+    "limitations",
+    "statistics",
+    "cost_policy",
+    "operating_policy"
+  ],
+  "type": "object"
+}

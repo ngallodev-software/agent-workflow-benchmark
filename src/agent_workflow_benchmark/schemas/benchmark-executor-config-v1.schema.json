@@ -1,0 +1,326 @@
+{
+  "$id": "agent-workflow/benchmark-executor-config/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "argv_template": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "authentication": {
+      "additionalProperties": false,
+      "properties": {
+        "credential_environment": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "mode": {
+          "enum": [
+            "subscription-session",
+            "synthetic-none"
+          ]
+        },
+        "status_argv": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status_timeout_seconds": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "mode",
+        "status_argv",
+        "status_timeout_seconds",
+        "credential_environment"
+      ],
+      "type": "object"
+    },
+    "billing": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "subscription",
+            "synthetic",
+            "unknown"
+          ]
+        },
+        "provider_billed_cost_semantics": {
+          "enum": [
+            "not-attributable",
+            "synthetic",
+            "unknown"
+          ]
+        },
+        "subscription_allocation": {
+          "additionalProperties": false,
+          "properties": {
+            "amount": {
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "method": {
+              "enum": [
+                "none",
+                "fixed-per-arm-run"
+              ]
+            }
+          },
+          "required": [
+            "method",
+            "amount"
+          ],
+          "type": "object"
+        },
+        "subscription_plan": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "provider_billed_cost_semantics",
+        "subscription_plan",
+        "subscription_allocation"
+      ],
+      "type": "object"
+    },
+    "currency": {
+      "pattern": "^[A-Z]{3}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "effort": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "environment": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "environment_allowlist": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "executor": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "executor_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "max_stderr_bytes": {
+      "minimum": 1024,
+      "type": "integer"
+    },
+    "max_stdout_bytes": {
+      "minimum": 1024,
+      "type": "integer"
+    },
+    "model": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "nonzero_classification": {
+      "enum": [
+        "task",
+        "infrastructure"
+      ]
+    },
+    "price_catalog_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pricing": {
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens_include_cached": {
+          "type": "boolean"
+        },
+        "usd_per_million_tokens": {
+          "additionalProperties": false,
+          "properties": {
+            "cache_write_input": {
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "cached_input": {
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "input": {
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "output": {
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "reasoning_output": {
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "input",
+            "cached_input",
+            "cache_write_input",
+            "output",
+            "reasoning_output"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "input_tokens_include_cached",
+        "usd_per_million_tokens"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "prompt_delivery": {
+      "additionalProperties": false,
+      "properties": {
+        "append_newline": {
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "argv",
+            "stdin-prompt-file"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "append_newline"
+      ],
+      "type": "object"
+    },
+    "provider": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "sandbox": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "argv_prefix": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "verified_isolation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "adapter",
+        "verified_isolation",
+        "argv_prefix"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-executor-config/v1"
+    },
+    "timeout_seconds": {
+      "exclusiveMinimum": 0,
+      "type": "number"
+    },
+    "tool_policy": {
+      "type": "object"
+    },
+    "unsafe_inherit_environment": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema",
+    "provider",
+    "executor",
+    "executor_version",
+    "model",
+    "effort",
+    "argv_template",
+    "timeout_seconds",
+    "max_stdout_bytes",
+    "max_stderr_bytes",
+    "environment_allowlist",
+    "environment",
+    "unsafe_inherit_environment",
+    "nonzero_classification",
+    "sandbox",
+    "tool_policy",
+    "currency",
+    "price_catalog_id",
+    "authentication",
+    "prompt_delivery",
+    "billing",
+    "pricing"
+  ],
+  "type": "object"
+}

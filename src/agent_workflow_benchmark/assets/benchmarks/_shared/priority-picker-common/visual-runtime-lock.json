@@ -1,0 +1,27 @@
+{
+  "schema": "agent-workflow/visual-runtime-lock/v1",
+  "reproducibility_state": "local-pinned-development",
+  "playwright_version": "1.60.0",
+  "browser_product": "Chromium",
+  "browser_version": "151.0.7922.71",
+  "browser_executable_candidates": [
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome"
+  ],
+  "locale": "en-US",
+  "timezone": "UTC",
+  "color_scheme": "light",
+  "reduced_motion": "reduce",
+  "device_scale_factor": 1,
+  "viewports": [
+    {"id": "desktop", "width": 1440, "height": 1000},
+    {"id": "tablet", "width": 834, "height": 1112},
+    {"id": "mobile", "width": 390, "height": 844}
+  ],
+  "font_manifest": [
+    {"family": "DejaVu Sans", "resolved_file": "DejaVuSans.ttf"}
+  ],
+  "container_image": null,
+  "publication_blocker": "A content-addressed browser image and independently verified font manifest remain required before publication claims."
+}

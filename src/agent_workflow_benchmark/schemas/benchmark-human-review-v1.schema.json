@@ -1,0 +1,188 @@
+{
+  "$id": "agent-workflow/benchmark-human-review/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "active_review_seconds": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "blocking_defects": {
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "label": {
+                      "enum": [
+                        "left",
+                        "right",
+                        "both"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "description"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "comments": {
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "computed_visual_scores": {
+            "additionalProperties": false,
+            "properties": {
+              "left": {
+                "maximum": 100,
+                "minimum": 0,
+                "type": "number"
+              },
+              "right": {
+                "maximum": 100,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "left",
+              "right"
+            ],
+            "type": "object"
+          },
+          "confidence": {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pair_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "preference": {
+            "enum": [
+              "left",
+              "right",
+              "tie",
+              "neither"
+            ]
+          },
+          "scores": {
+            "additionalProperties": false,
+            "properties": {
+              "left": {
+                "additionalProperties": {
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "type": "object"
+              },
+              "right": {
+                "additionalProperties": {
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "left",
+              "right"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "pair_id",
+          "scores",
+          "preference",
+          "confidence",
+          "blocking_defects",
+          "comments"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "review_completed_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "review_started_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "reviewer_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-human-review/v1"
+    },
+    "submitted_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "reviewer_id",
+    "submitted_at",
+    "review_started_at",
+    "review_completed_at",
+    "active_review_seconds",
+    "pairs"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,62 @@
+{
+  "$id": "agent-workflow/benchmark-phase-event/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arm": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_type": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "pair_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "phase_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recorded_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-phase-event/v1"
+    },
+    "sequence": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "sequence",
+    "recorded_at",
+    "event_type",
+    "run_id",
+    "pair_id",
+    "arm",
+    "phase_id",
+    "payload"
+  ],
+  "type": "object"
+}

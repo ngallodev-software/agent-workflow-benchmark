@@ -1,0 +1,914 @@
+{
+  "$id": "agent-workflow/benchmark-run/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authentication_evidence": {
+      "additionalProperties": true,
+      "properties": {
+        "authenticated": {
+          "type": "boolean"
+        },
+        "requested_mode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authenticated",
+        "requested_mode"
+      ],
+      "type": "object"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "benchmark_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_level": {
+      "enum": [
+        "development",
+        "internal",
+        "publication"
+      ]
+    },
+    "codebase_memory_mode": {
+      "enum": ["none", "mcp", "cli"]
+    },
+    "coordinator": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "executor_config_path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "run_dir": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "spec_path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "suite_dir": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "worktree": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "worktree",
+        "branch",
+        "run_dir",
+        "suite_dir",
+        "spec_path",
+        "executor_config_path"
+      ],
+      "type": "object"
+    },
+    "created_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "environment": {
+      "additionalProperties": true,
+      "properties": {
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "executor": {
+      "type": "object"
+    },
+    "identities": {
+      "additionalProperties": false,
+      "properties": {
+        "environment_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fixture_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "resource_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "spec_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "suite_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "task_prompt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "tool_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "spec_sha256",
+        "suite_sha256",
+        "fixture_sha256",
+        "task_prompt_sha256",
+        "environment_sha256",
+        "tool_policy_sha256",
+        "resource_policy_sha256"
+      ],
+      "type": "object"
+    },
+    "operating_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "overrides": {
+          "type": "object"
+        },
+        "policy": {
+          "type": "object"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "runtime_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "runtime_lock_source": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "policy",
+        "policy_sha256",
+        "source",
+        "overrides",
+        "runtime_lock_source",
+        "runtime_lock_sha256"
+      ],
+      "type": "object"
+    },
+    "pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_scope": {
+            "additionalProperties": false,
+            "properties": {
+              "disposable_trees": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "writable_paths": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "writable_trees": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "writable_paths",
+              "writable_trees",
+              "disposable_trees"
+            ],
+            "type": "object"
+          },
+          "arms": {
+            "additionalProperties": false,
+            "properties": {
+              "control_raw": {
+                "additionalProperties": false,
+                "properties": {
+                  "arm": {
+                    "enum": [
+                      "control_raw",
+                      "workflow_full"
+                    ]
+                  },
+                  "arm_wrapper_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "branch": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "constraint_profile_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "profile_id": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "prompts": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "effective_prompt_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "path": {
+                          "maxLength": 4096,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "phase_id": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "phase_id",
+                        "path",
+                        "effective_prompt_sha256"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "slot": {
+                    "enum": [
+                      "A",
+                      "B"
+                    ]
+                  },
+                  "stage_dir": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "task_prompt_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "worktree": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "arm",
+                  "slot",
+                  "profile_id",
+                  "constraint_profile_sha256",
+                  "arm_wrapper_sha256",
+                  "task_prompt_sha256",
+                  "worktree",
+                  "branch",
+                  "stage_dir",
+                  "prompts"
+                ],
+                "type": "object"
+              },
+              "workflow_full": {
+                "additionalProperties": false,
+                "properties": {
+                  "arm": {
+                    "enum": [
+                      "control_raw",
+                      "workflow_full"
+                    ]
+                  },
+                  "arm_wrapper_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "branch": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "constraint_profile_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "profile_id": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "prompts": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "effective_prompt_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "path": {
+                          "maxLength": 4096,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "phase_id": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "phase_id",
+                        "path",
+                        "effective_prompt_sha256"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "slot": {
+                    "enum": [
+                      "A",
+                      "B"
+                    ]
+                  },
+                  "stage_dir": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "task_prompt_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "worktree": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "arm",
+                  "slot",
+                  "profile_id",
+                  "constraint_profile_sha256",
+                  "arm_wrapper_sha256",
+                  "task_prompt_sha256",
+                  "worktree",
+                  "branch",
+                  "stage_dir",
+                  "prompts"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "control_raw",
+              "workflow_full"
+            ],
+            "type": "object"
+          },
+          "attempts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "arms": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "control_raw": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "arm": {
+                          "enum": [
+                            "control_raw",
+                            "workflow_full"
+                          ]
+                        },
+                        "arm_wrapper_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "branch": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "constraint_profile_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "profile_id": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "prompts": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "effective_prompt_sha256": {
+                                "pattern": "^[0-9a-f]{64}$",
+                                "type": "string"
+                              },
+                              "path": {
+                                "maxLength": 4096,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "phase_id": {
+                                "maxLength": 256,
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "phase_id",
+                              "path",
+                              "effective_prompt_sha256"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "slot": {
+                          "enum": [
+                            "A",
+                            "B"
+                          ]
+                        },
+                        "stage_dir": {
+                          "maxLength": 4096,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "task_prompt_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "worktree": {
+                          "maxLength": 4096,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "arm",
+                        "slot",
+                        "profile_id",
+                        "constraint_profile_sha256",
+                        "arm_wrapper_sha256",
+                        "task_prompt_sha256",
+                        "worktree",
+                        "branch",
+                        "stage_dir",
+                        "prompts"
+                      ],
+                      "type": "object"
+                    },
+                    "workflow_full": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "arm": {
+                          "enum": [
+                            "control_raw",
+                            "workflow_full"
+                          ]
+                        },
+                        "arm_wrapper_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "branch": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "constraint_profile_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "profile_id": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "prompts": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "effective_prompt_sha256": {
+                                "pattern": "^[0-9a-f]{64}$",
+                                "type": "string"
+                              },
+                              "path": {
+                                "maxLength": 4096,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "phase_id": {
+                                "maxLength": 256,
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "phase_id",
+                              "path",
+                              "effective_prompt_sha256"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "slot": {
+                          "enum": [
+                            "A",
+                            "B"
+                          ]
+                        },
+                        "stage_dir": {
+                          "maxLength": 4096,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "task_prompt_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "worktree": {
+                          "maxLength": 4096,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "arm",
+                        "slot",
+                        "profile_id",
+                        "constraint_profile_sha256",
+                        "arm_wrapper_sha256",
+                        "task_prompt_sha256",
+                        "worktree",
+                        "branch",
+                        "stage_dir",
+                        "prompts"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "control_raw",
+                    "workflow_full"
+                  ],
+                  "type": "object"
+                },
+                "attempt": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "attempt_id": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "pair_nonce": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "slot_order": {
+                  "items": {
+                    "enum": [
+                      "control_raw",
+                      "workflow_full"
+                    ]
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "attempt",
+                "attempt_id",
+                "pair_nonce",
+                "slot_order",
+                "arms"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "base_revision": {
+            "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+            "type": "string"
+          },
+          "case_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "environment_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "fixture_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "input_bundle_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "pair_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "pair_nonce": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "repetition": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "resource_policy_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "slot_order": {
+            "items": {
+              "enum": [
+                "control_raw",
+                "workflow_full"
+              ]
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "task_prompt_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "tool_policy_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pair_id",
+          "case_id",
+          "repetition",
+          "pair_nonce",
+          "slot_order",
+          "base_revision",
+          "fixture_sha256",
+          "input_bundle_sha256",
+          "task_prompt_sha256",
+          "environment_sha256",
+          "tool_policy_sha256",
+          "resource_policy_sha256",
+          "allowed_scope",
+          "arms",
+          "attempts"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "phases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prompt_path",
+          "prompt_sha256",
+          "timeout_seconds"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "policies": {
+      "additionalProperties": false,
+      "properties": {
+        "cache_policy": {
+          "type": "object"
+        },
+        "human_assistance": {
+          "enum": [
+            "unassisted",
+            "assisted"
+          ]
+        },
+        "infrastructure_retries": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "interrupted_pair_policy": {
+          "const": "discard-pair-and-retry-fresh"
+        },
+        "max_start_skew_seconds": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "pair_concurrency": {
+          "const": 1
+        },
+        "retry_policy": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "max_start_skew_seconds",
+        "pair_concurrency",
+        "infrastructure_retries",
+        "human_assistance",
+        "cache_policy",
+        "retry_policy",
+        "interrupted_pair_policy"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-run/v1"
+    },
+    "scoring_identity": {
+      "additionalProperties": false,
+      "properties": {
+        "benchmark_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "contract_path": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "evaluator_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "evaluator_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "scorer_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "scoring_contract_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_path",
+        "benchmark_version",
+        "scorer_version",
+        "evaluator_version",
+        "scoring_contract_sha256",
+        "evaluator_sha256"
+      ],
+      "type": "object"
+    },
+    "source": {
+      "additionalProperties": true,
+      "properties": {
+        "base_ref": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+          "type": "string"
+        },
+        "repository": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_cleanliness": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "repository",
+        "base_ref",
+        "base_revision",
+        "source_cleanliness"
+      ],
+      "type": "object"
+    },
+    "state": {
+      "const": "planned"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "benchmark_version",
+    "created_at",
+    "state",
+    "claim_level",
+    "codebase_memory_mode",
+    "source",
+    "coordinator",
+    "identities",
+    "environment",
+    "executor",
+    "phases",
+    "pairs",
+    "policies",
+    "authentication_evidence",
+    "operating_policy"
+  ],
+  "type": "object"
+}

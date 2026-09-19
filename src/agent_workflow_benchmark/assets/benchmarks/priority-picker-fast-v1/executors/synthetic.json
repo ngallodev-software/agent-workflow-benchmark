@@ -1,0 +1,60 @@
+{
+  "argv_template": [
+    "python",
+    "{suite}/executors/synthetic_agent.py",
+    "--worktree",
+    "{worktree}",
+    "--prompt",
+    "{prompt_file}",
+    "--phase",
+    "{phase_id}",
+    "--usage",
+    "{usage_file}"
+  ],
+  "authentication": {
+    "credential_environment": [],
+    "mode": "synthetic-none",
+    "status_argv": [],
+    "status_timeout_seconds": 5
+  },
+  "billing": {
+    "mode": "synthetic",
+    "provider_billed_cost_semantics": "synthetic",
+    "subscription_allocation": {
+      "amount": null,
+      "method": "none"
+    },
+    "subscription_plan": null
+  },
+  "currency": "USD",
+  "effort": "deterministic",
+  "environment": {},
+  "environment_allowlist": [],
+  "executor": "priority-picker-fast-fixture-agent",
+  "executor_version": "1.0.0",
+  "max_stderr_bytes": 1048576,
+  "max_stdout_bytes": 1048576,
+  "model": "synthetic-paired-fast-v1",
+  "nonzero_classification": "task",
+  "price_catalog_id": "synthetic-fast-v1",
+  "pricing": null,
+  "prompt_delivery": {
+    "append_newline": false,
+    "source": "argv"
+  },
+  "provider": "synthetic",
+  "sandbox": {
+    "adapter": "benchmark-neutral-none-development",
+    "argv_prefix": [],
+    "verified_isolation": false
+  },
+  "schema": "agent-workflow/benchmark-executor-config/v1",
+  "timeout_seconds": 150,
+  "tool_policy": {
+    "filesystem": "worktree-instruction-and-post-run-audit",
+    "hidden_oracle": "not-present-in-target-repository",
+    "network": "disabled-by-fixture",
+    "synthetic_executor": true
+  },
+  "unsafe_inherit_environment": false
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Priority Picker</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="shell" data-testid="priority-app">
+  <header class="hero">
+    <div><p class="eyebrow">Decision workspace</p><h1>Priority Picker</h1><p class="lede">Turn backlog signals into a focused, explainable sequence.</p></div>
+    <div class="summary" aria-live="polite"><strong id="visible-count">0</strong><span>visible</span><strong id="total-count">0</strong><span>total</span></div>
+  </header>
+  <section class="toolbar" aria-label="Backlog controls">
+    <label class="search">Search backlog<input data-testid="search-input" id="search" type="search" placeholder="Title, ID, or description"></label>
+    <label>Status<select data-testid="status-filter" id="status"><option value="all">All statuses</option><option value="ready">Ready</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select></label>
+    <label>Risk<select data-testid="risk-filter" id="risk"><option value="all">All risks</option><option value="5">5 — highest</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1 — lowest</option></select></label>
+    <label>Sort<select data-testid="sort-control" id="sort"><option value="priority">Priority</option><option value="impact">Impact</option><option value="urgency">Urgency</option><option value="effort">Effort</option><option value="risk">Risk</option><option value="title">Title</option></select></label>
+    <button class="export" data-testid="export-button" id="export" type="button">Export ordering</button>
+  </section>
+  <p class="error" id="error" role="alert" hidden></p>
+  <div class="workspace">
+    <section aria-labelledby="ranked-heading"><div class="section-heading"><div><p class="eyebrow">Ranked backlog</p><h2 id="ranked-heading">What deserves attention next</h2></div><span class="hint">Select an item for the full score story</span></div><div class="list" data-testid="priority-list" id="list" aria-live="polite"></div></section>
+    <aside class="detail" data-testid="item-detail" id="detail" aria-labelledby="detail-title" tabindex="-1"><p class="eyebrow">Item detail</p><h2 id="detail-title">Choose a priority</h2><p id="detail-copy">The factor breakdown and rationale will appear here.</p><div id="detail-factors"></div></aside>
+  </div>
+</main><script src="/app.js" defer></script>
+</body></html>

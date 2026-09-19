@@ -1,0 +1,151 @@
+{
+  "aggregate_metrics": {
+    "baseline": {
+      "passes": 0,
+      "rate": null,
+      "wilson": null
+    },
+    "candidate": {
+      "passes": 0,
+      "rate": null,
+      "wilson": null
+    },
+    "cohort_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "confidence": 0.95,
+    "descriptive_only": false,
+    "effect_threshold": 0.0,
+    "efficiency": {
+      "duration_seconds": {
+        "mean_difference": null,
+        "n": 0,
+        "paired_bootstrap": null
+      },
+      "local_estimated_cost": {
+        "mean_difference": null,
+        "n": 0,
+        "paired_bootstrap": null
+      },
+      "provider_billed_cost": {
+        "mean_difference": null,
+        "n": 0,
+        "paired_bootstrap": null
+      },
+      "tokens": {
+        "mean_difference": null,
+        "n": 0,
+        "paired_bootstrap": null
+      }
+    },
+    "efficiency_exclusions": {
+      "duration_seconds": 0,
+      "local_estimated_cost": 0,
+      "provider_billed_cost": 0,
+      "tokens": 0
+    },
+    "paired": true,
+    "paired_bootstrap_95": null,
+    "paired_n": 0,
+    "pass_rate_difference": 0.0,
+    "primary_metric": "pass_rate",
+    "schema": "agent-workflow/comparison/v1",
+    "stop_rule": "fixed_n",
+    "tail_metrics_eligible": {
+      "p90": false,
+      "p95": false
+    },
+    "unmatched": [],
+    "winner": null
+  },
+  "baseline": {
+    "cohort_id": "baseline-fixture",
+    "executor": "codex",
+    "executor_version": null,
+    "identity_verification": {
+      "state": "not_verified",
+      "unverified_fields": [
+        "executor",
+        "executor_version",
+        "model",
+        "pack_manifest_sha256",
+        "provider",
+        "source_revision"
+      ],
+      "verified_fields": []
+    },
+    "model": "fixture-model",
+    "pack_manifest_sha256": null,
+    "provider": "codex",
+    "selected_trial_count": 0,
+    "source_revision": "baseline-revision",
+    "trial_collection_sha256": "97a96652bd6cb5fe5a786e3f72bcc4cee4a77a5ead3224086d34cb80e39730bb",
+    "trial_count": 0
+  },
+  "benchmark_id": "eval-template-fixture",
+  "candidate": {
+    "cohort_id": "candidate-fixture",
+    "executor": "codex",
+    "executor_version": null,
+    "identity_verification": {
+      "state": "not_verified",
+      "unverified_fields": [
+        "executor",
+        "executor_version",
+        "model",
+        "pack_manifest_sha256",
+        "provider",
+        "source_revision"
+      ],
+      "verified_fields": []
+    },
+    "model": "fixture-model",
+    "pack_manifest_sha256": null,
+    "provider": "codex",
+    "selected_trial_count": 0,
+    "source_revision": "candidate-revision",
+    "trial_collection_sha256": "97a96652bd6cb5fe5a786e3f72bcc4cee4a77a5ead3224086d34cb80e39730bb",
+    "trial_count": 0
+  },
+  "cases": [
+    {
+      "baseline": null,
+      "candidate": null,
+      "case_id": "case-001",
+      "expected_evidence_class": "sealed-structured-run",
+      "missing_evidence": {
+        "baseline": [
+          "trial"
+        ],
+        "candidate": [
+          "trial"
+        ]
+      },
+      "regression": false,
+      "repetition": 0,
+      "state": "not_verified",
+      "task_id": "EVAL-CASE-001",
+      "unavailable_reason": null
+    }
+  ],
+  "manifest_sha256": "6e27824fee19cf6bff7bcf10db6107d93e75e9711b0b707f3777dd61a8b15fea",
+  "missingness": {
+    "missing_baseline_count": 1,
+    "missing_candidate_count": 1,
+    "null_metric_policy": "preserve-null",
+    "unavailable_case_count": 0,
+    "unmatched_baseline_count": 0,
+    "unmatched_candidate_count": 0,
+    "unverified_baseline_count": 0,
+    "unverified_candidate_count": 0
+  },
+  "regressions": [],
+  "reproducible_commands": [
+    "agent-workflow benchmark legacy-validate <manifest.json>",
+    "agent-workflow benchmark legacy-report <manifest.json> <baseline.json> <candidate.json> --output <report.json>"
+  ],
+  "schema": "agent-workflow/benchmark-report/v1",
+  "unmatched_trials": {
+    "baseline": [],
+    "candidate": []
+  }
+}
+

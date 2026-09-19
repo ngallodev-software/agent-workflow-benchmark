@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-workflow/benchmark-operating-policy/v1",
+  "title": "Comparative benchmark operating policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "policy_id",
+    "claim_level",
+    "repetitions",
+    "infrastructure_retries",
+    "assistance_cohort",
+    "cache_policy",
+    "retry_policy",
+    "interrupted_pair_policy",
+    "authentication_default",
+    "allowed_authentication_modes",
+    "winner_policy"
+  ],
+  "properties": {
+    "schema": {"const": "agent-workflow/benchmark-operating-policy/v1"},
+    "policy_id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"},
+    "claim_level": {"enum": ["development", "internal", "publication"]},
+    "repetitions": {"type": "integer", "minimum": 1, "maximum": 1000},
+    "infrastructure_retries": {"type": "integer", "minimum": 0, "maximum": 3},
+    "assistance_cohort": {"enum": ["unassisted", "assisted"]},
+    "cache_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "mixing_prohibited", "record_cached_tokens"],
+      "properties": {
+        "mode": {"const": "provider-managed-recorded"},
+        "mixing_prohibited": {"const": true},
+        "record_cached_tokens": {"const": true}
+      }
+    },
+    "retry_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "fresh_pair_worktrees", "retain_all_attempts"],
+      "properties": {
+        "classification": {"const": "infrastructure-only"},
+        "fresh_pair_worktrees": {"const": true},
+        "retain_all_attempts": {"const": true}
+      }
+    },
+    "interrupted_pair_policy": {"const": "discard-pair-and-retry-fresh"},
+    "authentication_default": {"const": "subscription-session"},
+    "allowed_authentication_modes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["subscription-session", "synthetic-none"]}
+    },
+    "winner_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "minimum_eligible_pairs",
+        "minimum_composite_delta",
+        "confidence_level",
+        "max_machine_regression",
+        "max_human_regression"
+      ],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "minimum_eligible_pairs": {"type": "integer", "minimum": 1},
+        "minimum_composite_delta": {"type": "number", "minimum": 0},
+        "confidence_level": {"type": "number", "exclusiveMinimum": 0.5, "exclusiveMaximum": 1},
+        "max_machine_regression": {"type": "number", "minimum": 0},
+        "max_human_regression": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

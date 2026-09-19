@@ -1,0 +1,73 @@
+{
+  "schema": "agent-workflow/benchmark-manifest/v1",
+  "benchmark_id": "eval-template-fixture",
+  "objective": "Compare one deterministic synthetic case.",
+  "cohorts": {
+    "baseline": {
+      "cohort_id": "baseline-fixture",
+      "provider": "codex",
+      "model": "fixture-model",
+      "executor": "codex",
+      "executor_version": null,
+      "source_revision": "baseline-revision",
+      "pack_manifest_sha256": null
+    },
+    "candidate": {
+      "cohort_id": "candidate-fixture",
+      "provider": "codex",
+      "model": "fixture-model",
+      "executor": "codex",
+      "executor_version": null,
+      "source_revision": "candidate-revision",
+      "pack_manifest_sha256": null
+    }
+  },
+  "controls": [
+    "same prompt",
+    "same fixture",
+    "same tool policy",
+    "cold cache"
+  ],
+  "cases": [
+    {
+      "case_id": "case-001",
+      "task_id": "EVAL-CASE-001",
+      "repetition": 0,
+      "prompt_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "input_sha256": null,
+      "expected_evidence_class": "sealed-structured-run",
+      "oracle": null,
+      "reference": null,
+      "fixture_provenance": {
+        "id": "synthetic-eval-fixture",
+        "revision": null,
+        "sha256": null
+      },
+      "allowed_writable_scope": {
+        "writable_paths": [],
+        "writable_trees": [
+          "src/",
+          "tests/"
+        ],
+        "disposable_trees": [
+          ".agent-workflow-handoff/",
+          ".delegations/"
+        ]
+      },
+      "availability": {
+        "state": "available",
+        "reason": null
+      }
+    }
+  ],
+  "privacy": {
+    "data_class": "synthetic",
+    "live_target_collection": false
+  },
+  "reproducibility": {
+    "environment_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "tool_policy_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "cache_policy": "cold"
+  }
+}
+

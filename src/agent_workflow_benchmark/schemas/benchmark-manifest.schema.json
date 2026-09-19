@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-workflow/benchmark-manifest/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "benchmark_id",
+    "objective",
+    "cohorts",
+    "controls",
+    "cases",
+    "privacy",
+    "reproducibility"
+  ],
+  "properties": {
+    "schema": {
+      "const": "agent-workflow/benchmark-manifest/v1"
+    },
+    "benchmark_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cohorts": {
+      "type": "object",
+      "required": [
+        "baseline",
+        "candidate"
+      ],
+      "properties": {
+        "baseline": {
+          "type": "object",
+          "required": [
+            "cohort_id",
+            "provider",
+            "model",
+            "executor",
+            "executor_version",
+            "source_revision",
+            "pack_manifest_sha256"
+          ],
+          "properties": {
+            "cohort_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "executor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "executor_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_revision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pack_manifest_sha256": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "candidate": {
+          "type": "object",
+          "required": [
+            "cohort_id",
+            "provider",
+            "model",
+            "executor",
+            "executor_version",
+            "source_revision",
+            "pack_manifest_sha256"
+          ],
+          "properties": {
+            "cohort_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "executor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "executor_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_revision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pack_manifest_sha256": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "data_class",
+        "live_target_collection"
+      ],
+      "properties": {
+        "data_class": {
+          "enum": [
+            "synthetic",
+            "public",
+            "internal",
+            "restricted"
+          ]
+        },
+        "live_target_collection": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reproducibility": {
+      "type": "object",
+      "required": [
+        "environment_sha256",
+        "tool_policy_sha256",
+        "cache_policy"
+      ],
+      "properties": {
+        "environment_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tool_policy_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cache_policy": {
+          "enum": [
+            "disabled",
+            "cold",
+            "warm",
+            "provider-default"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "required": [
+        "writable_paths",
+        "writable_trees",
+        "disposable_trees"
+      ],
+      "properties": {
+        "writable_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "writable_trees": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "disposable_trees": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "case": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "task_id",
+        "repetition",
+        "prompt_sha256",
+        "input_sha256",
+        "expected_evidence_class",
+        "oracle",
+        "reference",
+        "fixture_provenance",
+        "allowed_writable_scope",
+        "availability"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repetition": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prompt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "input_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expected_evidence_class": {
+          "enum": [
+            "sealed-structured-run",
+            "deterministic-fixture",
+            "external-oracle",
+            "unavailable"
+          ]
+        },
+        "oracle": {
+          "$ref": "#/$defs/identity"
+        },
+        "reference": {
+          "$ref": "#/$defs/identity"
+        },
+        "fixture_provenance": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "allowed_writable_scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "availability": {
+          "type": "object",
+          "required": [
+            "state",
+            "reason"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "available",
+                "unavailable"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

@@ -1,0 +1,91 @@
+{
+  "schema": "agent-workflow/benchmark-executor-config/v1",
+  "provider": "openai",
+  "executor": "codex-cli",
+  "executor_version": "runtime-detected",
+  "model": "gpt-5.6-luna",
+  "effort": "high",
+  "argv_template": [
+    "codex",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--skip-git-repo-check",
+    "--model",
+    "{model}",
+    "-"
+  ],
+  "timeout_seconds": 1800,
+  "max_stdout_bytes": 16777216,
+  "max_stderr_bytes": 4194304,
+  "environment_allowlist": [
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_DATA_HOME",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "CODEX_HOME"
+  ],
+  "environment": {},
+  "unsafe_inherit_environment": false,
+  "nonzero_classification": "infrastructure",
+  "sandbox": {
+    "adapter": "codex-workspace-write",
+    "verified_isolation": false,
+    "argv_prefix": []
+  },
+  "tool_policy": {
+    "network": "provider-cli-policy",
+    "filesystem": "provider workspace-write plus post-run scope audit",
+    "hidden_oracle": "not present in target worktree",
+    "authentication": "ChatGPT subscription session"
+  },
+  "currency": "USD",
+  "price_catalog_id": "openai-gpt-5.6-standard-20260802",
+  "authentication": {
+    "mode": "subscription-session",
+    "status_argv": [
+      "codex",
+      "login",
+      "status"
+    ],
+    "status_timeout_seconds": 30,
+    "credential_environment": [
+      "OPENAI_API_KEY"
+    ]
+  },
+  "prompt_delivery": {
+    "source": "stdin-prompt-file",
+    "append_newline": true
+  },
+  "billing": {
+    "mode": "subscription",
+    "provider_billed_cost_semantics": "not-attributable",
+    "subscription_plan": "ChatGPT subscription",
+    "subscription_allocation": {
+      "method": "none",
+      "amount": null
+    }
+  },
+  "pricing": {
+    "input_tokens_include_cached": true,
+    "usd_per_million_tokens": {
+      "input": 0.2,
+      "cached_input": 0.02,
+      "cache_write_input": 0.25,
+      "output": 1.2,
+      "reasoning_output": 0
+    }
+  }
+}

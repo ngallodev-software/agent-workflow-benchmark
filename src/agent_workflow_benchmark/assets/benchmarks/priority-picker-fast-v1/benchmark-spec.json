@@ -1,0 +1,276 @@
+{
+  "arms": {
+    "control_raw": {
+      "disabled_features": [
+        "agent-workflow prompt-pack protocol",
+        "agent-workflow skills",
+        "agent-workflow planning and completion templates",
+        "agent-workflow review and phase-gate procedures",
+        "agent-workflow delegation and drift rules"
+      ],
+      "enabled_features": [
+        "canonical task prompts",
+        "benchmark-neutral safety envelope",
+        "public tests and allowed local tools"
+      ],
+      "profile_id": "control-raw/v1",
+      "wrapper_path": "profiles/control_raw.md"
+    },
+    "workflow_full": {
+      "disabled_features": [],
+      "enabled_features": [
+        "canonical task prompts",
+        "benchmark-neutral safety envelope",
+        "requirements traceability",
+        "bounded plan-before-edit discipline",
+        "writable-scope and non-target checks",
+        "acceptance-first verification",
+        "phase completion evidence",
+        "self-review and drift audit"
+      ],
+      "profile_id": "workflow-full/v1",
+      "wrapper_path": "profiles/workflow_full.md"
+    }
+  },
+  "benchmark_id": "priority-picker-fast-v1",
+  "canonical_task": "canonical-task.md",
+  "cases": [
+    {
+      "allowed_scope": {
+        "disposable_trees": [
+          ".pytest_cache",
+          "__pycache__"
+        ],
+        "writable_paths": [
+          "README.md",
+          "BENCHMARK_PLAN.md"
+        ],
+        "writable_trees": [
+          "priority_picker",
+          "tests"
+        ]
+      },
+      "id": "standard-backlog",
+      "input_path": "cases/backlog-small.json"
+    }
+  ],
+  "claim_level": "development",
+  "composite": {
+    "human_weight": 0.3,
+    "machine_weight": 0.7,
+    "minimum_human_score": 60,
+    "minimum_machine_score": 70
+  },
+  "eligibility": {
+    "required_guardrails": [
+      "paired_identity",
+      "declared_treatment",
+      "start_skew",
+      "writable_scope",
+      "assistance_cohort",
+      "visual_capture",
+      "provider_usage",
+      "harness_integrity"
+    ]
+  },
+  "fixture": {
+    "id": "priority-picker-fast-python-static-v1",
+    "target_input_path": "data/backlog.json",
+    "template_path": "fixture/starter"
+  },
+  "live_review": {
+    "host": "0.0.0.0",
+    "ready_path": "/api/items",
+    "server_argv": [
+      "{python}",
+      "-m",
+      "priority_picker.server",
+      "--host",
+      "{host}",
+      "--port",
+      "{port}",
+      "--data",
+      "{worktree}/data/backlog.json"
+    ],
+    "startup_timeout_seconds": 15
+  },
+  "machine_scoring": {
+    "scorers": [
+      {
+        "argv": [
+          "python",
+          "{suite}/evaluation/evaluate.py",
+          "--dimension",
+          "hidden_functional",
+          "--worktree",
+          "{worktree}",
+          "--result",
+          "{result_file}",
+          "--max-points",
+          "{max_points}",
+          "--contract",
+          "{scoring_contract}"
+        ],
+        "dimension": "hidden_functional",
+        "id": "hidden-functional-fast-v1",
+        "kind": "command-v1",
+        "max_points": 45,
+        "timeout_seconds": 60
+      },
+      {
+        "argv": [
+          "python",
+          "{suite}/evaluation/evaluate.py",
+          "--dimension",
+          "public_regression",
+          "--worktree",
+          "{worktree}",
+          "--result",
+          "{result_file}",
+          "--max-points",
+          "{max_points}",
+          "--contract",
+          "{scoring_contract}"
+        ],
+        "dimension": "public_regression",
+        "id": "public-regression-fast-v1",
+        "kind": "command-v1",
+        "max_points": 15,
+        "timeout_seconds": 60
+      },
+      {
+        "argv": [
+          "python",
+          "{suite}/evaluation/evaluate.py",
+          "--dimension",
+          "robustness",
+          "--worktree",
+          "{worktree}",
+          "--result",
+          "{result_file}",
+          "--max-points",
+          "{max_points}",
+          "--contract",
+          "{scoring_contract}"
+        ],
+        "dimension": "robustness",
+        "id": "robustness-fast-v1",
+        "kind": "command-v1",
+        "max_points": 10,
+        "timeout_seconds": 60
+      },
+      {
+        "argv": [
+          "python",
+          "{suite}/evaluation/evaluate.py",
+          "--dimension",
+          "accessibility_ui",
+          "--worktree",
+          "{worktree}",
+          "--stage-dir",
+          "{stage_dir}",
+          "--result",
+          "{result_file}",
+          "--max-points",
+          "{max_points}",
+          "--contract",
+          "{scoring_contract}"
+        ],
+        "dimension": "accessibility_ui",
+        "id": "accessibility-ui-fast-v1",
+        "kind": "command-v1",
+        "max_points": 10,
+        "timeout_seconds": 60.0
+      },
+      {
+        "argv": [
+          "python",
+          "{suite}/evaluation/evaluate.py",
+          "--dimension",
+          "scope_completeness",
+          "--worktree",
+          "{worktree}",
+          "--result",
+          "{result_file}",
+          "--max-points",
+          "{max_points}",
+          "--contract",
+          "{scoring_contract}"
+        ],
+        "dimension": "scope_completeness",
+        "id": "scope-completeness-fast-v1",
+        "kind": "command-v1",
+        "max_points": 10,
+        "timeout_seconds": 60.0
+      },
+      {
+        "argv": [
+          "python",
+          "{suite}/evaluation/evaluate.py",
+          "--dimension",
+          "engineering_quality",
+          "--worktree",
+          "{worktree}",
+          "--result",
+          "{result_file}",
+          "--max-points",
+          "{max_points}",
+          "--contract",
+          "{scoring_contract}"
+        ],
+        "dimension": "engineering_quality",
+        "id": "engineering-quality-fast-v1",
+        "kind": "command-v1",
+        "max_points": 10,
+        "timeout_seconds": 60
+      }
+    ]
+  },
+  "phases": [
+    {
+      "id": "build-verify",
+      "name": "Build and verify",
+      "prompt_path": "phases/01-build-verify.md",
+      "timeout_seconds": 150
+    }
+  ],
+  "scheduling": {
+    "default_repetitions": 1,
+    "infrastructure_retries": 0,
+    "max_start_skew_seconds": 0.25,
+    "pair_concurrency": 1
+  },
+  "schema": "agent-workflow/benchmark-spec/v2",
+  "scoring_contract_path": "scoring-contract.json",
+  "version": "1.0.0",
+  "visual": {
+    "capture_argv": [
+      "python",
+      "{suite}/evaluation/capture_visual.py",
+      "--url",
+      "{live_url}",
+      "--worktree",
+      "{worktree}",
+      "--output",
+      "{visual_dir}",
+      "--runtime-lock",
+      "{runtime_lock}"
+    ],
+    "minimum_reviewers": {
+      "development": 1,
+      "internal": 2,
+      "publication": 3
+    },
+    "rubric_path": "visual-rubric.json",
+    "runtime_lock_path": "visual-runtime-lock.json",
+    "timeout_seconds": 90
+  },
+  "winner_policy": {
+    "confidence_level": 0.95,
+    "enabled": false,
+    "max_human_regression": 3,
+    "max_machine_regression": 3,
+    "minimum_composite_delta": 5,
+    "minimum_eligible_pairs": 10
+  }
+}

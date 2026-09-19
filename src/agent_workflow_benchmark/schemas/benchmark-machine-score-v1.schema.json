@@ -1,0 +1,209 @@
+{
+  "$id": "agent-workflow/benchmark-machine-score/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arm": {
+      "enum": [
+        "control_raw",
+        "workflow_full"
+      ]
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "components": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dimension": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "duration_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "earned_points": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_points": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "result_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dimension",
+          "max_points",
+          "earned_points",
+          "state",
+          "details",
+          "result_sha256",
+          "duration_seconds"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "eligibility": {
+      "additionalProperties": false,
+      "properties": {
+        "guardrails": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "detail": {
+                "type": "string"
+              },
+              "id": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "state": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "not_verified"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "required",
+              "detail"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "publication_eligible": {
+          "type": "boolean"
+        },
+        "required_failures": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scorer_harness_failures": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "eligible",
+            "invalid"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "required_failures",
+        "scorer_harness_failures",
+        "guardrails",
+        "publication_eligible"
+      ],
+      "type": "object"
+    },
+    "machine_score": {
+      "maximum": 100,
+      "minimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "maximum_score": {
+      "const": 100.0
+    },
+    "pair_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "repetition": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-machine-score/v1"
+    },
+    "scored_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "verification_wall_seconds": {
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "pair_id",
+    "case_id",
+    "repetition",
+    "arm",
+    "eligibility",
+    "machine_score",
+    "maximum_score",
+    "components",
+    "verification_wall_seconds",
+    "scored_at"
+  ],
+  "type": "object"
+}

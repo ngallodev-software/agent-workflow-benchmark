@@ -1,0 +1,214 @@
+{
+  "$id": "agent-workflow/benchmark-review-assignment/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "blinded": {
+      "const": true
+    },
+    "created_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "case_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": false,
+            "properties": {
+              "left": {
+                "additionalProperties": false,
+                "properties": {
+                  "evidence": {
+                    "items": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "evidence_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "live_url": {
+                    "maxLength": 4096,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "evidence",
+                  "evidence_sha256",
+                  "live_url"
+                ],
+                "type": "object"
+              },
+              "right": {
+                "additionalProperties": false,
+                "properties": {
+                  "evidence": {
+                    "items": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "evidence_sha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "live_url": {
+                    "maxLength": 4096,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "evidence",
+                  "evidence_sha256",
+                  "live_url"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "left",
+              "right"
+            ],
+            "type": "object"
+          },
+          "pair_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "repetition": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pair_id",
+          "case_id",
+          "repetition",
+          "labels"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "reviewer_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "rubric": {
+      "additionalProperties": false,
+      "properties": {
+        "dimensions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "additionalProperties": false,
+                "properties": {
+                  "1": {
+                    "type": "string"
+                  },
+                  "2": {
+                    "type": "string"
+                  },
+                  "3": {
+                    "type": "string"
+                  },
+                  "4": {
+                    "type": "string"
+                  },
+                  "5": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "1",
+                  "2",
+                  "3",
+                  "4",
+                  "5"
+                ],
+                "type": "object"
+              },
+              "id": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "weight": {
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "weight",
+              "anchors"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "agent-workflow/visual-rubric/v1"
+        }
+      },
+      "required": [
+        "schema",
+        "dimensions"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-review-assignment/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "reviewer_id",
+    "created_at",
+    "blinded",
+    "rubric",
+    "pairs"
+  ],
+  "type": "object"
+}

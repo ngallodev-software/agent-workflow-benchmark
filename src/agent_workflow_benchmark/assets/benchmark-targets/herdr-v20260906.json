@@ -1,0 +1,7 @@
+{
+  "schema": "agent-workflow/benchmark-target/v1",
+  "target_id": "herdr-v20260906",
+  "remote": "https://github.com/herdrdev/herdr.git",
+  "commit": "d6dae88345d24b8e468f63faad6a09173d2cbeac",
+  "tree": "8e8912d1f6c784a09ce6a4fd450378ca60f9ced7"
+}

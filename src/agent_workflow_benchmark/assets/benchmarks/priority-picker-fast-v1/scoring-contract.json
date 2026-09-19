@@ -1,0 +1,414 @@
+{
+  "benchmark_id": "priority-picker-fast-v1",
+  "benchmark_version": "1.0.0",
+  "compatibility": {
+    "historical_receipts": "immutable",
+    "legacy_benchmark_ids": [
+      "priority-picker-v1",
+      "priority-picker-v2"
+    ],
+    "mixed_version_comparison": "reject"
+  },
+  "dimensions": [
+    {
+      "checks": [
+        {
+          "description": "Frozen formula for integer factors",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.formula.integer",
+          "id": "hidden.formula.integer",
+          "max_points": 4,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Decimal inputs and four-place rounding",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.formula.decimal-rounding",
+          "id": "hidden.formula.decimal-rounding",
+          "max_points": 4,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Effort denominator floors at one",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.formula.effort-floor",
+          "id": "hidden.formula.effort-floor",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Primary score descending ordering",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.tie.score",
+          "id": "hidden.tie.score",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Urgency descending tie breaker",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.tie.urgency",
+          "id": "hidden.tie.urgency",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Impact descending tie breaker",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.tie.impact",
+          "id": "hidden.tie.impact",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "ID ascending final tie breaker",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.tie.id",
+          "id": "hidden.tie.id",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Ranked records contain rank and score without mutating input",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.ranked-schema",
+          "id": "hidden.ranked-schema",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Case-insensitive title search",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.search.title",
+          "id": "hidden.search.title",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Case-insensitive description search",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.search.description",
+          "id": "hidden.search.description",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Search, status and risk filters compose",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.filters.combined",
+          "id": "hidden.filters.combined",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Supported sort keys and directions are deterministic",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.sort.supported",
+          "id": "hidden.sort.supported",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Unsupported sort key or direction is rejected",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.sort.invalid",
+          "id": "hidden.sort.invalid",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Export preserves current ordering and ranks",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.export",
+          "id": "hidden.export",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "JSON loading validates the supplied fixture",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.load",
+          "id": "hidden.load",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Repeated operations are deterministic and non-mutating",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#hidden.determinism",
+          "id": "hidden.determinism",
+          "max_points": 2,
+          "partial_credit": "none"
+        }
+      ],
+      "id": "hidden_functional",
+      "max_points": 45
+    },
+    {
+      "checks": [
+        {
+          "description": "Visible formula regression test",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "public:test_priority.py#test_frozen_formula",
+          "id": "public.formula",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Visible ranking regression test",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "public:test_priority.py#test_ranking_uses_frozen_tie_breakers",
+          "id": "public.ranking",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Visible validation regression test",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "public:test_priority.py#test_malformed_range_is_rejected",
+          "id": "public.validation",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Visible filter and sort regression test",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "public:test_priority.py#test_filter_and_sort",
+          "id": "public.filter-sort",
+          "max_points": 3,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Visible export and server regression tests",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "public:test_priority.py#test_export_and_server_contract",
+          "id": "public.export-server",
+          "max_points": 3,
+          "partial_credit": "none"
+        }
+      ],
+      "id": "public_regression",
+      "max_points": 15
+    },
+    {
+      "checks": [
+        {
+          "description": "Missing required fields are rejected",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#robust.required-fields",
+          "id": "robust.required-fields",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Types, ranges, statuses and booleans are validated",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#robust.types-ranges-status",
+          "id": "robust.types-ranges-status",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Empty input succeeds and duplicate IDs fail",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#robust.empty-duplicate",
+          "id": "robust.empty-duplicate",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Malformed roots and JSON fail usefully",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#robust.malformed-load",
+          "id": "robust.malformed-load",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "One thousand items rank within two seconds",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "evaluation:evaluate.py#robust.scale",
+          "id": "robust.scale",
+          "max_points": 2,
+          "partial_credit": "none"
+        }
+      ],
+      "id": "robustness",
+      "max_points": 10
+    },
+    {
+      "checks": [
+        {
+          "description": "The submitted live application loads",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.live-app",
+          "id": "ui.live-app",
+          "max_points": 1,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Persistent labels and one main landmark",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.labels-landmark",
+          "id": "ui.labels-landmark",
+          "max_points": 1.5,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Search, filters and sort visibly update results",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.search-filter-sort",
+          "id": "ui.search-filter-sort",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Keyboard activation opens complete detail",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.keyboard-detail",
+          "id": "ui.keyboard-detail",
+          "max_points": 1,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Computed focus indicator is visible",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.visible-focus",
+          "id": "ui.visible-focus",
+          "max_points": 1,
+          "partial_credit": "none"
+        },
+        {
+          "description": "No horizontal overflow at all frozen viewports",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.responsive",
+          "id": "ui.responsive",
+          "max_points": 1.5,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Export produces a verified JSON download",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.download",
+          "id": "ui.download",
+          "max_points": 1.5,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Useful empty and invalid-data states are present",
+          "evidence_producer": "priority-picker-v2/capture_visual.py",
+          "evidence_reference": "visual:assessment.json#ui.empty-invalid",
+          "id": "ui.empty-invalid",
+          "max_points": 0.5,
+          "partial_credit": "none"
+        }
+      ],
+      "id": "accessibility_ui",
+      "max_points": 10
+    },
+    {
+      "checks": [
+        {
+          "description": "Required Python and web files exist",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:required-files",
+          "id": "scope.required-files",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Benchmark plan retains requirement traceability",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:BENCHMARK_PLAN.md",
+          "id": "scope.plan",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "README documents formula, operation and verification",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:README.md",
+          "id": "scope.readme",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Supplied backlog remains unchanged",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:data/backlog.json",
+          "id": "scope.immutable-input",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "No package-manager dependency surface is added",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:dependency-scan",
+          "id": "scope.no-dependencies",
+          "max_points": 2,
+          "partial_credit": "none"
+        }
+      ],
+      "id": "scope_completeness",
+      "max_points": 10
+    },
+    {
+      "checks": [
+        {
+          "description": "Python source and tests compile",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "process:compileall",
+          "id": "quality.compile",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "No TODO or NotImplemented implementation stubs remain",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "source:stub-scan",
+          "id": "quality.no-stubs",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Formula and tie breakers are documented",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:README.md#formula",
+          "id": "quality.formula-doc",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Plan records verification and non-targets",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "filesystem:BENCHMARK_PLAN.md#verification",
+          "id": "quality.verification-plan",
+          "max_points": 2,
+          "partial_credit": "none"
+        },
+        {
+          "description": "Implementation is concise, deterministic and dependency-free",
+          "evidence_producer": "priority-picker-v2/evaluate.py",
+          "evidence_reference": "source:determinism-scan",
+          "id": "quality.deterministic-design",
+          "max_points": 2,
+          "partial_credit": "none"
+        }
+      ],
+      "id": "engineering_quality",
+      "max_points": 10
+    }
+  ],
+  "efficiency_policy": {
+    "missing_cost": "unavailable-not-zero",
+    "quality_points": "excluded",
+    "timing_basis": "critical-path-and-active-time-separate",
+    "winner_interaction": "quality-with-noninferiority"
+  },
+  "evaluator_path": "evaluation/evaluate.py",
+  "evaluator_version": "1.0.0",
+  "partial_credit_policy": "binary-per-check",
+  "schema": "agent-workflow/benchmark-scoring-contract/v1",
+  "scorer_version": "1.0.0",
+  "total_points": 100
+}

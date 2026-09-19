@@ -1,0 +1,77 @@
+{
+  "schema": "agent-workflow/visual-rubric/v1",
+  "dimensions": [
+    {
+      "id": "visual_hierarchy",
+      "label": "Visual hierarchy and prioritization",
+      "weight": 20,
+      "anchors": {
+        "1": "Priority, rank, and primary actions are difficult to find or visually confused.",
+        "2": "Some hierarchy exists, but ranking and primary information compete with secondary detail.",
+        "3": "The ranked structure is understandable with minor emphasis or grouping problems.",
+        "4": "Priority, rank, and actions are immediately clear with strong grouping and emphasis.",
+        "5": "Hierarchy is exceptionally clear, economical, and reinforces decision making at every viewport."
+      }
+    },
+    {
+      "id": "interaction_clarity",
+      "label": "Interaction clarity and affordances",
+      "weight": 20,
+      "anchors": {
+        "1": "Controls or item interactions are hidden, ambiguous, or misleading.",
+        "2": "Core actions are discoverable only with experimentation or contain inconsistent affordances.",
+        "3": "Core actions are understandable, with a few unclear states or transitions.",
+        "4": "Controls, states, details, and export behavior are consistently obvious.",
+        "5": "Interactions are effortless, self-explanatory, and provide excellent state and focus feedback."
+      }
+    },
+    {
+      "id": "readability_density",
+      "label": "Readability and information density",
+      "weight": 15,
+      "anchors": {
+        "1": "Text, spacing, or density materially obstructs comprehension.",
+        "2": "Reading is possible but cramped, sparse, or poorly balanced.",
+        "3": "Information is readable with ordinary density or spacing issues.",
+        "4": "Typography and density support fast scanning without sacrificing detail.",
+        "5": "The interface achieves unusually strong scanability, detail, and visual comfort."
+      }
+    },
+    {
+      "id": "consistency",
+      "label": "Consistency and design-system coherence",
+      "weight": 15,
+      "anchors": {
+        "1": "Components, spacing, color, and states appear unrelated or accidental.",
+        "2": "Repeated patterns exist but vary noticeably without purpose.",
+        "3": "The interface is generally consistent with a few visible exceptions.",
+        "4": "Components and states form a coherent, disciplined visual system.",
+        "5": "The design language is exceptionally cohesive while preserving meaningful distinctions."
+      }
+    },
+    {
+      "id": "responsive_behavior",
+      "label": "Responsive behavior",
+      "weight": 15,
+      "anchors": {
+        "1": "One or more required viewports are broken or unusable.",
+        "2": "All viewports function, but major crowding, overflow, or ordering problems remain.",
+        "3": "The layout adapts adequately with minor compromises.",
+        "4": "Desktop, tablet, and mobile layouts are deliberate and comfortable.",
+        "5": "Each viewport feels purpose-designed with excellent preservation of task flow."
+      }
+    },
+    {
+      "id": "polish",
+      "label": "Polish and absence of visible defects",
+      "weight": 15,
+      "anchors": {
+        "1": "Visible defects, unfinished elements, or severe imbalance dominate the result.",
+        "2": "The result works but appears noticeably unfinished or uneven.",
+        "3": "The interface is presentable with several ordinary polish issues.",
+        "4": "The result is refined, balanced, and largely free of visible defects.",
+        "5": "The result is exceptionally finished, precise, and visually confident."
+      }
+    }
+  ]
+}

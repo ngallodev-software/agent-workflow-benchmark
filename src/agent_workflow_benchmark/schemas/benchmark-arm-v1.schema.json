@@ -1,0 +1,601 @@
+{
+  "$id": "agent-workflow/benchmark-arm/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arm": {
+      "enum": [
+        "control_raw",
+        "workflow_full"
+      ]
+    },
+    "arm_wrapper_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "assistance": {
+      "enum": [
+        "none",
+        "human",
+        "steering"
+      ]
+    },
+    "attempt": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "attempt_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "base_revision": {
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+      "type": "string"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "completed_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "constraint_profile_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "constraint_profile_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "effective_prompt_sha256": {
+      "additionalProperties": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "fixture_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "git_evidence": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "pair_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "phases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "active_process_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "completed_at": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "first_output_latency_seconds": {
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "human_review_seconds": {
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "phase_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phase_wall_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "process": {
+            "additionalProperties": true,
+            "properties": {
+              "argv": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "duration_seconds": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "error_category": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "returncode": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "argv",
+              "returncode",
+              "duration_seconds",
+              "error_category"
+            ],
+            "type": "object"
+          },
+          "provider_elapsed_seconds": {
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "queue_wait_seconds": {
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "start_offset_seconds": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "started_at": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "completed",
+              "task_failed",
+              "infrastructure_failed",
+              "timed_out"
+            ]
+          },
+          "stderr": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "stdout": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "billing_mode": {
+                "type": "string"
+              },
+              "cache_write_input_tokens": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "cached_input_tokens": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "cost_evidence_complete": {
+                "type": "boolean"
+              },
+              "currency": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "first_output_latency_seconds": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "input_tokens": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "local_estimated_cost": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "local_estimated_cost_source": {
+                "enum": [
+                  "explicit-local",
+                  "price-catalog",
+                  "provider-emitted-equivalent",
+                  "unavailable",
+                  "mixed"
+                ],
+                "type": "string"
+              },
+              "output_tokens": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "price_catalog_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "provider_billed_cost": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "provider_billed_cost_semantics": {
+                "type": "string"
+              },
+              "provider_elapsed_seconds": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "provider_total_tokens": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "reasoning_output_tokens": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "retry_count": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "source": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "subscription_allocated_cost": {
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "token_evidence_complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "input_tokens",
+              "cached_input_tokens",
+              "cache_write_input_tokens",
+              "output_tokens",
+              "reasoning_output_tokens",
+              "provider_total_tokens",
+              "retry_count",
+              "provider_billed_cost",
+              "local_estimated_cost",
+              "local_estimated_cost_source",
+              "provider_elapsed_seconds",
+              "first_output_latency_seconds",
+              "currency",
+              "price_catalog_id",
+              "source",
+              "subscription_allocated_cost",
+              "billing_mode",
+              "provider_billed_cost_semantics",
+              "token_evidence_complete",
+              "cost_evidence_complete"
+            ],
+            "type": "object"
+          },
+          "usage_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification_seconds": {
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "phase_id",
+          "state",
+          "started_at",
+          "start_offset_seconds",
+          "completed_at",
+          "phase_wall_seconds",
+          "active_process_seconds",
+          "provider_elapsed_seconds",
+          "first_output_latency_seconds",
+          "verification_seconds",
+          "queue_wait_seconds",
+          "human_review_seconds",
+          "process",
+          "usage",
+          "stdout",
+          "stderr",
+          "usage_file"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "repetition": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-arm/v1"
+    },
+    "scope_violations": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "slot": {
+      "enum": [
+        "A",
+        "B"
+      ]
+    },
+    "stage_dir": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "completed",
+        "task_failed",
+        "infrastructure_failed"
+      ]
+    },
+    "task_prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "billing_mode": {
+          "type": "string"
+        },
+        "cache_write_input_tokens": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cached_input_tokens": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "cost_evidence_complete": {
+          "type": "boolean"
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "first_output_latency_seconds": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "input_tokens": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "local_estimated_cost": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "local_estimated_cost_source": {
+          "enum": [
+            "explicit-local",
+            "price-catalog",
+            "provider-emitted-equivalent",
+            "unavailable",
+            "mixed"
+          ],
+          "type": "string"
+        },
+        "output_tokens": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "price_catalog_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_billed_cost": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "provider_billed_cost_semantics": {
+          "type": "string"
+        },
+        "provider_elapsed_seconds": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "provider_total_tokens": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reasoning_output_tokens": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "retry_count": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "subscription_allocated_cost": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "token_evidence_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "cached_input_tokens",
+        "cache_write_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "provider_total_tokens",
+        "retry_count",
+        "provider_billed_cost",
+        "local_estimated_cost",
+        "local_estimated_cost_source",
+        "provider_elapsed_seconds",
+        "first_output_latency_seconds",
+        "currency",
+        "price_catalog_id",
+        "complete",
+        "subscription_allocated_cost",
+        "billing_mode",
+        "provider_billed_cost_semantics",
+        "token_evidence_complete",
+        "cost_evidence_complete"
+      ],
+      "type": "object"
+    },
+    "worktree": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "pair_id",
+    "case_id",
+    "repetition",
+    "arm",
+    "slot",
+    "state",
+    "base_revision",
+    "fixture_sha256",
+    "task_prompt_sha256",
+    "arm_wrapper_sha256",
+    "constraint_profile_id",
+    "constraint_profile_sha256",
+    "effective_prompt_sha256",
+    "worktree",
+    "stage_dir",
+    "phases",
+    "usage",
+    "git_evidence",
+    "scope_violations",
+    "assistance",
+    "completed_at",
+    "attempt",
+    "attempt_id"
+  ],
+  "type": "object"
+}

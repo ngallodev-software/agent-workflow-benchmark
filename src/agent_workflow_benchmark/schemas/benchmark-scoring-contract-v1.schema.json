@@ -1,0 +1,185 @@
+{
+  "$id": "agent-workflow/benchmark-scoring-contract/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "benchmark_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "compatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "historical_receipts": {
+          "const": "immutable"
+        },
+        "legacy_benchmark_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "mixed_version_comparison": {
+          "const": "reject"
+        }
+      },
+      "required": [
+        "legacy_benchmark_ids",
+        "mixed_version_comparison",
+        "historical_receipts"
+      ],
+      "type": "object"
+    },
+    "dimensions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "evidence_producer": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "evidence_reference": {
+                  "maxLength": 1024,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "id": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "max_points": {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                "partial_credit": {
+                  "enum": [
+                    "none",
+                    "proportional",
+                    "enumerated"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "max_points",
+                "partial_credit",
+                "evidence_producer",
+                "evidence_reference",
+                "description"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_points": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "max_points",
+          "checks"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "efficiency_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "missing_cost": {
+          "const": "unavailable-not-zero"
+        },
+        "quality_points": {
+          "const": "excluded"
+        },
+        "timing_basis": {
+          "const": "critical-path-and-active-time-separate"
+        },
+        "winner_interaction": {
+          "enum": [
+            "descriptive-only",
+            "quality-with-noninferiority",
+            "separate-value-verdict"
+          ]
+        }
+      },
+      "required": [
+        "quality_points",
+        "winner_interaction",
+        "missing_cost",
+        "timing_basis"
+      ],
+      "type": "object"
+    },
+    "evaluator_path": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "evaluator_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "partial_credit_policy": {
+      "enum": [
+        "binary-per-check",
+        "contract-defined"
+      ]
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-scoring-contract/v1"
+    },
+    "scorer_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "total_points": {
+      "const": 100,
+      "type": "number"
+    }
+  },
+  "required": [
+    "schema",
+    "benchmark_id",
+    "benchmark_version",
+    "scorer_version",
+    "evaluator_version",
+    "evaluator_path",
+    "total_points",
+    "partial_credit_policy",
+    "dimensions",
+    "compatibility",
+    "efficiency_policy"
+  ],
+  "type": "object"
+}

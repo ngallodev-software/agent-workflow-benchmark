@@ -1,0 +1,26 @@
+[build-system]
+requires=["setuptools>=77"]
+build-backend="setuptools.build_meta"
+
+[project]
+name="agent-workflow-benchmark"
+version="0.1.1"
+description="Optional comparative benchmark plugin for Agent-Workflow"
+requires-python=">=3.11"
+license="Apache-2.0"
+dependencies=["agent-workflow>=0.10.1,<0.11","jsonschema>=4.18,<5"]
+
+[project.optional-dependencies]
+visual=["playwright==1.57.0"]
+test=["pytest>=8,<10"]
+
+[project.entry-points."agent_workflow.plugins"]
+agent-workflow-benchmark="agent_workflow_benchmark.plugin:plugin"
+
+[tool.setuptools]
+package-dir={""="src"}
+include-package-data=false
+[tool.setuptools.packages.find]
+where=["src"]
+[tool.setuptools.package-data]
+agent_workflow_benchmark=["schemas/*.json","assets/**/*","templates/evaluation/*.json"]

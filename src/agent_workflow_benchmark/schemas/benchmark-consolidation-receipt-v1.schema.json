@@ -1,0 +1,89 @@
+{
+  "$id": "agent-workflow/benchmark-consolidation-receipt/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "destination": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "relative_path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "relative_path",
+          "sha256",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "completed_at": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "coordinator_worktree": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "pairs": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "run_directory": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-consolidation-receipt/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "benchmark_id",
+    "coordinator_worktree",
+    "run_directory",
+    "pairs",
+    "artifacts",
+    "completed_at"
+  ],
+  "type": "object"
+}

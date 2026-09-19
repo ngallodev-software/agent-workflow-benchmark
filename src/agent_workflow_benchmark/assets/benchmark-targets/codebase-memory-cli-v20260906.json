@@ -1,0 +1,7 @@
+{
+  "schema": "agent-workflow/benchmark-target/v1",
+  "target_id": "codebase-memory-cli-v20260906",
+  "remote": "https://github.com/ngallodev/codebase-memory-cli.git",
+  "commit": "5f497af122c832dc2f9be008e75304e490f04541",
+  "tree": "c0a90ebba38978ab132340c357d019714ea31740"
+}

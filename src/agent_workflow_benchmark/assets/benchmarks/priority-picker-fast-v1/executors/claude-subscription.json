@@ -1,0 +1,93 @@
+{
+  "argv_template": [
+    "claude",
+    "--print",
+    "--verbose",
+    "--output-format",
+    "stream-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--no-session-persistence",
+    "--model",
+    "{model}"
+  ],
+  "authentication": {
+    "credential_environment": [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN"
+    ],
+    "mode": "subscription-session",
+    "status_argv": [
+      "claude",
+      "auth",
+      "status"
+    ],
+    "status_timeout_seconds": 30
+  },
+  "billing": {
+    "mode": "subscription",
+    "provider_billed_cost_semantics": "not-attributable",
+    "subscription_allocation": {
+      "amount": null,
+      "method": "none"
+    },
+    "subscription_plan": "Claude subscription"
+  },
+  "currency": "USD",
+  "effort": "default",
+  "environment": {},
+  "environment_allowlist": [
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_DATA_HOME",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "CLAUDE_CONFIG_DIR"
+  ],
+  "executor": "claude-code-cli",
+  "executor_version": "runtime-detected",
+  "max_stderr_bytes": 4194304,
+  "max_stdout_bytes": 16777216,
+  "model": "sonnet",
+  "nonzero_classification": "infrastructure",
+  "price_catalog_id": null,
+  "pricing": {
+    "input_tokens_include_cached": true,
+    "usd_per_million_tokens": {
+      "cache_write_input": null,
+      "cached_input": null,
+      "input": null,
+      "output": null,
+      "reasoning_output": null
+    }
+  },
+  "prompt_delivery": {
+    "append_newline": true,
+    "source": "stdin-prompt-file"
+  },
+  "provider": "anthropic",
+  "sandbox": {
+    "adapter": "claude-accept-edits",
+    "argv_prefix": [],
+    "verified_isolation": false
+  },
+  "schema": "agent-workflow/benchmark-executor-config/v1",
+  "timeout_seconds": 150,
+  "tool_policy": {
+    "authentication": "Claude subscription session",
+    "filesystem": "Claude acceptEdits plus post-run scope audit",
+    "hidden_oracle": "not present in target worktree",
+    "network": "provider-cli-policy"
+  },
+  "unsafe_inherit_environment": false
+}

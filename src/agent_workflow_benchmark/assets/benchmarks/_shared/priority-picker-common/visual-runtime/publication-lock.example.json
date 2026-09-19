@@ -1,0 +1,11 @@
+{
+  "description": "Generated output shape only. Do not use this example as evidence.",
+  "command": "agent-workflow benchmark runtime-seal visual-runtime-lock.json visual-runtime-lock.publication.json --container-image registry/image@sha256:<64-hex-digest>",
+  "required_evidence": [
+    "content-addressed container_image",
+    "browser_executable_sha256",
+    "font_manifest[].sha256",
+    "exact Playwright and browser versions",
+    "runtime-attest result with publication-verified state"
+  ]
+}

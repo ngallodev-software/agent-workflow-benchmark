@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Priority Picker</title><link rel="stylesheet" href="/styles.css"></head>
+<body>
+<main data-testid="priority-app">
+  <h1>Priority Picker</h1><p id="summary">Loading backlog…</p>
+  <div class="controls">
+    <label>Search <input data-testid="search-input" id="search" type="search"></label>
+    <label>Status <select data-testid="status-filter" id="status"><option value="all">All</option><option>ready</option><option>planned</option><option>in_progress</option><option>blocked</option></select></label>
+    <label>Risk <select data-testid="risk-filter" id="risk"><option value="all">All</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+    <label>Sort <select data-testid="sort-control" id="sort"><option value="score">Priority</option><option value="impact">Impact</option><option value="urgency">Urgency</option></select></label>
+    <button data-testid="export-button" id="export">Export JSON</button>
+  </div>
+  <div data-testid="priority-list" id="list"></div>
+  <section data-testid="item-detail" id="detail" aria-live="polite"><h2>Item detail</h2><p>Select an item.</p></section>
+</main><script src="/app.js" defer></script>
+</body></html>

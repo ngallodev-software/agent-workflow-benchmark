@@ -1,0 +1,500 @@
+{
+  "$id": "agent-workflow/benchmark-spec/v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arms": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "disabled_features": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled_features": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "profile_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "wrapper_path": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "wrapper_path",
+          "enabled_features",
+          "disabled_features"
+        ],
+        "type": "object"
+      },
+      "maxProperties": 2,
+      "minProperties": 2,
+      "type": "object"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "canonical_task": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_scope": {
+            "additionalProperties": false,
+            "properties": {
+              "disposable_trees": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "writable_paths": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "writable_trees": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "writable_paths",
+              "writable_trees",
+              "disposable_trees"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "input_path": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "input_path",
+          "allowed_scope"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "claim_level": {
+      "enum": [
+        "development",
+        "internal",
+        "publication"
+      ]
+    },
+    "composite": {
+      "additionalProperties": false,
+      "properties": {
+        "human_weight": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "machine_weight": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_human_score": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_machine_score": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "machine_weight",
+        "human_weight",
+        "minimum_machine_score",
+        "minimum_human_score"
+      ],
+      "type": "object"
+    },
+    "eligibility": {
+      "additionalProperties": false,
+      "properties": {
+        "required_guardrails": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "required_guardrails"
+      ],
+      "type": "object"
+    },
+    "fixture": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "target_input_path": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "template_path": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "template_path",
+        "target_input_path"
+      ],
+      "type": "object"
+    },
+    "live_review": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "advertise_host": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "ready_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "server_argv": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "startup_timeout_seconds": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "server_argv",
+        "host",
+        "ready_path",
+        "startup_timeout_seconds"
+      ],
+      "type": "object"
+    },
+    "machine_scoring": {
+      "additionalProperties": false,
+      "properties": {
+        "scorers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "argv": {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "dimension": {
+                "enum": [
+                  "hidden_functional",
+                  "public_regression",
+                  "robustness",
+                  "accessibility_ui",
+                  "scope_completeness",
+                  "engineering_quality"
+                ]
+              },
+              "id": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "command-v1"
+              },
+              "max_points": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "timeout_seconds": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "dimension",
+              "kind",
+              "max_points",
+              "argv",
+              "timeout_seconds"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "scorers"
+      ],
+      "type": "object"
+    },
+    "phases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_path": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "exclusiveMinimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prompt_path"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "scheduling": {
+      "additionalProperties": false,
+      "properties": {
+        "default_repetitions": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "infrastructure_retries": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_start_skew_seconds": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "pair_concurrency": {
+          "const": 1
+        }
+      },
+      "required": [
+        "default_repetitions",
+        "pair_concurrency",
+        "max_start_skew_seconds",
+        "infrastructure_retries"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "agent-workflow/benchmark-spec/v2"
+    },
+    "scoring_contract_path": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "visual": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_argv": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "minimum_reviewers": {
+          "additionalProperties": false,
+          "properties": {
+            "development": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "internal": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "publication": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "development",
+            "internal",
+            "publication"
+          ],
+          "type": "object"
+        },
+        "rubric_path": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "runtime_lock_path": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "capture_argv",
+        "timeout_seconds",
+        "rubric_path",
+        "runtime_lock_path",
+        "minimum_reviewers"
+      ],
+      "type": "object"
+    },
+    "winner_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence_level": {
+          "exclusiveMinimum": 0.5,
+          "maximum": 0.999,
+          "type": "number"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_human_regression": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_machine_regression": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_composite_delta": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_eligible_pairs": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enabled",
+        "minimum_eligible_pairs",
+        "minimum_composite_delta",
+        "confidence_level",
+        "max_machine_regression",
+        "max_human_regression"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "benchmark_id",
+    "version",
+    "claim_level",
+    "canonical_task",
+    "fixture",
+    "phases",
+    "arms",
+    "cases",
+    "scheduling",
+    "eligibility",
+    "machine_scoring",
+    "visual",
+    "composite",
+    "winner_policy",
+    "scoring_contract_path",
+    "live_review"
+  ],
+  "type": "object"
+}

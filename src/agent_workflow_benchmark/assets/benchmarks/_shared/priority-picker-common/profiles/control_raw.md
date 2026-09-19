@@ -1,0 +1,1 @@
+Complete this phase using your normal coding approach. No particular planning format, workflow protocol, review checklist, completion template, delegation pattern, or evidence narrative is required beyond the canonical phase deliverable.

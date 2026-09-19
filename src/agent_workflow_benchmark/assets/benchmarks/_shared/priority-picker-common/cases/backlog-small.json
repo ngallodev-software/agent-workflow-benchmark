@@ -1,0 +1,68 @@
+[
+  {
+    "id": "BKL-101",
+    "title": "Repair checkout timeout handling",
+    "impact": 5,
+    "urgency": 5,
+    "effort": 2,
+    "confidence": 5,
+    "risk": 4,
+    "status": "ready",
+    "description": "Prevent abandoned checkout requests from holding inventory reservations."
+  },
+  {
+    "id": "BKL-102",
+    "title": "Improve account search",
+    "impact": 4,
+    "urgency": 3,
+    "effort": 2,
+    "confidence": 4,
+    "risk": 2,
+    "status": "planned",
+    "description": "Add forgiving name and email matching for support staff."
+  },
+  {
+    "id": "BKL-103",
+    "title": "Document incident handoff",
+    "impact": 3,
+    "urgency": 4,
+    "effort": 1,
+    "confidence": 5,
+    "risk": 2,
+    "status": "in_progress",
+    "description": "Create a concise handoff view for incident commanders."
+  },
+  {
+    "id": "BKL-104",
+    "title": "Replace legacy billing export",
+    "impact": 5,
+    "urgency": 2,
+    "effort": 5,
+    "confidence": 3,
+    "risk": 5,
+    "status": "blocked",
+    "description": "Migrate the monthly billing export after the accounting schema is frozen."
+  },
+  {
+    "id": "BKL-105",
+    "title": "Add dashboard keyboard shortcuts",
+    "impact": 3,
+    "urgency": 2,
+    "effort": 2,
+    "confidence": 4,
+    "risk": 1,
+    "status": "planned",
+    "description": "Provide discoverable keyboard shortcuts for frequent dashboard actions."
+  },
+  {
+    "id": "BKL-106",
+    "title": "Harden webhook signature errors",
+    "impact": 5,
+    "urgency": 4,
+    "effort": 3,
+    "confidence": 4,
+    "risk": 5,
+    "status": "ready",
+    "description": "Return actionable diagnostics without leaking signature material."
+  }
+]
