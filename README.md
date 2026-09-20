@@ -36,6 +36,10 @@ agent-workflow commands --format markdown
 
 `agent-workflow --no-plugins --help` intentionally shows only the core recovery surface.
 
+## Core compatibility
+
+Plugin version `0.1.2` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.1` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+
 ## Main workflow
 
 A typical development run is:
