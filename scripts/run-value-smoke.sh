@@ -141,5 +141,68 @@ print(f"  report: {result.get('report')}")
 print(f"  state: {result.get('state')}")
 PY
 
+"${PYTHON}" - "${RUN_PLAN}" "${ROOT}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+smoke_root = Path(sys.argv[2])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+run_dir = Path(plan["coordinator"]["run_dir"])
+
+failures = []
+print("")
+print("token evidence qualification:")
+for pair in plan.get("pairs", []):
+    pair_state_path = (
+        run_dir
+        / "pair-state"
+        / str(pair["case_id"])
+        / f"r{int(pair['repetition']):02d}"
+        / "pair.json"
+    )
+    if not pair_state_path.is_file():
+        failures.append(f"{pair['pair_id']}: missing pair evidence {pair_state_path}")
+        continue
+    pair_state = json.loads(pair_state_path.read_text(encoding="utf-8"))
+    selected_attempt = int(pair_state["selected_attempt"])
+    attempt = next(
+        (item for item in pair.get("attempts", []) if int(item["attempt"]) == selected_attempt),
+        None,
+    )
+    if attempt is None:
+        failures.append(f"{pair['pair_id']}: selected attempt {selected_attempt} absent from run plan")
+        continue
+    for arm_name, arm in attempt["arms"].items():
+        arm_path = Path(arm["stage_dir"]) / "arm.json"
+        if not arm_path.is_file():
+            failures.append(f"{pair['pair_id']}/{arm_name}: missing {arm_path}")
+            continue
+        arm_value = json.loads(arm_path.read_text(encoding="utf-8"))
+        usage = arm_value.get("usage", {})
+        complete = usage.get("token_evidence_complete") is True
+        print(
+            f"  - {pair['pair_id']}/{arm_name}: complete={complete}; "
+            f"input={usage.get('input_tokens')}; cached={usage.get('cached_input_tokens')}; "
+            f"output={usage.get('output_tokens')}; reasoning={usage.get('reasoning_output_tokens')}; "
+            f"total={usage.get('provider_total_tokens')}"
+        )
+        if not complete:
+            failures.append(f"{pair['pair_id']}/{arm_name}: token_evidence_complete is not true")
+
+if failures:
+    print("", file=sys.stderr)
+    print("value-smoke execution completed, but token evidence qualification failed:", file=sys.stderr)
+    for failure in failures:
+        print(f"  - {failure}", file=sys.stderr)
+    print(f"artifacts preserved at: {smoke_root}", file=sys.stderr)
+    print(f"collect them with: python scripts/collect-value-smoke-evidence.py {smoke_root}", file=sys.stderr)
+    raise SystemExit(3)
+
+print("token evidence qualification: passed")
+PY
 echo "local smoke artifacts: ${ROOT}"
-echo "smoke XDG isolation was process-local; caller shell environment is unchanged"\necho "collect durable evidence with:"\necho "  python scripts/collect-value-smoke-evidence.py ${ROOT}"
+echo "smoke XDG isolation was process-local; caller shell environment is unchanged"
+echo "collect durable evidence with:"
+echo "  python scripts/collect-value-smoke-evidence.py ${ROOT}"
