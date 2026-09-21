@@ -7,7 +7,11 @@ from agent_workflow_benchmark.benchmarking.contracts import (
     normalized_arm_profiles,
     validate_spec,
 )
-from agent_workflow_benchmark.benchmarking.runner import AGENT_WORKFLOW_EXECUTOR_ALIASES
+from agent_workflow.config import defaults
+from agent_workflow_benchmark.benchmarking.treatments import (
+    AGENT_WORKFLOW_EXECUTOR_ALIASES,
+    treatment_runtime_checks,
+)
 from agent_workflow_benchmark.benchmarking.service import export_value_smoke_suite
 
 
@@ -41,3 +45,18 @@ def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None
 def test_agent_workflow_runner_maps_builtin_executor_ids() -> None:
     assert AGENT_WORKFLOW_EXECUTOR_ALIASES["codex-cli"] == "codex"
     assert AGENT_WORKFLOW_EXECUTOR_ALIASES["claude-code-cli"] == "claude"
+
+
+def test_value_smoke_runtime_checks_match_default_codex_binding(tmp_path: Path) -> None:
+    destination = tmp_path / "suite"
+    result = export_value_smoke_suite(destination)
+    spec = validate_spec(Path(result["spec"]))
+    import json
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+
+    checks = treatment_runtime_checks(defaults(), spec, executor)
+
+    assert checks
+    assert all(item["passed"] for item in checks), checks
