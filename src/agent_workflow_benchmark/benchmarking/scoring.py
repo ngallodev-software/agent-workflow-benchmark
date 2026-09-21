@@ -41,12 +41,30 @@ def _core_guardrails(
             required="paired_identity" in required,
         )
     )
-    wrapper_other = pair["arms"]["workflow_full" if arm_value["arm"] == "control_raw" else "control_raw"]["arm_wrapper_sha256"]
+    other_arm = "workflow_full" if arm_value["arm"] == "control_raw" else "control_raw"
+    treatments = plan.get("treatments")
+    if isinstance(treatments, Mapping):
+        current_treatment = treatments.get(str(arm_value["arm"]), {})
+        other_treatment = treatments.get(other_arm, {})
+        treatment_ok = (
+            isinstance(current_treatment, Mapping)
+            and isinstance(other_treatment, Mapping)
+            and current_treatment.get("treatment_id") != other_treatment.get("treatment_id")
+        )
+        treatment_detail = (
+            f"treatment={current_treatment.get('treatment_id')}; "
+            f"other={other_treatment.get('treatment_id')}; "
+            f"runner={current_treatment.get('runner_kind')}"
+        )
+    else:
+        wrapper_other = pair["arms"][other_arm]["arm_wrapper_sha256"]
+        treatment_ok = arm_value["arm_wrapper_sha256"] != wrapper_other
+        treatment_detail = "arm wrappers must differ while canonical task digest remains equal"
     values.append(
         _guardrail(
             "declared_treatment",
-            "pass" if arm_value["arm_wrapper_sha256"] != wrapper_other else "fail",
-            "arm wrappers must differ while canonical task digest remains equal",
+            "pass" if treatment_ok else "fail",
+            treatment_detail,
             required="declared_treatment" in required,
         )
     )
