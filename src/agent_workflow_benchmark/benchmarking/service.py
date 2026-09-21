@@ -16,7 +16,7 @@ from .auth import preflight_authentication
 from .policy import apply_operating_policy, implicit_operating_policy, load_operating_policy
 from .pairing import attempts_for
 from .runtime import attest_runtime, seal_runtime_lock, validate_runtime_lock
-from .treatments import treatment_runtime_checks
+from .treatments import treatment_runtime_checks, uses_agent_workflow
 from .consolidation import consolidate_run, verify_consolidated_run
 from .contracts import BENCHMARK_SPEC_V3_SCHEMA, validate_executor_config, validate_spec
 from .planning import create_run_plan, materialize_fixture
@@ -584,7 +584,7 @@ def benchmark_readiness(
             ),
         },
     ])
-    if effective_spec.get("schema") == BENCHMARK_SPEC_V3_SCHEMA:
+    if effective_spec.get("schema") == BENCHMARK_SPEC_V3_SCHEMA and uses_agent_workflow(effective_spec):
         if settings is None:
             checks.append({
                 "id": "agent-workflow-settings",
