@@ -50,6 +50,7 @@ def handle_benchmark_command(
             policy=args.policy,
             runtime_lock=args.runtime_lock,
             settings=settings,
+            execution_only=bool(getattr(args, "execution_only", False)),
         )
     if command == "runtime-attest":
         return attest_benchmark_runtime(args.runtime_lock, claim_level=args.claim_level)
@@ -96,7 +97,11 @@ def handle_benchmark_command(
             codebase_memory_mode=args.codebase_memory_mode,
         )
     if command == "run":
-        return run_benchmark(settings, args.run)
+        return run_benchmark(
+            settings,
+            args.run,
+            execution_only=bool(getattr(args, "execution_only", False)),
+        )
     if command == "resume":
         return resume_benchmark(settings, args.run)
     if command == "status":
