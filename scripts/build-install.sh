@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ORIGINAL_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 VENV_ARG=""
 VERIFY_ONLY=0
 BOOTSTRAP_BUILD=1
@@ -91,6 +92,90 @@ PY
   return 1
 }
 
+prepare_dev_config() {
+  local source_config="$ORIGINAL_CONFIG_HOME/agent-workflow/config.toml"
+  local target_config="$XDG_CONFIG_HOME/agent-workflow/config.toml"
+  mkdir -p "$(dirname "$target_config")"
+  "$PYTHON" - "$source_config" "$target_config" "$VENV" <<'PY'
+from pathlib import Path
+import json
+import re
+import sys
+import tomllib
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+venv = Path(sys.argv[3]).resolve()
+input_path = target if target.is_file() else source
+text = input_path.read_text(encoding="utf-8") if input_path.is_file() else "schema_version = 1\n"
+
+try:
+    parsed = tomllib.loads(text)
+except tomllib.TOMLDecodeError as exc:
+    raise SystemExit(f"cannot prepare dev config from {input_path}: {exc}") from exc
+
+plugins = parsed.get("plugins", {})
+enabled = plugins.get("enabled", []) if isinstance(plugins, dict) else []
+if not isinstance(enabled, list) or not all(isinstance(item, str) and item for item in enabled):
+    raise SystemExit("[plugins].enabled must be a string list")
+enabled = list(dict.fromkeys([*enabled, "agent-workflow-benchmark"]))
+
+def patch_section(source_text: str, section: str, replacements: dict[str, str]) -> str:
+    lines = source_text.splitlines()
+    out: list[str] = []
+    in_section = False
+    saw_section = False
+    written: set[str] = set()
+    header = f"[{section}]"
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            if in_section:
+                for key, value in replacements.items():
+                    if key not in written:
+                        out.append(f"{key} = {value}")
+            in_section = stripped == header
+            saw_section = saw_section or in_section
+            if in_section:
+                written = set()
+            out.append(line)
+            continue
+        if in_section:
+            matched = False
+            for key, value in replacements.items():
+                if re.match(rf"^\s*{re.escape(key)}\s*=", line):
+                    out.append(f"{key} = {value}")
+                    written.add(key)
+                    matched = True
+                    break
+            if matched:
+                continue
+        out.append(line)
+    if in_section:
+        for key, value in replacements.items():
+            if key not in written:
+                out.append(f"{key} = {value}")
+    if not saw_section:
+        if out and out[-1].strip():
+            out.append("")
+        out.append(header)
+        for key, value in replacements.items():
+            out.append(f"{key} = {value}")
+    return "\n".join(out).rstrip() + "\n"
+
+text = patch_section(
+    text,
+    "paths",
+    {
+        "worktree_root": json.dumps(str(venv / ".xdg" / "data" / "agent-workflow" / "worktrees")),
+        "state_root": json.dumps(str(venv / ".xdg" / "state" / "agent-workflow")),
+    },
+)
+text = patch_section(text, "plugins", {"enabled": json.dumps(enabled)})
+target.write_text(text, encoding="utf-8")
+PY
+}
+
 if [[ -n "$VENV_ARG" ]]; then
   VENV="$(resolve_path "$VENV_ARG")"
 elif [[ -n "${AGENT_WORKFLOW_VENV:-}" ]]; then
@@ -123,7 +208,15 @@ AW_LAUNCHER="$VENV/bin/agent-workflow"
   echo "Agent-Workflow launcher is not installed in the selected virtualenv: $AW_LAUNCHER" >&2
   exit 1
 }
+export VIRTUAL_ENV="$VENV"
+export AGENT_WORKFLOW_VENV="$VENV"
+export AGENT_WORKFLOW_BIN="$AW_LAUNCHER"
 export PATH="$VENV/bin:$PATH"
+export XDG_CONFIG_HOME="$VENV/.xdg/config"
+export XDG_STATE_HOME="$VENV/.xdg/state"
+export XDG_DATA_HOME="$VENV/.xdg/data"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME"
+prepare_dev_config
 
 echo "shared Agent-Workflow virtualenv: $VENV"
 echo "target Python: $PYTHON"
@@ -563,6 +656,39 @@ print(
     f"enabled={row.get('enabled')} loaded={row.get('loaded')} version={expected}"
 )
 PY
+
+  "$PYTHON" - <<'PY'
+from agent_workflow.config import load_settings
+from agent_workflow.decisions import decision_mode
+from agent_workflow.semantic.typesafe import capability
+
+settings = load_settings()
+mode = decision_mode(settings.decision_mode)
+if mode.provider == "typesafe":
+    cap = capability(settings)
+    if not cap.get("typesafe_sdk_installed"):
+        raise SystemExit(
+            f"decision mode {mode.name!r} requires the TypeSafe SDK in the shared virtualenv"
+        )
+    if not cap.get("api_key_configured"):
+        raise SystemExit(
+            f"decision mode {mode.name!r} requires TYPESAFE_API_KEY in the runtime environment"
+        )
+    if mode.capture_comparison:
+        from agent_workflow.comparative_eval import shared_library_status
+        shared = shared_library_status()
+        if not shared.get("installed") or not shared.get("compatible"):
+            raise SystemExit(
+                "comparative decision mode requires compatible "
+                "agent-workflow-comparative-eval in the shared virtualenv"
+            )
+    print(
+        f"semantic runtime verified: mode={mode.name}; "
+        "typesafe_api_key=configured"
+    )
+else:
+    print("semantic runtime verified: mode=deterministic; TypeSafe key not required")
+PY
 }
 
 if [[ "$VERIFY_ONLY" -eq 1 ]]; then
@@ -710,3 +836,6 @@ echo "  virtualenv: $VENV"
 echo "  Agent-Workflow: $("$AW_LAUNCHER" --version)"
 echo "  benchmark: $EXPECTED_VERSION"
 echo "  wheel: $WHEEL"
+echo "  config: $XDG_CONFIG_HOME/agent-workflow/config.toml"
+echo "  state: $XDG_STATE_HOME/agent-workflow"
+echo "  data: $XDG_DATA_HOME/agent-workflow"

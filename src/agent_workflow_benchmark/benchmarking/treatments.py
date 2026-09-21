@@ -75,6 +75,40 @@ def treatment_runtime_checks(
 
     checks: list[dict[str, Any]] = []
 
+    if settings.decision_mode in {"typesafe", "comparative"}:
+        from agent_workflow.semantic.typesafe import capability
+
+        semantic = capability(settings)
+        checks.append({
+            "id": "typesafe-sdk",
+            "passed": bool(semantic.get("typesafe_sdk_installed")),
+            "detail": (
+                f"decision_mode={settings.decision_mode}; "
+                f"installed={bool(semantic.get('typesafe_sdk_installed'))}"
+            ),
+        })
+        checks.append({
+            "id": "typesafe-api-key",
+            "passed": bool(semantic.get("api_key_configured")),
+            "detail": (
+                f"decision_mode={settings.decision_mode}; "
+                f"configured={bool(semantic.get('api_key_configured'))}"
+            ),
+        })
+        if settings.decision_mode == "comparative":
+            from agent_workflow.comparative_eval import shared_library_status
+
+            shared = shared_library_status()
+            checks.append({
+                "id": "comparative-eval",
+                "passed": bool(shared.get("installed")) and bool(shared.get("compatible")),
+                "detail": (
+                    f"installed={bool(shared.get('installed'))}; "
+                    f"compatible={bool(shared.get('compatible'))}; "
+                    f"version={shared.get('version')!r}"
+                ),
+            })
+
     checks.append({
         "id": "agent-workflow-executor-binding",
         "passed": aw_argv is not None,

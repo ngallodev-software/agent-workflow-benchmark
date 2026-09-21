@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.2` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.4` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -118,6 +118,18 @@ The run plan and experiment manifest record the stable internal arm slot separat
 
 Before a v3 plan is created, readiness verifies the Agent-Workflow treatment resolves to a comparable runtime: the mapped Agent-Workflow executor exists, provider family matches, the backend executable is either the direct Codex CLI or Agent-Workflow's owned `agent-workflow-codex` wrapper, the model is permitted, reasoning-effort semantics are compatible, and the selected Agent-Workflow agent class permits that model. These checks are persisted in the run plan/experiment manifest.
 
+The development installer and value-smoke runner use the same shared Agent-Workflow virtualenv and isolate Agent-Workflow runtime files under that venv:
+
+```text
+<venv>/.xdg/config
+<venv>/.xdg/state
+<venv>/.xdg/data
+```
+
+The installer updates the venv-local Agent-Workflow config so `worktree_root` and `state_root` point into that layout and ensures `agent-workflow-benchmark` remains enabled alongside any existing plugins. The smoke runner applies the XDG environment only to its own process, so the caller shell is automatically unchanged when the run exits.
+
+If Agent-Workflow is configured with `decision_policy.mode = "typesafe"` or `"comparative"`, readiness additionally requires the TypeSafe SDK and `TYPESAFE_API_KEY`; comparative mode also requires a compatible `agent-workflow-comparative-eval` installation in the shared venv.
+
 For an authenticated end-to-end smoke run, the repository includes:
 
 ```bash
@@ -134,6 +146,14 @@ VALUE_SMOKE_ROOT=/tmp/aw-value-smoke-run bash scripts/run-value-smoke.sh
 ```
 
 The helper exports the v3 smoke suite, creates the frozen fixture repository, runs execution-only readiness, creates the paired plan, and executes the paired treatments without entering visual capture or human-review finalization. Visual runtime attestation remains required for normal benchmark runs. The smoke stops before planning if runtime comparability or Codex subscription authentication is not verified.
+
+After any completed or failed smoke run, preserve the raw evidence with:
+
+```bash
+python scripts/collect-value-smoke-evidence.py /tmp/agent-workflow-value-smoke.XXXXXX
+```
+
+If the smoke root is omitted, the collector chooses the newest `$TMPDIR/agent-workflow-value-smoke.*` directory. It packages the complete smoke root plus the referenced benchmark run directory, records package/runtime identity without secret values, writes SHA-256 checksums, and refuses to archive if the current `TYPESAFE_API_KEY` value is found in collected files.
 
 ## Legacy command migration
 

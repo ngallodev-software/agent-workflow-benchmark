@@ -469,10 +469,40 @@ def _run_phase_arm(
 
 def _git_evidence(pair: Mapping[str, Any], arm: Mapping[str, Any]) -> dict[str, Any]:
     worktree, base = Path(arm["worktree"]), str(pair["base_revision"])
-    patch = run(["git", "-C", str(worktree), "diff", "--binary", "--full-index", base, "--", ":(exclude).agent-workflow-benchmark"], check=False, max_stdout_bytes=16 * 1024 * 1024)
+    patch_argv = [
+        "git",
+        "-C",
+        str(worktree),
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--binary",
+        "--full-index",
+        base,
+        "--",
+        ".",
+        ":(exclude).agent-workflow-benchmark",
+    ]
+    patch = run(
+        patch_argv,
+        check=True,
+        max_stdout_bytes=16 * 1024 * 1024,
+    )
+    status_argv = [
+        "git",
+        "-C",
+        str(worktree),
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+    ]
     status = run(
-        ["git", "-C", str(worktree), "status", "--porcelain=v1", "--untracked-files=all"],
-        check=False, environment=EnvironmentPolicy(unsafe_inherit=True, git_config_policy="operator"),
+        status_argv,
+        check=True,
+        environment=EnvironmentPolicy(
+            unsafe_inherit=True,
+            git_config_policy="operator",
+        ),
     )
     stage = Path(arm["stage_dir"])
     patch_path = stage / "patch.diff"
@@ -485,9 +515,14 @@ def _git_evidence(pair: Mapping[str, Any], arm: Mapping[str, Any]) -> dict[str, 
         if not relative.startswith(".agent-workflow-benchmark/"):
             changed.append(relative)
     evidence = {
-        "base_revision": base, "patch_path": str(patch_path), "patch_sha256": sha256_file(patch_path),
+        "base_revision": base,
+        "patch_path": str(patch_path),
+        "patch_sha256": sha256_file(patch_path),
+        "patch_bytes": patch_path.stat().st_size,
+        "patch_argv": patch_argv,
         "changed_paths": sorted(set(changed)),
         "status_sha256": hashlib.sha256(str(status.stdout).encode()).hexdigest(),
+        "status_argv": status_argv,
     }
     atomic_write_json(stage / "git-evidence.json", evidence)
     return evidence
