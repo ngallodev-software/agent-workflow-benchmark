@@ -504,9 +504,10 @@ PY
 schema_version = 1
 
 [plugins]
-enabled = []
+enabled = ["agent-workflow-benchmark"]
 EOF
   plugins_json="$("$AW_LAUNCHER" --config "$tmp_config" --json plugins list)"
+  "$AW_LAUNCHER" --config "$tmp_config" benchmark --help >/dev/null
   rm -f "$tmp_config"
   PLUGINS_JSON="$plugins_json" "$PYTHON" - "$EXPECTED_VERSION" <<'PY'
 import json
@@ -530,8 +531,12 @@ if row.get("distribution_version") != expected:
     raise SystemExit(
         f"plugin inventory version mismatch: {row.get('distribution_version')} != {expected}"
     )
+if row.get("enabled") is not True or row.get("loaded") is not True:
+    raise SystemExit(
+        "benchmark plugin entry point was discovered but did not load when explicitly enabled"
+    )
 print(
-    "verified Agent-Workflow plugin discovery: "
+    "verified Agent-Workflow plugin discovery and command registration: "
     f"enabled={row.get('enabled')} loaded={row.get('loaded')} version={expected}"
 )
 PY
