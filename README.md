@@ -38,7 +38,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.0` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.1` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -80,6 +80,23 @@ agent-workflow benchmark run RUN_PLAN.json
 The smoke study keeps the canonical task, fixture, hidden evaluator, scoring contract, and direct executor identity fixed. Its control treatment is `raw-direct/v1`; its candidate treatment is `agent-workflow-full/v1`, which delegates each benchmark phase through Agent-Workflow using the same configured executor/model identity. Use `--agent-class` on `value-smoke-export` when the local Agent-Workflow runtime uses a different explicit agent class.
 
 The run plan and experiment manifest record the stable internal arm slot separately from `treatment_id` and `runner_kind`. This preserves historical evidence schemas while allowing future structured-direct and ablation studies to reuse the paired harness.
+
+Before a v3 plan is created, readiness now verifies the Agent-Workflow treatment resolves to a comparable runtime: the mapped Agent-Workflow executor exists, provider family matches, the configured executable basename matches the direct benchmark executable, the model is permitted, reasoning-effort semantics are compatible, and the selected Agent-Workflow agent class permits that model. These checks are persisted in the run plan/experiment manifest.
+
+For an authenticated end-to-end smoke run, the repository includes:
+
+```bash
+bash scripts/run-value-smoke.sh
+```
+
+Environment overrides:
+
+```bash
+EXECUTOR_PROFILE=claude-subscription AGENT_CLASS=implementation bash scripts/run-value-smoke.sh
+VALUE_SMOKE_ROOT=/tmp/aw-value-smoke-run bash scripts/run-value-smoke.sh
+```
+
+The helper exports the v3 smoke suite, creates the frozen fixture repository, runs readiness, creates the paired plan, and executes the normal benchmark pipeline. It stops before planning if runtime comparability or subscription authentication is not verified.
 
 ## Legacy command migration
 
