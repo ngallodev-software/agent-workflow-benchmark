@@ -18,6 +18,8 @@ from .common import canonical_json_sha256, child, copy_tree, read_object, text_s
 from .contracts import (
     BENCHMARK_RUN_SCHEMA,
     contract_sha256,
+    normalized_arm_profiles,
+    run_schema_for_spec,
     load_scoring_contract,
     validate_executor_config,
     validate_spec,
@@ -79,11 +81,11 @@ def _environment_identity(executor: dict[str, Any], codebase_memory_mode: str) -
     return value
 
 
-def _effective_prompt(*, canonical_task: str, phase_prompt: str, wrapper: str, arm: str, phase_id: str, case_id: str, codebase_memory_mode: str) -> str:
+def _effective_prompt(*, canonical_task: str, phase_prompt: str, wrapper: str, arm: str, treatment_id: str, phase_id: str, case_id: str, codebase_memory_mode: str) -> str:
     return "\n\n".join(
         [
             NEUTRAL_ENVELOPE.strip(),
-            f"# Benchmark identity\n\nArm: `{arm}`\nCase: `{case_id}`\nPhase: `{phase_id}`",
+            f"# Benchmark identity\n\nArm slot: `{arm}`\nTreatment: `{treatment_id}`\nCase: `{case_id}`\nPhase: `{phase_id}`",
             f"# Codebase-memory tool mode\n\nUse only `{codebase_memory_mode}` for codebase-memory assistance in this cohort. Do not use another codebase-memory integration.",
             "# Canonical task\n\n" + canonical_task.strip(),
             "# Current phase\n\n" + phase_prompt.strip(),
@@ -294,10 +296,15 @@ def create_run_plan(
             "interrupted_pair_policy": effective_policy["interrupted_pair_policy"],
         })
         profiles: dict[str, dict[str, Any]] = {}
-        for arm, profile in spec["arms"].items():
+        normalized_profiles = normalized_arm_profiles(spec)
+        for arm, profile in normalized_profiles.items():
             wrapper = _read_text(child(spec_path.parent, profile["wrapper_path"], f"{arm} wrapper"))
             inventory = {
-                "profile_id": profile["profile_id"], "wrapper_sha256": text_sha256(wrapper),
+                "profile_id": profile["profile_id"],
+                "treatment_id": profile["treatment_id"],
+                "source_role": profile["_source_role"],
+                "runner": profile["runner"],
+                "wrapper_sha256": text_sha256(wrapper),
                 "enabled_features": profile["enabled_features"], "disabled_features": profile["disabled_features"],
             }
             profiles[arm] = {**inventory, "constraint_profile_sha256": canonical_json_sha256(inventory), "wrapper": wrapper}
@@ -337,6 +344,7 @@ def create_run_plan(
                                 canonical_task=canonical_task,
                                 phase_prompt=_read_text(child(spec_path.parent, phase["prompt_path"], "phase prompt")),
                                 wrapper=profiles[arm]["wrapper"], arm=arm,
+                                treatment_id=profiles[arm]["treatment_id"],
                                 phase_id=str(phase["id"]), case_id=str(case["id"]),
                                 codebase_memory_mode=codebase_memory_mode,
                             )
@@ -368,14 +376,26 @@ def create_run_plan(
                     "arms": first["arms"], "attempts": attempts,
                 })
 
+        run_schema = run_schema_for_spec(spec)
+        treatments = {
+            arm: {
+                "source_role": profiles[arm]["source_role"],
+                "treatment_id": profiles[arm]["treatment_id"],
+                "runner_kind": profiles[arm]["runner"]["kind"],
+                "profile_id": profiles[arm]["profile_id"],
+                "agent_class": profiles[arm]["runner"].get("agent_class"),
+            }
+            for arm in ("control_raw", "workflow_full")
+        }
         plan = {
-            "schema": BENCHMARK_RUN_SCHEMA, "run_id": run_id, "benchmark_id": spec["benchmark_id"],
+            "schema": run_schema, "run_id": run_id, "benchmark_id": spec["benchmark_id"],
             "benchmark_version": spec["version"], "created_at": utc_now(), "state": "planned",
             "claim_level": spec["claim_level"],
             "source": {"repository": str(source.root), "base_ref": base_ref, "base_revision": base_revision, "source_cleanliness": source.cleanliness_evidence()},
             "coordinator": {"worktree": str(coordinator), "branch": coordinator_info["branch"], "run_dir": str(run_dir), "suite_dir": str(suite_dir), "spec_path": str(suite_spec), "executor_config_path": str(executor_snapshot)},
             "identities": {"spec_sha256": contract_sha256(spec), "suite_sha256": tree_sha256(suite_dir), "fixture_sha256": fixture_sha256, "task_prompt_sha256": task_prompt_sha256, "environment_sha256": environment["sha256"], "tool_policy_sha256": tool_policy_sha256, "resource_policy_sha256": resource_policy_sha256},
             "environment": environment, "executor": executor, "phases": phase_values, "pairs": pairs,
+            **({"treatments": treatments} if run_schema != BENCHMARK_RUN_SCHEMA else {}),
             "policies": {
                 "max_start_skew_seconds": spec["scheduling"]["max_start_skew_seconds"],
                 "pair_concurrency": spec["scheduling"]["pair_concurrency"],
@@ -398,7 +418,7 @@ def create_run_plan(
         }
         if scoring_identity is not None:
             plan["scoring_identity"] = scoring_identity
-        validate_value(plan, BENCHMARK_RUN_SCHEMA, "benchmark run plan")
+        validate_value(plan, run_schema, "benchmark run plan")
         atomic_write_json(run_dir / "run-plan.json", plan)
         atomic_write_json(run_dir / "environment.json", environment)
         atomic_write_json(run_dir / "authentication.json", authentication_evidence)
@@ -409,7 +429,7 @@ def create_run_plan(
             "codebase_memory_mode": codebase_memory_mode,
             "billing": executor["billing"], "assistance_cohort": assistance_cohort,
             "operating_policy": effective_policy,
-            "arms": {arm: {"profile_id": profiles[arm]["profile_id"], "constraint_profile_sha256": profiles[arm]["constraint_profile_sha256"], "arm_wrapper_sha256": profiles[arm]["wrapper_sha256"], "enabled_features": spec["arms"][arm]["enabled_features"], "disabled_features": spec["arms"][arm]["disabled_features"]} for arm in ("control_raw", "workflow_full")},
+            "arms": {arm: {"source_role": profiles[arm]["source_role"], "treatment_id": profiles[arm]["treatment_id"], "runner_kind": profiles[arm]["runner"]["kind"], "agent_class": profiles[arm]["runner"].get("agent_class"), "profile_id": profiles[arm]["profile_id"], "constraint_profile_sha256": profiles[arm]["constraint_profile_sha256"], "arm_wrapper_sha256": profiles[arm]["wrapper_sha256"], "enabled_features": normalized_profiles[arm]["enabled_features"], "disabled_features": normalized_profiles[arm]["disabled_features"]} for arm in ("control_raw", "workflow_full")},
             "task_prompt_sha256": task_prompt_sha256, "fixture_sha256": fixture_sha256, "composite": spec["composite"],
         })
         atomic_write_json(run_dir / "run.json", {

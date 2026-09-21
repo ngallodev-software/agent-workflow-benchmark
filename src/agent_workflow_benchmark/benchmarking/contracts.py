@@ -10,10 +10,12 @@ from .common import canonical_json_sha256, child, safe_relative
 from .runtime import validate_runtime_lock
 
 BENCHMARK_SPEC_SCHEMA = "agent-workflow/benchmark-spec/v1"
-BENCHMARK_SPEC_SCHEMAS = {BENCHMARK_SPEC_SCHEMA, "agent-workflow/benchmark-spec/v2"}
+BENCHMARK_SPEC_V3_SCHEMA = "agent-workflow/benchmark-spec/v3"
+BENCHMARK_SPEC_SCHEMAS = {BENCHMARK_SPEC_SCHEMA, "agent-workflow/benchmark-spec/v2", BENCHMARK_SPEC_V3_SCHEMA}
 BENCHMARK_SCORING_CONTRACT_SCHEMA = "agent-workflow/benchmark-scoring-contract/v1"
 BENCHMARK_EXECUTOR_SCHEMA = "agent-workflow/benchmark-executor-config/v1"
 BENCHMARK_RUN_SCHEMA = "agent-workflow/benchmark-run/v1"
+BENCHMARK_RUN_V2_SCHEMA = "agent-workflow/benchmark-run/v2"
 BENCHMARK_ARM_SCHEMA = "agent-workflow/benchmark-arm/v1"
 BENCHMARK_PAIR_SCHEMA = "agent-workflow/benchmark-pair/v1"
 BENCHMARK_PHASE_EVENT_SCHEMA = "agent-workflow/benchmark-phase-event/v1"
@@ -25,6 +27,43 @@ BENCHMARK_CONSOLIDATION_SCHEMA = "agent-workflow/benchmark-consolidation-receipt
 BENCHMARK_REPORT_SCHEMA = "agent-workflow/benchmark-report/v2"
 BENCHMARK_VISUAL_EVIDENCE_SCHEMA = "agent-workflow/benchmark-visual-evidence/v1"
 BENCHMARK_OPERATING_POLICY_SCHEMA = "agent-workflow/benchmark-operating-policy/v1"
+
+
+LEGACY_INTERNAL_ARMS = ("control_raw", "workflow_full")
+
+
+def normalized_arm_profiles(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return the two benchmark treatments keyed by the stable internal arm slots.
+
+    Historical v1/v2 artifacts keep their original control_raw/workflow_full
+    semantics.  v3 separates statistical role (control/candidate) from treatment
+    identity while retaining the internal slots required by existing arm/pair
+    evidence schemas.
+    """
+    if spec.get("schema") == BENCHMARK_SPEC_V3_SCHEMA:
+        source_roles = {"control_raw": "control", "workflow_full": "candidate"}
+        return {
+            internal: {**spec["arms"][source], "_source_role": source}
+            for internal, source in source_roles.items()
+        }
+    return {
+        "control_raw": {
+            **spec["arms"]["control_raw"],
+            "_source_role": "control_raw",
+            "treatment_id": "raw-direct/v1",
+            "runner": {"kind": "direct-executor", "agent_class": None},
+        },
+        "workflow_full": {
+            **spec["arms"]["workflow_full"],
+            "_source_role": "workflow_full",
+            "treatment_id": "structured-direct/v1",
+            "runner": {"kind": "direct-executor", "agent_class": None},
+        },
+    }
+
+
+def run_schema_for_spec(spec: dict[str, Any]) -> str:
+    return BENCHMARK_RUN_V2_SCHEMA if spec.get("schema") == BENCHMARK_SPEC_V3_SCHEMA else BENCHMARK_RUN_SCHEMA
 
 
 def _unique(items: list[str], label: str) -> None:
@@ -98,13 +137,23 @@ def validate_spec(path: Path) -> dict[str, Any]:
     for phase in value["phases"]:
         _require_file(root, str(phase["prompt_path"]), f"phase {phase['id']} prompt")
     arms = value["arms"]
-    if set(arms) != {"control_raw", "workflow_full"}:
-        raise WorkflowError(
-            "initial benchmark requires exactly control_raw and workflow_full arms"
-        )
+    if value.get("schema") == BENCHMARK_SPEC_V3_SCHEMA:
+        if set(arms) != {"control", "candidate"}:
+            raise WorkflowError("benchmark v3 requires exactly control and candidate roles")
+        treatment_ids = [str(profile["treatment_id"]) for profile in arms.values()]
+        _unique(treatment_ids, "treatment IDs")
+        for role, profile in arms.items():
+            runner = profile["runner"]
+            if runner["kind"] == "agent-workflow" and not runner.get("agent_class"):
+                raise WorkflowError(f"{role} agent-workflow runner requires agent_class")
+    else:
+        if set(arms) != {"control_raw", "workflow_full"}:
+            raise WorkflowError(
+                "initial benchmark requires exactly control_raw and workflow_full arms"
+            )
     for arm, profile in arms.items():
         _require_file(root, str(profile["wrapper_path"]), f"{arm} wrapper")
-        if profile["profile_id"] not in {"control-raw/v1", "workflow-full/v1"}:
+        if value.get("schema") != BENCHMARK_SPEC_V3_SCHEMA and profile["profile_id"] not in {"control-raw/v1", "workflow-full/v1"}:
             raise WorkflowError(f"unsupported initial constraint profile: {profile['profile_id']}")
     scheduling = value["scheduling"]
     if int(scheduling["pair_concurrency"]) != 1:

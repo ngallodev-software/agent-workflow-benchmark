@@ -17,7 +17,7 @@ from .policy import apply_operating_policy, implicit_operating_policy, load_oper
 from .pairing import attempts_for
 from .runtime import attest_runtime, seal_runtime_lock, validate_runtime_lock
 from .consolidation import consolidate_run, verify_consolidated_run
-from .contracts import validate_executor_config, validate_spec
+from .contracts import BENCHMARK_SPEC_V3_SCHEMA, validate_executor_config, validate_spec
 from .planning import create_run_plan, materialize_fixture
 from .runner import execute_run
 from .scoring import score_run
@@ -159,6 +159,54 @@ def export_builtin_suite(
     }
 
 
+def export_value_smoke_suite(
+    destination: Path,
+    *,
+    force: bool = False,
+    agent_class: str = "implementation",
+) -> dict[str, Any]:
+    """Export the first raw-direct vs real Agent-Workflow value smoke study."""
+    result = export_builtin_suite(
+        destination,
+        benchmark_id="priority-picker-v2",
+        force=force,
+    )
+    spec_path = Path(result["spec"])
+    spec = read_object(spec_path)
+    legacy_raw = dict(spec["arms"]["control_raw"])
+    spec["schema"] = BENCHMARK_SPEC_V3_SCHEMA
+    spec["arms"] = {
+        "control": {
+            **legacy_raw,
+            "profile_id": "raw-direct/v1",
+            "treatment_id": "raw-direct/v1",
+            "runner": {"kind": "direct-executor", "agent_class": None},
+        },
+        "candidate": {
+            **legacy_raw,
+            "profile_id": "agent-workflow-full/v1",
+            "treatment_id": "agent-workflow-full/v1",
+            "runner": {"kind": "agent-workflow", "agent_class": agent_class},
+            "enabled_features": [
+                "canonical task prompts",
+                "benchmark-neutral safety envelope",
+                "Agent-Workflow Agent Run lifecycle",
+                "Agent-Workflow durable execution state",
+                "Agent-Workflow completion evidence and sealing",
+            ],
+            "disabled_features": [],
+        },
+    }
+    atomic_write_json(spec_path, spec)
+    validate_spec(spec_path)
+    result.update(
+        study="raw-direct-vs-agent-workflow-full",
+        schema=BENCHMARK_SPEC_V3_SCHEMA,
+        agent_class=agent_class,
+    )
+    return result
+
+
 def create_fixture(spec: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
     return materialize_fixture(spec, destination, force=force)
 
@@ -202,7 +250,6 @@ def _finalize_automated(settings: Settings, plan: Path) -> dict[str, Any]:
     from .live_review import start_live_review
     from .reporting import write_report
     from .visual import capture_run
-    del settings  # The resolved run plan owns all execution paths and policies.
     plan_value = read_object(plan)
     run_dir = Path(plan_value["coordinator"]["run_dir"])
     pipeline_started = time.monotonic()
@@ -229,7 +276,7 @@ def _finalize_automated(settings: Settings, plan: Path) -> dict[str, Any]:
         atomic_write_json(run_dir / "run.json", state_value)
         return result
 
-    timed("execution_stage_wall_seconds", execute_run)
+    timed("execution_stage_wall_seconds", lambda path: execute_run(path, settings=settings))
     live_review = timed("live_review_stage_wall_seconds", start_live_review)
     timed("visual_capture_stage_wall_seconds", capture_run)
     timed("machine_scoring_stage_wall_seconds", score_run)

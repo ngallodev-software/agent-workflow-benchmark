@@ -309,6 +309,23 @@ def build_report(plan_path: Path) -> dict[str, Any]:
             result_state = "descriptive_only"
     elif complete_human_pairs < len(plan["pairs"]):
         result_state = "awaiting_human_review"
+    limitations = [
+        "Efficiency metrics are descriptive and do not add machine-quality points.",
+        "A winner is not declared unless the frozen winner policy is enabled and its sample threshold is met.",
+        "Observed machine scores remain reportable when a guardrail fails; only eligible machine scores may contribute to composites or winner claims.",
+        "Publication eligibility additionally requires verified filesystem/oracle isolation and publication-verified visual runtime evidence.",
+        "Subscription runs report provider-billed cost as unavailable; API-equivalent estimates and optional subscription allocations are separate fields.",
+    ]
+    treatments = plan.get("treatments")
+    if isinstance(treatments, Mapping):
+        limitations.append(
+            "Compatibility arm slots map to treatments: "
+            + ", ".join(
+                f"{arm}={value.get('treatment_id')} ({value.get('runner_kind')})"
+                for arm, value in treatments.items()
+                if isinstance(value, Mapping)
+            )
+        )
     report = {
         "schema": BENCHMARK_REPORT_SCHEMA,
         "run_id": plan["run_id"],
@@ -349,13 +366,7 @@ def build_report(plan_path: Path) -> dict[str, Any]:
         },
         "aggregates": aggregates,
         "pairs": pair_reports,
-        "limitations": [
-            "Efficiency metrics are descriptive and do not add machine-quality points.",
-            "A winner is not declared unless the frozen winner policy is enabled and its sample threshold is met.",
-            "Observed machine scores remain reportable when a guardrail fails; only eligible machine scores may contribute to composites or winner claims.",
-            "Publication eligibility additionally requires verified filesystem/oracle isolation and publication-verified visual runtime evidence.",
-            "Subscription runs report provider-billed cost as unavailable; API-equivalent estimates and optional subscription allocations are separate fields.",
-        ],
+        "limitations": limitations,
     }
     validate_value(report, BENCHMARK_REPORT_SCHEMA, "benchmark report")
     return report

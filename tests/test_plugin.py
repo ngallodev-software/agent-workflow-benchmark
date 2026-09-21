@@ -10,7 +10,7 @@ def test_descriptor_owns_benchmark_command_and_schemas():
     descriptor = plugin()
     assert descriptor.name == "agent-workflow-benchmark"
     assert [command.name for command in descriptor.commands] == ["benchmark"]
-    assert len(descriptor.package_resources) == 19
+    assert len(descriptor.package_resources) == 21
 
 
 def test_exported_suite_validates_with_plugin_owned_contracts(tmp_path: Path):
