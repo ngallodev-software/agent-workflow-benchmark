@@ -2,7 +2,6 @@
 set -euo pipefail
 
 AW_BIN="${AGENT_WORKFLOW_BIN:-agent-workflow}"
-EXECUTOR_PROFILE="${EXECUTOR_PROFILE:-codex-subscription}"
 AGENT_CLASS="${AGENT_CLASS:-implementation}"
 ROOT="${VALUE_SMOKE_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/agent-workflow-value-smoke.XXXXXX")}"
 SUITE="${ROOT}/suite"
@@ -17,7 +16,7 @@ echo "value-smoke root: ${ROOT}"
 "${AW_BIN}" benchmark value-smoke-export "${SUITE}" --agent-class "${AGENT_CLASS}"
 "${AW_BIN}" benchmark fixture-create "${SUITE}/benchmark-spec.json" "${FIXTURE}"
 
-EXECUTOR="${SUITE}/executors/${EXECUTOR_PROFILE}.json"
+EXECUTOR="${SUITE}/executors/codex-subscription.json"
 POLICY="${SUITE}/policies/development.json"
 
 if [[ ! -f "${EXECUTOR}" ]]; then
@@ -27,7 +26,8 @@ fi
 
 "${AW_BIN}" --json benchmark readiness "${SUITE}/benchmark-spec.json" \
   --executor "${EXECUTOR}" \
-  --policy "${POLICY}" > "${READINESS_JSON}"
+  --policy "${POLICY}" \
+  --execution-only > "${READINESS_JSON}"
 
 python - "${READINESS_JSON}" <<'PY'
 import json
@@ -63,7 +63,7 @@ PY
 )"
 
 echo "run plan: ${RUN_PLAN}"
-"${AW_BIN}" --json benchmark run "${RUN_PLAN}" | tee "${RUN_JSON}"
+"${AW_BIN}" --json benchmark run "${RUN_PLAN}" --execution-only | tee "${RUN_JSON}"
 
 python - "${PLAN_JSON}" "${RUN_JSON}" <<'PY'
 import json
