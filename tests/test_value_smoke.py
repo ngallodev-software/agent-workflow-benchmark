@@ -31,6 +31,11 @@ def test_value_smoke_export_uses_explicit_treatments(tmp_path: Path) -> None:
     assert profiles["workflow_full"]["treatment_id"] == "agent-workflow-full/v1"
     assert profiles["workflow_full"]["runner"]["kind"] == "agent-workflow"
     assert profiles["workflow_full"]["runner"]["agent_class"] == "implementation"
+    assert not (destination / "executors" / "claude-subscription.json").exists()
+    assert (destination / "executors" / "codex-subscription.json").is_file()
+    assert result["default_subscription_executors"] == [
+        str(destination / "executors" / "codex-subscription.json")
+    ]
 
 
 def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None:
@@ -44,9 +49,8 @@ def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None
     assert spec["arms"]["candidate"]["runner"]["agent_class"] == "benchmark-implementation"
 
 
-def test_agent_workflow_runner_maps_builtin_executor_ids() -> None:
+def test_agent_workflow_runner_maps_codex_executor_id() -> None:
     assert AGENT_WORKFLOW_EXECUTOR_ALIASES["codex-cli"] == "codex"
-    assert AGENT_WORKFLOW_EXECUTOR_ALIASES["claude-code-cli"] == "claude"
 
 
 def test_value_smoke_runtime_checks_match_default_codex_binding(tmp_path: Path) -> None:
@@ -99,3 +103,24 @@ def test_runtime_checks_reject_different_provider_executable(tmp_path: Path) -> 
     by_id = {item["id"]: item for item in checks}
 
     assert by_id["agent-workflow-executable"]["passed"] is False
+
+
+def test_runtime_checks_accept_agent_workflow_codex_wrapper(tmp_path: Path) -> None:
+    destination = tmp_path / "suite"
+    result = export_value_smoke_suite(destination)
+    spec = validate_spec(Path(result["spec"]))
+    import json
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+    base = defaults()
+    wrapped = replace(
+        base,
+        executors={**base.executors, "codex": ["agent-workflow-codex"]},
+    )
+
+    checks = treatment_runtime_checks(wrapped, spec, executor)
+    by_id = {item["id"]: item for item in checks}
+
+    assert by_id["agent-workflow-executable"]["passed"] is True
+    assert "binding=agent-workflow-wrapper" in by_id["agent-workflow-executable"]["detail"]
