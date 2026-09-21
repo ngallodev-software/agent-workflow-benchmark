@@ -24,6 +24,22 @@ def _binary_name(argv: object) -> str | None:
     return Path(str(first)).name if first is not None else None
 
 
+def _same_executor_backend(
+    benchmark_binary: str | None,
+    agent_workflow_binary: str | None,
+    agent_workflow_executor: str,
+) -> tuple[bool, str]:
+    """Compare provider backends while allowing Agent-Workflow's owned wrapper."""
+    if benchmark_binary is None or agent_workflow_binary is None:
+        return False, "missing"
+    if benchmark_binary == agent_workflow_binary:
+        return True, "direct"
+    wrapper = f"agent-workflow-{agent_workflow_executor}"
+    if benchmark_binary == agent_workflow_executor and agent_workflow_binary == wrapper:
+        return True, "agent-workflow-wrapper"
+    return False, "different"
+
+
 def uses_agent_workflow(spec: Mapping[str, Any]) -> bool:
     arms = spec.get("arms")
     return isinstance(arms, Mapping) and any(
@@ -79,12 +95,18 @@ def treatment_runtime_checks(
             f"expected_provider={expected_provider or 'custom'}"
         ),
     })
+    executable_compatible, executable_mode = _same_executor_backend(
+        benchmark_binary,
+        aw_binary,
+        aw_executor,
+    )
     checks.append({
         "id": "agent-workflow-executable",
-        "passed": benchmark_binary is not None and benchmark_binary == aw_binary,
+        "passed": executable_compatible,
         "detail": (
             f"benchmark_binary={benchmark_binary or 'missing'}; "
-            f"agent_workflow_binary={aw_binary or 'missing'}"
+            f"agent_workflow_binary={aw_binary or 'missing'}; "
+            f"binding={executable_mode}"
         ),
     })
 
