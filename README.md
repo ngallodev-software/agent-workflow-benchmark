@@ -109,7 +109,7 @@ agent-workflow benchmark plan /tmp/aw-value-smoke/benchmark-spec.json \
   --base-ref HEAD \
   --executor /tmp/aw-value-smoke/executors/codex-subscription.json \
   --policy /tmp/aw-value-smoke/policies/development.json
-agent-workflow benchmark run RUN_PLAN.json
+agent-workflow benchmark run RUN_PLAN.json --execution-only
 ```
 
 The smoke study keeps the canonical task, fixture, hidden evaluator, scoring contract, and direct executor identity fixed. Its control treatment is `raw-direct/v1`; its candidate treatment is `agent-workflow-full/v1`, which delegates each benchmark phase through Agent-Workflow using the same configured executor/model identity. Use `--agent-class` on `value-smoke-export` when the local Agent-Workflow runtime uses a different explicit agent class.
