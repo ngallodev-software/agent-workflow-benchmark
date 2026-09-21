@@ -150,3 +150,64 @@ def test_execution_only_readiness_skips_visual_attestation(tmp_path: Path, monke
     assert readiness["runtime"]["runtime_state"] == "not-required"
     assert by_id["visual-runtime"]["passed"] is True
     assert "not required for execution-only" in by_id["visual-runtime"]["detail"]
+
+
+def test_typesafe_runtime_check_requires_api_key(tmp_path: Path, monkeypatch) -> None:
+    destination = tmp_path / "suite"
+    result = export_value_smoke_suite(destination)
+    spec = validate_spec(Path(result["spec"]))
+    import json
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+    monkeypatch.setattr(
+        "agent_workflow.semantic.typesafe.capability",
+        lambda settings: {
+            "provider": "typesafe",
+            "typesafe_sdk_installed": True,
+            "api_key_configured": False,
+            "model": None,
+        },
+    )
+    settings = replace(defaults(), decision_mode="typesafe")
+
+    checks = treatment_runtime_checks(settings, spec, executor)
+    by_id = {item["id"]: item for item in checks}
+
+    assert by_id["typesafe-sdk"]["passed"] is True
+    assert by_id["typesafe-api-key"]["passed"] is False
+
+
+def test_comparative_runtime_check_requires_shared_library(tmp_path: Path, monkeypatch) -> None:
+    destination = tmp_path / "suite"
+    result = export_value_smoke_suite(destination)
+    spec = validate_spec(Path(result["spec"]))
+    import json
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+    monkeypatch.setattr(
+        "agent_workflow.semantic.typesafe.capability",
+        lambda settings: {
+            "provider": "typesafe",
+            "typesafe_sdk_installed": True,
+            "api_key_configured": True,
+            "model": None,
+        },
+    )
+    monkeypatch.setattr(
+        "agent_workflow.comparative_eval.shared_library_status",
+        lambda: {
+            "installed": True,
+            "compatible": False,
+            "version": "0.0.0",
+            "distribution": "agent-workflow-comparative-eval",
+        },
+    )
+    settings = replace(defaults(), decision_mode="comparative")
+
+    checks = treatment_runtime_checks(settings, spec, executor)
+    by_id = {item["id"]: item for item in checks}
+
+    assert by_id["typesafe-api-key"]["passed"] is True
+    assert by_id["comparative-eval"]["passed"] is False
