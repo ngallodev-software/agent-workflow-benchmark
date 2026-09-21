@@ -173,6 +173,42 @@ verify_path_shadowing() {
   fi
 }
 
+verify_host_artifacts() {
+  local data_home host_schema_dir path
+  data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+  host_schema_dir="$data_home/agent-workflow/schemas"
+
+  if [[ -d "$host_schema_dir" ]]; then
+    local stale_schema_found=0 schema_name
+    while IFS= read -r schema_name; do
+      [[ -n "$schema_name" ]] || continue
+      path="$host_schema_dir/$schema_name"
+      if [[ -f "$path" || -L "$path" ]]; then
+        echo "stale core-era benchmark schema remains: $path" >&2
+        stale_schema_found=1
+      fi
+    done < <(
+      find "$ROOT/src/agent_workflow_benchmark/schemas" -maxdepth 1 -type f -name '*.json' -exec basename {} \; | sort
+    )
+    while IFS= read -r path; do
+      [[ -n "$path" ]] || continue
+      echo "unrecognized stale benchmark schema remains in Agent-Workflow host data: $path" >&2
+      stale_schema_found=1
+    done < <(
+      find "$host_schema_dir" -maxdepth 1 \( -type f -o -type l \) -name 'benchmark-*.schema.json' -print | sort
+    )
+    [[ "$stale_schema_found" -eq 0 ]] || return 1
+  fi
+
+  local candidate
+  for candidate in "$VENV/bin/agent-workflow-benchmark" "$HOME/.local/bin/agent-workflow-benchmark"; do
+    if [[ -e "$candidate" || -L "$candidate" ]]; then
+      echo "obsolete standalone benchmark launcher remains: $candidate" >&2
+      return 1
+    fi
+  done
+}
+
 cleanup_stale_host_artifacts() {
   local data_home host_schema_dir path
   data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -187,17 +223,8 @@ cleanup_stale_host_artifacts() {
         rm -f "$path"
       fi
     done < <(
-      find "$ROOT/src/agent_workflow_benchmark/schemas" -maxdepth 1 -type f -name '*.json' -printf '%f\n' | sort
+      find "$ROOT/src/agent_workflow_benchmark/schemas" -maxdepth 1 -type f -name '*.json' -exec basename {} \; | sort
     )
-
-    mapfile -t remaining_benchmark_schemas < <(
-      find "$host_schema_dir" -maxdepth 1 \( -type f -o -type l \) -name 'benchmark-*.schema.json' -print | sort
-    )
-    if (( ${#remaining_benchmark_schemas[@]} > 0 )); then
-      echo "unrecognized stale benchmark schemas remain in Agent-Workflow host data:" >&2
-      printf '  %s\n' "${remaining_benchmark_schemas[@]}" >&2
-      exit 1
-    fi
   fi
 
   local candidate content
@@ -220,6 +247,8 @@ cleanup_stale_host_artifacts() {
     echo "refusing to remove unrelated path matching obsolete benchmark launcher name: $candidate" >&2
     exit 1
   done
+
+  verify_host_artifacts
 }
 
 verify_installed_state() {
@@ -364,8 +393,17 @@ PY
 
   verify_path_shadowing
 
-  PLUGINS_JSON="$("$AW_LAUNCHER" --json plugins list)"
-  PLUGINS_JSON="$PLUGINS_JSON" "$PYTHON" - "$EXPECTED_VERSION" <<'PY'
+  local tmp_config plugins_json
+  tmp_config="$(mktemp "${TMPDIR:-/tmp}/aw-benchmark-plugin-list.XXXXXX")"
+  cat >"$tmp_config" <<'EOF'
+schema_version = 1
+
+[plugins]
+enabled = []
+EOF
+  plugins_json="$("$AW_LAUNCHER" --config "$tmp_config" --json plugins list)"
+  rm -f "$tmp_config"
+  PLUGINS_JSON="$plugins_json" "$PYTHON" - "$EXPECTED_VERSION" <<'PY'
 import json
 import os
 import sys
@@ -395,7 +433,7 @@ PY
 }
 
 if [[ "$VERIFY_ONLY" -eq 1 ]]; then
-  cleanup_stale_host_artifacts
+  verify_host_artifacts
   verify_installed_state
   exit 0
 fi
@@ -418,7 +456,11 @@ echo "building benchmark wheel"
   "$PYTHON" -m build --wheel --no-isolation
 )
 
-mapfile -t WHEELS < <(find "$ROOT/dist" -maxdepth 1 -type f -name 'agent_workflow_benchmark-*.whl' -print | sort)
+WHEELS=()
+while IFS= read -r wheel_path; do
+  [[ -n "$wheel_path" ]] || continue
+  WHEELS+=("$wheel_path")
+done < <(find "$ROOT/dist" -maxdepth 1 -type f -name 'agent_workflow_benchmark-*.whl' -print | sort)
 if [[ "${#WHEELS[@]}" -ne 1 ]]; then
   echo "expected exactly one benchmark wheel, found ${#WHEELS[@]}" >&2
   printf '  %s\n' "${WHEELS[@]}" >&2
@@ -526,6 +568,7 @@ PY
 echo "installing benchmark wheel into shared Agent-Workflow virtualenv"
 "$PYTHON" -m pip install --no-deps --force-reinstall "$WHEEL"
 
+verify_host_artifacts
 verify_installed_state
 
 echo
