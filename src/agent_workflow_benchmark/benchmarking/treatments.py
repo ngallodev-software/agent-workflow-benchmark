@@ -29,14 +29,11 @@ def _same_executor_backend(
     agent_workflow_binary: str | None,
     agent_workflow_executor: str,
 ) -> tuple[bool, str]:
-    """Compare provider backends while allowing Agent-Workflow's owned wrapper."""
+    """Require both treatments to execute the same provider binary directly."""
     if benchmark_binary is None or agent_workflow_binary is None:
         return False, "missing"
     if benchmark_binary == agent_workflow_binary:
         return True, "direct"
-    wrapper = f"agent-workflow-{agent_workflow_executor}"
-    if benchmark_binary == agent_workflow_executor and agent_workflow_binary == wrapper:
-        return True, "agent-workflow-wrapper"
     return False, "different"
 
 
