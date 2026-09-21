@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import hashlib
+import json
 import os
 import shutil
 import sys
@@ -10,13 +11,19 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
+from agent_workflow.config import Settings
 from agent_workflow.errors import WorkflowError
 from agent_workflow.process import EnvironmentPolicy, run
+from agent_workflow.delegation import delegate as delegate_agent_run
+from agent_workflow.agent_runs import observe as observe_agent_run
+from agent_workflow.agent_run_control import terminate as terminate_agent_run
+from agent_workflow.agent_run_paths import AgentRunPaths
+from agent_workflow.state import TERMINAL_STATUSES, run_dir as agent_workflow_run_dir
 from agent_workflow.util import atomic_write_json, sha256_file, utc_now
 from .common import format_argv, read_object
 from .contracts import BENCHMARK_ARM_SCHEMA, BENCHMARK_PAIR_SCHEMA, validate_value
 from .events import append_event
-from .metrics import aggregate_usage, load_usage
+from .metrics import aggregate_usage, load_usage, normalize_usage
 from .pairing import attempts_for
 
 TERMINAL_PHASE_STATES = {"completed", "task_failed", "infrastructure_failed", "timed_out"}
@@ -78,7 +85,7 @@ def _render_command(
     return argv, environment, phase_dir, prompt_text
 
 
-def _run_phase_arm(
+def _run_direct_phase_arm(
     plan: Mapping[str, Any], pair: Mapping[str, Any], attempt: Mapping[str, Any],
     arm: Mapping[str, Any], phase: Mapping[str, Any], barrier: threading.Barrier,
     release: dict[str, float],
@@ -154,6 +161,304 @@ def _run_phase_arm(
     return record
 
 
+def _agent_run_id(
+    plan: Mapping[str, Any],
+    pair: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+    arm: Mapping[str, Any],
+    phase: Mapping[str, Any],
+) -> str:
+    identity = "|".join(
+        (
+            str(plan["run_id"]),
+            str(pair["pair_id"]),
+            str(attempt["attempt_id"]),
+            str(arm["arm"]),
+            str(phase["id"]),
+        )
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+    phase_id = "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in str(phase["id"]))[:24]
+    return f"bench-{digest}-{phase_id}"
+
+
+def _copy_if_present(source: Path, destination: Path) -> None:
+    if source.is_file():
+        destination.write_bytes(source.read_bytes())
+    elif not destination.exists():
+        destination.write_text("", encoding="utf-8")
+
+
+def _agent_workflow_usage(
+    metrics_path: Path,
+    *,
+    billing: Mapping[str, Any],
+    pricing: Mapping[str, Any] | None,
+    currency: str | None,
+    price_catalog_id: str | None,
+) -> tuple[dict[str, Any], float | None]:
+    if not metrics_path.is_file():
+        return (
+            normalize_usage(
+                {},
+                currency=currency,
+                price_catalog_id=price_catalog_id,
+                billing=billing,
+                pricing=pricing,
+                source="agent-workflow-metrics-unavailable",
+            ),
+            None,
+        )
+    try:
+        value = json.loads(metrics_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        value = {}
+    stages = value.get("stages") if isinstance(value, dict) else None
+    total = next(
+        (
+            item
+            for item in stages or []
+            if isinstance(item, dict) and item.get("stage") == "total"
+        ),
+        {},
+    )
+    verification = next(
+        (
+            item
+            for item in stages or []
+            if isinstance(item, dict) and item.get("stage") == "verification"
+        ),
+        {},
+    )
+    normalized = normalize_usage(
+        {
+            **(total if isinstance(total, dict) else {}),
+            "provider_elapsed_seconds": (
+                total.get("elapsed_seconds") if isinstance(total, dict) else None
+            ),
+        },
+        currency=currency,
+        price_catalog_id=price_catalog_id,
+        billing=billing,
+        pricing=pricing,
+        source="agent-workflow-execution-metrics",
+    )
+    verification_seconds = (
+        verification.get("elapsed_seconds") if isinstance(verification, dict) else None
+    )
+    return normalized, (
+        float(verification_seconds)
+        if isinstance(verification_seconds, (int, float))
+        and not isinstance(verification_seconds, bool)
+        else None
+    )
+
+
+def _run_agent_workflow_phase_arm(
+    settings: Settings,
+    plan: Mapping[str, Any],
+    pair: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+    arm: Mapping[str, Any],
+    phase: Mapping[str, Any],
+    barrier: threading.Barrier,
+    release: dict[str, float],
+) -> dict[str, Any]:
+    """Execute one treatment through Agent-Workflow's real Agent Run lifecycle."""
+    run_dir = Path(plan["coordinator"]["run_dir"])
+    worktree = Path(str(arm["worktree"]))
+    stage = Path(str(arm["stage_dir"]))
+    prompt_file = _prompt_for(arm, str(phase["id"]))
+    phase_dir = stage / "phases" / str(phase["id"])
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
+    agent_run_id = _agent_run_id(plan, pair, attempt, arm, phase)
+    treatment = plan.get("treatments", {}).get(str(arm["arm"]), {})
+    agent_class = treatment.get("agent_class")
+    effort = plan["executor"].get("effort")
+    reasoning_effort = str(effort) if effort in {"low", "medium", "high"} else None
+
+    barrier.wait()
+    actual_start_monotonic = time.monotonic()
+    actual_start_utc = utc_now()
+    start_offset = round(actual_start_monotonic - release["monotonic"], 9)
+    append_event(
+        run_dir,
+        event_type="phase_started",
+        run_id=str(plan["run_id"]),
+        pair_id=str(pair["pair_id"]),
+        arm=str(arm["arm"]),
+        phase_id=str(phase["id"]),
+        payload={
+            "slot": arm["slot"],
+            "attempt": attempt["attempt"],
+            "runner_kind": "agent-workflow",
+            "agent_run_id": agent_run_id,
+        },
+    )
+
+    delegate_error: str | None = None
+    try:
+        delegate_agent_run(
+            settings,
+            agent_run_id=agent_run_id,
+            prompt_path=prompt_file,
+            workdir=worktree,
+            ticket_id=agent_run_id,
+            executor=str(plan["executor"]["executor"]),
+            agent_class=str(agent_class) if agent_class else None,
+            model=str(plan["executor"]["model"]),
+            reasoning_effort=reasoning_effort,
+            allow_dirty=True,
+            worker_mode="headless",
+        )
+    except WorkflowError as exc:
+        delegate_error = str(exc)
+
+    deadline = actual_start_monotonic + float(phase["timeout_seconds"])
+    observed: dict[str, Any] = {}
+    timed_out = False
+    if delegate_error is None:
+        while True:
+            observed = observe_agent_run(settings, agent_run_id)
+            durable = str(observed.get("status", "unknown"))
+            if durable in TERMINAL_STATUSES:
+                break
+            if time.monotonic() >= deadline:
+                timed_out = True
+                terminate_agent_run(settings, agent_run_id, 2)
+                observed = observe_agent_run(settings, agent_run_id)
+                break
+            time.sleep(0.25)
+
+    aw_root = agent_workflow_run_dir(settings, agent_run_id)
+    paths = AgentRunPaths(aw_root)
+    _copy_if_present(paths.output_log, stdout_path)
+    _copy_if_present(paths.executor_stderr, stderr_path)
+
+    metrics_path = aw_root / "execution-metrics.json"
+    copied_metrics = phase_dir / "agent-workflow-execution-metrics.json"
+    _copy_if_present(metrics_path, copied_metrics)
+    usage, verification_seconds = _agent_workflow_usage(
+        metrics_path,
+        billing=plan["executor"].get("billing", {}),
+        pricing=plan["executor"].get("pricing"),
+        currency=plan["executor"].get("currency"),
+        price_catalog_id=plan["executor"].get("price_catalog_id"),
+    )
+
+    process_path = aw_root / "process-result.json"
+    try:
+        process = json.loads(process_path.read_text(encoding="utf-8")) if process_path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        process = {}
+    wall = round(time.monotonic() - actual_start_monotonic, 6)
+    durable = str(observed.get("status", "failed")) if observed else "failed"
+    failure_category = (
+        "timeout"
+        if timed_out
+        else str(observed.get("observed_failure_category") or observed.get("failure_category") or "")
+        if observed
+        else ""
+    )
+    if timed_out:
+        state = "timed_out"
+    elif delegate_error is not None:
+        state = "infrastructure_failed"
+    elif durable == "completed":
+        state = "completed"
+    else:
+        state = "task_failed"
+
+    returncode = process.get("returncode")
+    if not isinstance(returncode, int):
+        returncode = 0 if state == "completed" else 124 if timed_out else 1
+    active_seconds = process.get("duration_seconds")
+    if not isinstance(active_seconds, (int, float)) or isinstance(active_seconds, bool):
+        active_seconds = wall
+
+    record = {
+        "phase_id": phase["id"],
+        "state": state,
+        "started_at": actual_start_utc,
+        "start_offset_seconds": start_offset,
+        "completed_at": utc_now(),
+        "phase_wall_seconds": wall,
+        "active_process_seconds": float(active_seconds),
+        "provider_elapsed_seconds": usage["provider_elapsed_seconds"],
+        "first_output_latency_seconds": usage["first_output_latency_seconds"],
+        "verification_seconds": verification_seconds or 0.0,
+        "queue_wait_seconds": 0.0,
+        "human_review_seconds": None,
+        "process": {
+            "argv": ["agent-workflow", "delegate", agent_run_id],
+            "returncode": returncode,
+            "duration_seconds": float(active_seconds),
+            "error_category": (
+                "delegate-error"
+                if delegate_error is not None
+                else failure_category or "none"
+            ),
+        },
+        "usage": usage,
+        "stdout": str(stdout_path),
+        "stderr": str(stderr_path),
+        "usage_file": str(copied_metrics) if metrics_path.is_file() else None,
+    }
+    atomic_write_json(phase_dir / "phase.json", record)
+    atomic_write_json(
+        phase_dir / "agent-workflow-run.json",
+        {
+            "agent_run_id": agent_run_id,
+            "run_dir": str(aw_root),
+            "status": durable,
+            "observed_state": observed.get("observed_state") if observed else None,
+            "failure_category": failure_category or None,
+            "delegate_error": delegate_error,
+        },
+    )
+    append_event(
+        run_dir,
+        event_type="phase_terminal",
+        run_id=str(plan["run_id"]),
+        pair_id=str(pair["pair_id"]),
+        arm=str(arm["arm"]),
+        phase_id=str(phase["id"]),
+        payload={
+            "state": state,
+            "wall_seconds": wall,
+            "returncode": returncode,
+            "attempt": attempt["attempt"],
+            "runner_kind": "agent-workflow",
+            "agent_run_id": agent_run_id,
+        },
+    )
+    return record
+
+
+def _run_phase_arm(
+    settings: Settings | None,
+    plan: Mapping[str, Any],
+    pair: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+    arm: Mapping[str, Any],
+    phase: Mapping[str, Any],
+    barrier: threading.Barrier,
+    release: dict[str, float],
+) -> dict[str, Any]:
+    treatment = plan.get("treatments", {}).get(str(arm["arm"]), {})
+    runner_kind = str(treatment.get("runner_kind") or "direct-executor")
+    if runner_kind == "direct-executor":
+        return _run_direct_phase_arm(plan, pair, attempt, arm, phase, barrier, release)
+    if runner_kind == "agent-workflow":
+        if settings is None:
+            raise WorkflowError("agent-workflow benchmark treatment requires host settings")
+        return _run_agent_workflow_phase_arm(
+            settings, plan, pair, attempt, arm, phase, barrier, release
+        )
+    raise WorkflowError(f"unsupported benchmark runner kind: {runner_kind}")
+
+
 def _git_evidence(pair: Mapping[str, Any], arm: Mapping[str, Any]) -> dict[str, Any]:
     worktree, base = Path(arm["worktree"]), str(pair["base_revision"])
     patch = run(["git", "-C", str(worktree), "diff", "--binary", "--full-index", base, "--", ":(exclude).agent-workflow-benchmark"], check=False, max_stdout_bytes=16 * 1024 * 1024)
@@ -218,7 +523,7 @@ def _finalize_arm(
     return value
 
 
-def _execute_attempt(plan: Mapping[str, Any], pair: Mapping[str, Any], attempt: Mapping[str, Any]) -> dict[str, Any]:
+def _execute_attempt(settings: Settings | None, plan: Mapping[str, Any], pair: Mapping[str, Any], attempt: Mapping[str, Any]) -> dict[str, Any]:
     run_dir = Path(plan["coordinator"]["run_dir"])
     started = time.monotonic()
     records: dict[str, list[dict[str, Any]]] = {"control_raw": [], "workflow_full": []}
@@ -231,7 +536,7 @@ def _execute_attempt(plan: Mapping[str, Any], pair: Mapping[str, Any], attempt: 
         barrier = threading.Barrier(2, action=lambda: release.__setitem__("monotonic", time.monotonic()))
         starts: dict[str, float] = {}
         def invoke(arm_name: str) -> dict[str, Any]:
-            result = _run_phase_arm(plan, pair, attempt, attempt["arms"][arm_name], phase, barrier, release)
+            result = _run_phase_arm(settings, plan, pair, attempt, attempt["arms"][arm_name], phase, barrier, release)
             starts[arm_name] = float(result["start_offset_seconds"])
             return result
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -261,14 +566,14 @@ def _execute_attempt(plan: Mapping[str, Any], pair: Mapping[str, Any], attempt: 
     return {**value, "evidence": str(attempt_dir / "attempt.json")}
 
 
-def execute_pair(plan: Mapping[str, Any], pair: Mapping[str, Any]) -> dict[str, Any]:
+def execute_pair(settings: Settings | None, plan: Mapping[str, Any], pair: Mapping[str, Any]) -> dict[str, Any]:
     run_dir = Path(plan["coordinator"]["run_dir"])
     pair_started = time.monotonic()
     append_event(run_dir, event_type="pair_started", run_id=str(plan["run_id"]), pair_id=str(pair["pair_id"]))
     attempt_results: list[dict[str, Any]] = []
     selected: dict[str, Any] | None = None
     for attempt in attempts_for(pair):
-        result = _execute_attempt(plan, pair, attempt)
+        result = _execute_attempt(settings, plan, pair, attempt)
         attempt_results.append(result)
         selected = result
         if result["state"] != "infrastructure_failed":
@@ -299,7 +604,7 @@ def execute_pair(plan: Mapping[str, Any], pair: Mapping[str, Any]) -> dict[str, 
     return value
 
 
-def execute_run(plan_path: Path) -> dict[str, Any]:
+def execute_run(plan_path: Path, *, settings: Settings | None = None) -> dict[str, Any]:
     plan = read_object(plan_path.resolve())
     run_dir = Path(plan["coordinator"]["run_dir"])
     state_path = run_dir / "run.json"
@@ -318,7 +623,7 @@ def execute_run(plan_path: Path) -> dict[str, Any]:
     try:
         for pair in plan["pairs"]:
             existing = run_dir / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / "pair.json"
-            pair_results.append(read_object(existing) if existing.is_file() else execute_pair(plan, pair))
+            pair_results.append(read_object(existing) if existing.is_file() else execute_pair(settings, plan, pair))
             state["pairs_terminal"] = len(pair_results)
             state["updated_at"] = utc_now()
             atomic_write_json(state_path, state)
