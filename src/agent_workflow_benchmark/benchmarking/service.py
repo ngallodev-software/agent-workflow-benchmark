@@ -172,6 +172,17 @@ def export_value_smoke_suite(
         benchmark_id="priority-picker-v2",
         force=force,
     )
+    # The value smoke is deliberately Codex-only. Keep generic Claude support
+    # in normal benchmark suites, but do not ship an alternate smoke executor.
+    claude_profile = destination / "executors" / "claude-subscription.json"
+    claude_profile.unlink(missing_ok=True)
+    result["executors"] = [
+        item for item in result.get("executors", [])
+        if not str(item).endswith("claude-subscription.json")
+    ]
+    result["default_subscription_executors"] = [
+        str(destination / "executors" / "codex-subscription.json")
+    ]
     spec_path = Path(result["spec"])
     spec = read_object(spec_path)
     legacy_raw = dict(spec["arms"]["control_raw"])
@@ -349,8 +360,23 @@ def _existing_automated_result(plan_path: Path) -> dict[str, Any] | None:
     }
 
 
-def run_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
+def run_benchmark(
+    settings: Settings,
+    run: str | Path,
+    *,
+    execution_only: bool = False,
+) -> dict[str, Any]:
     plan = _resolve_plan(settings, run)
+    if execution_only:
+        state = execute_run(plan, settings=settings)
+        plan_value = read_object(plan)
+        return {
+            **state,
+            "run_id": plan_value["run_id"],
+            "run_dir": str(Path(plan_value["coordinator"]["run_dir"])),
+            "execution_only": True,
+            "report": None,
+        }
     return _existing_automated_result(plan) or _finalize_automated(settings, plan)
 
 
@@ -496,6 +522,7 @@ def benchmark_readiness(
     policy: Path | None = None,
     runtime_lock: Path | None = None,
     settings: Settings | None = None,
+    execution_only: bool = False,
 ) -> dict[str, Any]:
     """Evaluate whether a benchmark profile can be planned without creating worktrees."""
     base_spec = validate_spec(spec)
@@ -525,22 +552,33 @@ def benchmark_readiness(
     try:
         lock_value = read_object(lock_path)
         validate_runtime_lock(lock_value, claim_level=str(effective_spec["claim_level"]))
-        runtime = attest_runtime(lock_path, claim_level=str(effective_spec["claim_level"]))
-        required_state = (
-            "publication-verified"
-            if effective_spec["claim_level"] == "publication"
-            else "development-verified"
-        )
-        runtime_passed = runtime["runtime_state"] in (
-            {"publication-verified"}
-            if required_state == "publication-verified"
-            else {"development-verified", "publication-verified"}
-        )
-        checks.append({
-            "id": "visual-runtime",
-            "passed": runtime_passed,
-            "detail": f"required={required_state}; observed={runtime['runtime_state']}",
-        })
+        if execution_only:
+            runtime = {
+                "runtime_state": "not-required",
+                "detail": "visual attestation is not required for execution-only smoke runs",
+            }
+            checks.append({
+                "id": "visual-runtime",
+                "passed": True,
+                "detail": "not required for execution-only run; runtime-lock structure is valid",
+            })
+        else:
+            runtime = attest_runtime(lock_path, claim_level=str(effective_spec["claim_level"]))
+            required_state = (
+                "publication-verified"
+                if effective_spec["claim_level"] == "publication"
+                else "development-verified"
+            )
+            runtime_passed = runtime["runtime_state"] in (
+                {"publication-verified"}
+                if required_state == "publication-verified"
+                else {"development-verified", "publication-verified"}
+            )
+            checks.append({
+                "id": "visual-runtime",
+                "passed": runtime_passed,
+                "detail": f"required={required_state}; observed={runtime['runtime_state']}",
+            })
     except WorkflowError as exc:
         runtime = {"runtime_state": "not-verified", "detail": str(exc)}
         checks.append({"id": "visual-runtime", "passed": False, "detail": str(exc)})
