@@ -202,7 +202,6 @@ def _finalize_automated(settings: Settings, plan: Path) -> dict[str, Any]:
     from .live_review import start_live_review
     from .reporting import write_report
     from .visual import capture_run
-    del settings  # The resolved run plan owns all execution paths and policies.
     plan_value = read_object(plan)
     run_dir = Path(plan_value["coordinator"]["run_dir"])
     pipeline_started = time.monotonic()
@@ -229,7 +228,7 @@ def _finalize_automated(settings: Settings, plan: Path) -> dict[str, Any]:
         atomic_write_json(run_dir / "run.json", state_value)
         return result
 
-    timed("execution_stage_wall_seconds", execute_run)
+    timed("execution_stage_wall_seconds", lambda path: execute_run(path, settings=settings))
     live_review = timed("live_review_stage_wall_seconds", start_live_review)
     timed("visual_capture_stage_wall_seconds", capture_run)
     timed("machine_scoring_stage_wall_seconds", score_run)
