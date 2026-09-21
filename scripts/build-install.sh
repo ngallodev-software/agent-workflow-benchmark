@@ -106,13 +106,17 @@ echo "shared Agent-Workflow virtualenv: $VENV"
 echo "target Python: $PYTHON"
 echo "Agent-Workflow launcher: $AW_LAUNCHER"
 
-"$PYTHON" - "$VENV" <<'PY'
+"$PYTHON" - "$VENV" "$ROOT" <<'PY'
 from importlib import metadata
 from pathlib import Path
+import json
+import re
 import sys
 import sysconfig
+import tomllib
 
 venv = Path(sys.argv[1]).resolve()
+root = Path(sys.argv[2]).resolve()
 prefix = Path(sys.prefix).resolve()
 if prefix != venv:
     raise SystemExit(f"selected interpreter prefix mismatch: expected {venv}, observed {prefix}")
@@ -132,6 +136,36 @@ except ValueError as exc:
     raise SystemExit(
         f"agent-workflow distribution is not owned by the selected virtualenv: {dist_root}"
     ) from exc
+
+direct_url_raw = dist.read_text("direct_url.json")
+if direct_url_raw:
+    direct_url = json.loads(direct_url_raw)
+    if direct_url.get("dir_info", {}).get("editable") is True:
+        raise SystemExit(
+            "agent-workflow is installed editable in the selected virtualenv; "
+            "install the qualified Agent-Workflow wheel before installing the benchmark plugin"
+        )
+
+project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+requirement = next(
+    (item for item in project.get("dependencies", []) if item.startswith("agent-workflow>=")),
+    None,
+)
+match = re.fullmatch(
+    r"agent-workflow>=(\d+)\.(\d+)\.(\d+),<(\d+)\.(\d+)",
+    requirement or "",
+)
+if match:
+    lower = tuple(int(value) for value in match.groups()[:3])
+    upper = tuple(int(value) for value in match.groups()[3:]) + (0,)
+    version_match = re.match(r"^(\d+)\.(\d+)\.(\d+)", dist.version)
+    if not version_match:
+        raise SystemExit(f"cannot interpret Agent-Workflow version: {dist.version}")
+    observed = tuple(int(value) for value in version_match.groups())
+    if not (lower <= observed < upper):
+        raise SystemExit(
+            f"Agent-Workflow {dist.version} does not satisfy benchmark requirement {requirement}"
+        )
 
 print(f"Agent-Workflow distribution: {dist.metadata['Name']} {dist.version}")
 print(f"Agent-Workflow site-packages: {purelib}")
@@ -357,6 +391,11 @@ if benchmark.version != expected_version:
     raise SystemExit(
         f"benchmark version mismatch: expected {expected_version}, installed {benchmark.version}"
     )
+direct_url_raw = benchmark.read_text("direct_url.json")
+if direct_url_raw:
+    direct_url = json.loads(direct_url_raw)
+    if direct_url.get("dir_info", {}).get("editable") is True:
+        raise SystemExit("benchmark package is unexpectedly installed editable; wheel install required")
 
 source_schema_root = root / "src" / "agent_workflow_benchmark" / "schemas"
 source = {
@@ -519,7 +558,7 @@ rm -rf "$ROOT/build" "$ROOT/dist" "$ROOT/src/agent_workflow_benchmark.egg-info"
 echo "building benchmark wheel"
 (
   cd "$ROOT"
-  "$PYTHON" -m build --wheel --no-isolation
+  "$PYTHON" -m build --wheel
 )
 
 WHEELS=()
