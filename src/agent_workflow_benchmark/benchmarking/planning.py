@@ -28,6 +28,7 @@ from .contracts import (
 from .events import append_event
 from .policy import apply_operating_policy, implicit_operating_policy, load_operating_policy
 from .runtime import validate_runtime_lock
+from .treatments import require_treatment_runtime_compatibility
 
 NEUTRAL_ENVELOPE = """# Benchmark-neutral execution envelope
 
@@ -210,6 +211,7 @@ def create_run_plan(
         read_object(selected_runtime_lock),
         claim_level=str(spec["claim_level"]),
     )
+    treatment_runtime_checks = require_treatment_runtime_compatibility(settings, spec, executor)
     authentication_evidence = require_authentication(executor)
     repo = repo.expanduser().resolve()
     source = snapshot(repo) if allow_dirty else assert_clean(repo)
@@ -395,6 +397,7 @@ def create_run_plan(
             "coordinator": {"worktree": str(coordinator), "branch": coordinator_info["branch"], "run_dir": str(run_dir), "suite_dir": str(suite_dir), "spec_path": str(suite_spec), "executor_config_path": str(executor_snapshot)},
             "identities": {"spec_sha256": contract_sha256(spec), "suite_sha256": tree_sha256(suite_dir), "fixture_sha256": fixture_sha256, "task_prompt_sha256": task_prompt_sha256, "environment_sha256": environment["sha256"], "tool_policy_sha256": tool_policy_sha256, "resource_policy_sha256": resource_policy_sha256},
             "environment": environment, "executor": executor, "phases": phase_values, "pairs": pairs,
+            **({"treatment_runtime_checks": treatment_runtime_checks} if treatment_runtime_checks else {}),
             **({"treatments": treatments} if run_schema != BENCHMARK_RUN_SCHEMA else {}),
             "policies": {
                 "max_start_skew_seconds": spec["scheduling"]["max_start_skew_seconds"],
@@ -429,6 +432,7 @@ def create_run_plan(
             "codebase_memory_mode": codebase_memory_mode,
             "billing": executor["billing"], "assistance_cohort": assistance_cohort,
             "operating_policy": effective_policy,
+            "treatment_runtime_checks": treatment_runtime_checks,
             "arms": {arm: {"source_role": profiles[arm]["source_role"], "treatment_id": profiles[arm]["treatment_id"], "runner_kind": profiles[arm]["runner"]["kind"], "agent_class": profiles[arm]["runner"].get("agent_class"), "profile_id": profiles[arm]["profile_id"], "constraint_profile_sha256": profiles[arm]["constraint_profile_sha256"], "arm_wrapper_sha256": profiles[arm]["wrapper_sha256"], "enabled_features": normalized_profiles[arm]["enabled_features"], "disabled_features": normalized_profiles[arm]["disabled_features"]} for arm in ("control_raw", "workflow_full")},
             "task_prompt_sha256": task_prompt_sha256, "fixture_sha256": fixture_sha256, "composite": spec["composite"],
         })
