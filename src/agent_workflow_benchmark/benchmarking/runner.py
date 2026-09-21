@@ -469,32 +469,25 @@ def _run_phase_arm(
 
 def _git_evidence(pair: Mapping[str, Any], arm: Mapping[str, Any]) -> dict[str, Any]:
     worktree, base = Path(arm["worktree"]), str(pair["base_revision"])
-    patch_argv = [
-        "git",
-        "-C",
-        str(worktree),
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "--binary",
-        "--full-index",
-        base,
-        "--",
-        ".",
-        ":(exclude).agent-workflow-benchmark",
+    tracked_patch_argv = [
+        "git", "-C", str(worktree), "diff",
+        "--no-ext-diff", "--no-textconv", "--binary", "--full-index",
+        base, "--", ".", ":(exclude).agent-workflow-benchmark",
     ]
-    patch = run(
-        patch_argv,
+    tracked_patch = run(
+        tracked_patch_argv,
         check=True,
         max_stdout_bytes=16 * 1024 * 1024,
     )
+    diff_names_argv = [
+        "git", "-C", str(worktree), "diff",
+        "--no-ext-diff", "--no-textconv", "--name-only",
+        base, "--", ".", ":(exclude).agent-workflow-benchmark",
+    ]
+    diff_names = run(diff_names_argv, check=True)
     status_argv = [
-        "git",
-        "-C",
-        str(worktree),
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
+        "git", "-C", str(worktree), "status",
+        "--porcelain=v1", "--untracked-files=all",
     ]
     status = run(
         status_argv,
@@ -504,29 +497,81 @@ def _git_evidence(pair: Mapping[str, Any], arm: Mapping[str, Any]) -> dict[str, 
             git_config_policy="operator",
         ),
     )
-    stage = Path(arm["stage_dir"])
-    patch_path = stage / "patch.diff"
-    patch_path.write_text(str(patch.stdout), encoding="utf-8")
-    changed: list[str] = []
+    head_argv = ["git", "-C", str(worktree), "rev-parse", "HEAD"]
+    head = str(run(head_argv, check=True).stdout).strip()
+
+    status_paths: list[str] = []
+    untracked_paths: list[str] = []
     for line in str(status.stdout).splitlines():
+        if len(line) < 4:
+            continue
         relative = line[3:].strip()
         if " -> " in relative:
             relative = relative.split(" -> ", 1)[1]
-        if not relative.startswith(".agent-workflow-benchmark/"):
-            changed.append(relative)
+        if relative.startswith(".agent-workflow-benchmark/"):
+            continue
+        status_paths.append(relative)
+        if line.startswith("?? "):
+            untracked_paths.append(relative)
+
+    diff_paths = [
+        line.strip()
+        for line in str(diff_names.stdout).splitlines()
+        if line.strip() and not line.strip().startswith(".agent-workflow-benchmark/")
+    ]
+
+    patch_chunks = [str(tracked_patch.stdout)]
+    untracked_patch_argv: list[list[str]] = []
+    for relative in sorted(set(untracked_paths)):
+        path = worktree / relative
+        if not path.is_file():
+            continue
+        argv = [
+            "git", "diff", "--no-index",
+            "--no-ext-diff", "--no-textconv", "--binary", "--full-index",
+            "--", "/dev/null", relative,
+        ]
+        result = run(
+            argv,
+            cwd=worktree,
+            check=False,
+            max_stdout_bytes=16 * 1024 * 1024,
+        )
+        if result.returncode not in {0, 1}:
+            raise WorkflowError(
+                f"failed to capture untracked benchmark patch for {relative}: "
+                f"returncode={result.returncode}"
+            )
+        untracked_patch_argv.append(argv)
+        if str(result.stdout):
+            patch_chunks.append(str(result.stdout))
+
+    stage = Path(arm["stage_dir"])
+    patch_path = stage / "patch.diff"
+    patch_text = "".join(
+        chunk if chunk.endswith("\n") or not chunk else chunk + "\n"
+        for chunk in patch_chunks
+    )
+    patch_path.write_text(patch_text, encoding="utf-8")
+    changed = sorted(set(diff_paths) | set(status_paths))
     evidence = {
         "base_revision": base,
+        "head_revision": head,
         "patch_path": str(patch_path),
         "patch_sha256": sha256_file(patch_path),
         "patch_bytes": patch_path.stat().st_size,
-        "patch_argv": patch_argv,
-        "changed_paths": sorted(set(changed)),
+        "patch_argv": tracked_patch_argv,
+        "untracked_patch_argv": untracked_patch_argv,
+        "changed_paths": changed,
+        "tracked_changed_paths": sorted(set(diff_paths)),
+        "untracked_paths": sorted(set(untracked_paths)),
         "status_sha256": hashlib.sha256(str(status.stdout).encode()).hexdigest(),
         "status_argv": status_argv,
+        "diff_names_argv": diff_names_argv,
+        "head_argv": head_argv,
     }
     atomic_write_json(stage / "git-evidence.json", evidence)
     return evidence
-
 
 def _scope_violations(changed: list[str], scope: Mapping[str, Any]) -> list[str]:
     paths = set(str(item) for item in scope.get("writable_paths", []))
