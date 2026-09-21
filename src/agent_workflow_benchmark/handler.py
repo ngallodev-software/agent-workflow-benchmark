@@ -49,6 +49,7 @@ def handle_benchmark_command(
             args.executor,
             policy=args.policy,
             runtime_lock=args.runtime_lock,
+            settings=settings,
         )
     if command == "runtime-attest":
         return attest_benchmark_runtime(args.runtime_lock, claim_level=args.claim_level)
