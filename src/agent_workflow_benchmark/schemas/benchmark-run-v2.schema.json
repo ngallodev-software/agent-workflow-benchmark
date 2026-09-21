@@ -992,6 +992,33 @@
         "control_raw",
         "workflow_full"
       ]
+    },
+    "treatment_runtime_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "id",
+          "passed",
+          "detail"
+        ]
+      }
     }
   },
   "required": [
