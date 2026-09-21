@@ -27,6 +27,7 @@ from .metrics import aggregate_usage, load_usage, normalize_usage
 from .pairing import attempts_for
 
 TERMINAL_PHASE_STATES = {"completed", "task_failed", "infrastructure_failed", "timed_out"}
+AGENT_WORKFLOW_EXECUTOR_ALIASES = {"codex-cli": "codex", "claude-code-cli": "claude"}
 
 
 def _prompt_for(arm: Mapping[str, Any], phase_id: str) -> Path:
@@ -277,6 +278,10 @@ def _run_agent_workflow_phase_arm(
     agent_class = treatment.get("agent_class")
     effort = plan["executor"].get("effort")
     reasoning_effort = str(effort) if effort in {"low", "medium", "high"} else None
+    benchmark_executor = str(plan["executor"]["executor"])
+    agent_workflow_executor = AGENT_WORKFLOW_EXECUTOR_ALIASES.get(
+        benchmark_executor, benchmark_executor
+    )
 
     barrier.wait()
     actual_start_monotonic = time.monotonic()
@@ -305,7 +310,7 @@ def _run_agent_workflow_phase_arm(
             prompt_path=prompt_file,
             workdir=worktree,
             ticket_id=agent_run_id,
-            executor=str(plan["executor"]["executor"]),
+            executor=agent_workflow_executor,
             agent_class=str(agent_class) if agent_class else None,
             model=str(plan["executor"]["model"]),
             reasoning_effort=reasoning_effort,
@@ -415,6 +420,9 @@ def _run_agent_workflow_phase_arm(
             "observed_state": observed.get("observed_state") if observed else None,
             "failure_category": failure_category or None,
             "delegate_error": delegate_error,
+            "benchmark_executor": benchmark_executor,
+            "agent_workflow_executor": agent_workflow_executor,
+            "model": str(plan["executor"]["model"]),
         },
     )
     append_event(
