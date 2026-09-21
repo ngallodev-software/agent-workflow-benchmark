@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.1` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.2` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -90,7 +90,7 @@ agent-workflow benchmark plan /tmp/priority-picker-v2/benchmark-spec.json \
   --repo /path/to/target --base-ref HEAD \
   --executor /tmp/priority-picker-v2/executors/codex-subscription.json \
   --policy /tmp/priority-picker-v2/policies/development.json
-agent-workflow benchmark run RUN_PLAN.json
+agent-workflow benchmark run RUN_PLAN.json --execution-only
 ```
 
 Other lifecycle commands include `resume`, `status`, `live-start`, `live-stop`, `visual-capture`, `score`, `review`, `consolidate`, `report`, `verify`, and `cleanup`. Use `agent-workflow benchmark --help` for the live command tree.
@@ -116,7 +116,7 @@ The smoke study keeps the canonical task, fixture, hidden evaluator, scoring con
 
 The run plan and experiment manifest record the stable internal arm slot separately from `treatment_id` and `runner_kind`. This preserves historical evidence schemas while allowing future structured-direct and ablation studies to reuse the paired harness.
 
-Before a v3 plan is created, readiness now verifies the Agent-Workflow treatment resolves to a comparable runtime: the mapped Agent-Workflow executor exists, provider family matches, the configured executable basename matches the direct benchmark executable, the model is permitted, reasoning-effort semantics are compatible, and the selected Agent-Workflow agent class permits that model. These checks are persisted in the run plan/experiment manifest.
+Before a v3 plan is created, readiness verifies the Agent-Workflow treatment resolves to a comparable runtime: the mapped Agent-Workflow executor exists, provider family matches, the backend executable is either the direct Codex CLI or Agent-Workflow's owned `agent-workflow-codex` wrapper, the model is permitted, reasoning-effort semantics are compatible, and the selected Agent-Workflow agent class permits that model. These checks are persisted in the run plan/experiment manifest.
 
 For an authenticated end-to-end smoke run, the repository includes:
 
@@ -124,14 +124,16 @@ For an authenticated end-to-end smoke run, the repository includes:
 bash scripts/run-value-smoke.sh
 ```
 
-Environment overrides:
+The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
+
+Useful environment overrides:
 
 ```bash
-EXECUTOR_PROFILE=claude-subscription AGENT_CLASS=implementation bash scripts/run-value-smoke.sh
+AGENT_CLASS=implementation bash scripts/run-value-smoke.sh
 VALUE_SMOKE_ROOT=/tmp/aw-value-smoke-run bash scripts/run-value-smoke.sh
 ```
 
-The helper exports the v3 smoke suite, creates the frozen fixture repository, runs readiness, creates the paired plan, and executes the normal benchmark pipeline. It stops before planning if runtime comparability or subscription authentication is not verified.
+The helper exports the v3 smoke suite, creates the frozen fixture repository, runs execution-only readiness, creates the paired plan, and executes the paired treatments without entering visual capture or human-review finalization. Visual runtime attestation remains required for normal benchmark runs. The smoke stops before planning if runtime comparability or Codex subscription authentication is not verified.
 
 ## Legacy command migration
 
