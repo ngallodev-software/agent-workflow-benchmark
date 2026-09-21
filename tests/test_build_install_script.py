@@ -30,3 +30,14 @@ def test_build_install_script_documents_shared_venv_and_verify_mode() -> None:
     assert "--venv PATH" in result.stdout
     assert "--verify-only" in result.stdout
     assert "stale benchmark" in result.stdout
+
+
+def test_build_install_script_uses_venv_local_xdg_runtime() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert 'export VIRTUAL_ENV="$VENV"' in text
+    assert 'export XDG_CONFIG_HOME="$VENV/.xdg/config"' in text
+    assert 'export XDG_STATE_HOME="$VENV/.xdg/state"' in text
+    assert 'export XDG_DATA_HOME="$VENV/.xdg/data"' in text
+    assert "agent-workflow-benchmark" in text
+    assert "TYPESAFE_API_KEY" in text
+    assert "agent-workflow-comparative-eval" in text
