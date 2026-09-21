@@ -7,6 +7,7 @@ from agent_workflow_benchmark.benchmarking.contracts import (
     normalized_arm_profiles,
     validate_spec,
 )
+from agent_workflow_benchmark.benchmarking.runner import AGENT_WORKFLOW_EXECUTOR_ALIASES
 from agent_workflow_benchmark.benchmarking.service import export_value_smoke_suite
 
 
@@ -35,3 +36,8 @@ def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None
 
     spec = validate_spec(Path(result["spec"]))
     assert spec["arms"]["candidate"]["runner"]["agent_class"] == "benchmark-implementation"
+
+
+def test_agent_workflow_runner_maps_builtin_executor_ids() -> None:
+    assert AGENT_WORKFLOW_EXECUTOR_ALIASES["codex-cli"] == "codex"
+    assert AGENT_WORKFLOW_EXECUTOR_ALIASES["claude-code-cli"] == "claude"
