@@ -173,6 +173,71 @@ verify_path_shadowing() {
   fi
 }
 
+verify_core_share_artifacts() {
+  "$PYTHON" - "$VENV" <<'PY'
+from importlib import metadata
+from pathlib import Path
+import sys
+
+prefix = Path(sys.argv[1]).resolve()
+schema_dir = prefix / "share" / "agent-workflow" / "schemas"
+if not schema_dir.is_dir():
+    raise SystemExit(0)
+
+dist = metadata.distribution("agent-workflow")
+owned = {
+    Path(dist.locate_file(item)).resolve()
+    for item in (dist.files or ())
+}
+conflicts = []
+orphans = []
+for path in sorted(schema_dir.glob("benchmark-*.schema.json")):
+    if path.resolve() in owned:
+        conflicts.append(path)
+    else:
+        orphans.append(path)
+if conflicts:
+    raise SystemExit(
+        "current Agent-Workflow distribution still owns benchmark schemas that "
+        "must belong to the benchmark plugin: "
+        + ", ".join(str(path) for path in conflicts)
+    )
+if orphans:
+    raise SystemExit(
+        "stale unowned benchmark schemas remain in shared virtualenv data: "
+        + ", ".join(str(path) for path in orphans)
+    )
+PY
+}
+
+cleanup_core_share_artifacts() {
+  "$PYTHON" - "$VENV" <<'PY'
+from importlib import metadata
+from pathlib import Path
+import sys
+
+prefix = Path(sys.argv[1]).resolve()
+schema_dir = prefix / "share" / "agent-workflow" / "schemas"
+if not schema_dir.is_dir():
+    raise SystemExit(0)
+
+dist = metadata.distribution("agent-workflow")
+owned = {
+    Path(dist.locate_file(item)).resolve()
+    for item in (dist.files or ())
+}
+for path in sorted(schema_dir.glob("benchmark-*.schema.json")):
+    if path.resolve() in owned:
+        raise SystemExit(
+            "refusing to remove benchmark schema still owned by the current "
+            f"Agent-Workflow distribution: {path}"
+        )
+    print(f"removing stale unowned shared-venv benchmark schema: {path}")
+    path.unlink()
+PY
+  verify_core_share_artifacts
+}
+
 verify_host_artifacts() {
   local data_home host_schema_dir path
   data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -207,6 +272,8 @@ verify_host_artifacts() {
       return 1
     fi
   done
+
+  verify_core_share_artifacts
 }
 
 cleanup_stale_host_artifacts() {
@@ -215,17 +282,16 @@ cleanup_stale_host_artifacts() {
   host_schema_dir="$data_home/agent-workflow/schemas"
 
   if [[ -d "$host_schema_dir" ]]; then
-    while IFS= read -r schema_name; do
-      [[ -n "$schema_name" ]] || continue
-      path="$host_schema_dir/$schema_name"
-      if [[ -f "$path" || -L "$path" ]]; then
-        echo "removing stale core-era benchmark schema: $path"
-        rm -f "$path"
-      fi
+    while IFS= read -r path; do
+      [[ -n "$path" ]] || continue
+      echo "removing stale core-era benchmark schema: $path"
+      rm -f "$path"
     done < <(
-      find "$ROOT/src/agent_workflow_benchmark/schemas" -maxdepth 1 -type f -name '*.json' -exec basename {} \; | sort
+      find "$host_schema_dir" -maxdepth 1 \( -type f -o -type l \) -name 'benchmark-*.schema.json' -print | sort
     )
   fi
+
+  cleanup_core_share_artifacts
 
   local candidate content
   for candidate in "$VENV/bin/agent-workflow-benchmark" "$HOME/.local/bin/agent-workflow-benchmark"; do
