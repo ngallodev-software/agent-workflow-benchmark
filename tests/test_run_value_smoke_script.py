@@ -28,6 +28,9 @@ def test_value_smoke_script_is_valid_codex_only_execution_smoke() -> None:
     assert 'export XDG_STATE_HOME="$DEV_VENV/.xdg/state"' in text
     assert 'export XDG_DATA_HOME="$DEV_VENV/.xdg/data"' in text
     assert "caller shell environment is unchanged" in text
+    assert "value smoke requires TYPESAFE_API_KEY" in text
+    assert "require_decision_runtime_ready" in text
+    assert "decision_policy.mode='comparative'" in text
     assert "collect-value-smoke-evidence.py" in text
     assert "token_evidence_complete" in text
     assert "token evidence qualification: passed" in text

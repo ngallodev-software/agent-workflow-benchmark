@@ -60,6 +60,28 @@ DEV_CONFIG="$XDG_CONFIG_HOME/agent-workflow/config.toml"
   exit 1
 }
 
+[[ -n "${TYPESAFE_API_KEY:-}" ]] || {
+  echo "value smoke requires TYPESAFE_API_KEY because benchmark runtime uses comparative mode" >&2
+  exit 1
+}
+
+"${PYTHON}" - <<'PY'
+from agent_workflow.config import load_settings
+from agent_workflow.decisions import require_decision_runtime_ready
+
+settings = load_settings()
+if settings.decision_mode != "comparative":
+    raise SystemExit(
+        f"value smoke requires decision_policy.mode='comparative'; observed {settings.decision_mode!r}"
+    )
+status = require_decision_runtime_ready(settings)
+print(
+    "semantic preflight: "
+    f"mode={status['mode']}; "
+    "typesafe_api_key=configured; comparative_eval=compatible"
+)
+PY
+
 ROOT="${VALUE_SMOKE_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/agent-workflow-value-smoke.XXXXXX")}"
 SUITE="${ROOT}/suite"
 FIXTURE="${ROOT}/fixture"

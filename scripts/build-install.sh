@@ -2,14 +2,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ORIGINAL_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 VENV_ARG=""
+COMPARATIVE_EVAL_SOURCE_ARG=""
 VERIFY_ONLY=0
 BOOTSTRAP_BUILD=1
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/build-install.sh [--venv PATH] [--verify-only] [--no-bootstrap-build]
+Usage: scripts/build-install.sh [--venv PATH] [--comparative-eval-source PATH] [--verify-only] [--no-bootstrap-build]
 
 Build and install agent-workflow-benchmark into the same shared virtualenv that
 owns the Agent-Workflow wheel/launcher, then verify there are no stale benchmark
@@ -22,6 +22,8 @@ Virtualenv selection, in priority order:
 
 Options:
   --venv PATH            Explicit shared Agent-Workflow virtualenv.
+  --comparative-eval-source PATH
+                         Local agent-workflow-comparative-eval checkout to install if needed.
   --verify-only          Skip build/install and only verify the existing install.
   --no-bootstrap-build   Do not install the Python 'build' package if missing.
   -h, --help             Show this help.
@@ -36,6 +38,11 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { echo "--venv requires a value" >&2; exit 2; }
       VENV_ARG="$1"
+      ;;
+    --comparative-eval-source)
+      shift
+      [[ $# -gt 0 ]] || { echo "--comparative-eval-source requires a value" >&2; exit 2; }
+      COMPARATIVE_EVAL_SOURCE_ARG="$1"
       ;;
     --verify-only) VERIFY_ONLY=1 ;;
     --no-bootstrap-build) BOOTSTRAP_BUILD=0 ;;
@@ -93,121 +100,65 @@ PY
 }
 
 prepare_dev_config() {
-  local source_config="$ORIGINAL_CONFIG_HOME/agent-workflow/config.toml"
   local target_config="$XDG_CONFIG_HOME/agent-workflow/config.toml"
   mkdir -p "$(dirname "$target_config")"
-  "$PYTHON" - "$source_config" "$target_config" "$VENV" <<'PY'
+  "$PYTHON" - "$target_config" "$VENV" <<'PY'
 from pathlib import Path
 from datetime import datetime, timezone
 import json
 import os
-import re
 import sys
 import tempfile
 import tomllib
 
-source = Path(sys.argv[1])
-target = Path(sys.argv[2])
-venv = Path(sys.argv[3]).resolve()
+target = Path(sys.argv[1])
+venv = Path(sys.argv[2]).resolve()
 
-def read_valid(path: Path):
-    if not path.is_file():
-        return None, None
-    text = path.read_text(encoding="utf-8")
+if target.is_file():
+    existing = target.read_text(encoding="utf-8")
     try:
-        parsed = tomllib.loads(text)
-    except tomllib.TOMLDecodeError as exc:
-        return text, str(exc)
-    return text, parsed
-
-target_text, target_parsed = read_valid(target)
-source_text, source_parsed = read_valid(source)
-
-backup = None
-if target_text is not None and isinstance(target_parsed, dict):
-    text = target_text
-    parsed = target_parsed
-elif source_text is not None and isinstance(source_parsed, dict):
-    if target_text is not None and isinstance(target_parsed, str):
+        tomllib.loads(existing)
+    except tomllib.TOMLDecodeError:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         backup = target.with_name(f"{target.name}.invalid-{stamp}")
-        backup.write_text(target_text, encoding="utf-8")
-    text = source_text
-    parsed = source_parsed
-elif target_text is None and source_text is None:
-    text = "schema_version = 1\n"
-    parsed = {"schema_version": 1}
-else:
-    details = []
-    if target_text is not None and isinstance(target_parsed, str):
-        details.append(f"target {target}: {target_parsed}")
-    if source_text is not None and isinstance(source_parsed, str):
-        details.append(f"source {source}: {source_parsed}")
-    raise SystemExit("cannot prepare dev config from valid TOML; " + "; ".join(details))
+        backup.write_text(existing, encoding="utf-8")
+        print(
+            f"recovered invalid benchmark config; backup preserved at {backup}",
+            file=sys.stderr,
+        )
 
-plugins = parsed.get("plugins", {})
-enabled = plugins.get("enabled", []) if isinstance(plugins, dict) else []
-if not isinstance(enabled, list) or not all(isinstance(item, str) and item for item in enabled):
-    raise SystemExit("[plugins].enabled must be a string list")
-enabled = list(dict.fromkeys([*enabled, "agent-workflow-benchmark"]))
+def q(value: str) -> str:
+    return json.dumps(value)
 
-def patch_section(source_text: str, section: str, replacements: dict[str, str]) -> str:
-    lines = source_text.splitlines()
-    out: list[str] = []
-    in_section = False
-    saw_section = False
-    written: set[str] = set()
-    header = f"[{section}]"
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            if in_section:
-                for key, value in replacements.items():
-                    if key not in written:
-                        out.append(f"{key} = {value}")
-            in_section = stripped == header
-            saw_section = saw_section or in_section
-            if in_section:
-                written = set()
-            out.append(line)
-            continue
-        if in_section:
-            matched = False
-            for key, value in replacements.items():
-                if re.match(rf"^\s*{re.escape(key)}\s*=", line):
-                    out.append(f"{key} = {value}")
-                    written.add(key)
-                    matched = True
-                    break
-            if matched:
-                continue
-        out.append(line)
-    if in_section:
-        for key, value in replacements.items():
-            if key not in written:
-                out.append(f"{key} = {value}")
-    if not saw_section:
-        if out and out[-1].strip():
-            out.append("")
-        out.append(header)
-        for key, value in replacements.items():
-            out.append(f"{key} = {value}")
-    return "\n".join(out).rstrip() + "\n"
-
-text = patch_section(
-    text,
-    "paths",
-    {
-        "worktree_root": json.dumps(str(venv / ".xdg" / "data" / "agent-workflow" / "worktrees")),
-        "state_root": json.dumps(str(venv / ".xdg" / "state" / "agent-workflow")),
-    },
+rendered = "\n".join(
+    [
+        "schema_version = 1",
+        "",
+        "[paths]",
+        f"worktree_root = {q(str(venv / '.xdg' / 'data' / 'agent-workflow' / 'worktrees'))}",
+        f"state_root = {q(str(venv / '.xdg' / 'state' / 'agent-workflow'))}",
+        "",
+        "[plugins]",
+        'enabled = ["agent-workflow-benchmark"]',
+        "",
+        "[semantic]",
+        'provider = "typesafe"',
+        "",
+        "[decision_policy]",
+        'mode = "comparative"',
+        'profile = "default"',
+        "",
+    ]
 )
-text = patch_section(text, "plugins", {"enabled": json.dumps(enabled)})
 
 try:
-    tomllib.loads(text)
+    parsed = tomllib.loads(rendered)
 except tomllib.TOMLDecodeError as exc:
-    raise SystemExit(f"refusing to write invalid development config: {exc}") from exc
+    raise SystemExit(f"internal benchmark config generation produced invalid TOML: {exc}") from exc
+
+assert parsed["plugins"]["enabled"] == ["agent-workflow-benchmark"]
+assert parsed["semantic"]["provider"] == "typesafe"
+assert parsed["decision_policy"]["mode"] == "comparative"
 
 target.parent.mkdir(parents=True, exist_ok=True)
 with tempfile.NamedTemporaryFile(
@@ -218,12 +169,10 @@ with tempfile.NamedTemporaryFile(
     suffix=".tmp",
     delete=False,
 ) as handle:
-    handle.write(text)
+    handle.write(rendered)
     temp = Path(handle.name)
 os.replace(temp, target)
-
-if backup is not None:
-    print(f"recovered invalid development config; backup preserved at {backup}", file=sys.stderr)
+print(f"benchmark runtime config: {target}")
 PY
 }
 
@@ -347,6 +296,126 @@ print(value["project"]["version"])
 PY
 )"
 
+resolve_comparative_eval_source() {
+  local candidate=""
+  if [[ -n "$COMPARATIVE_EVAL_SOURCE_ARG" ]]; then
+    candidate="$COMPARATIVE_EVAL_SOURCE_ARG"
+  elif [[ -n "${AGENT_WORKFLOW_COMPARATIVE_EVAL_SOURCE:-}" ]]; then
+    candidate="$AGENT_WORKFLOW_COMPARATIVE_EVAL_SOURCE"
+  elif [[ -f "$ROOT/../agent-workflow-comparative-eval/pyproject.toml" ]]; then
+    candidate="$ROOT/../agent-workflow-comparative-eval"
+  fi
+  if [[ -n "$candidate" ]]; then
+    resolve_path "$candidate"
+  fi
+}
+
+semantic_dependency_versions_ok() {
+  "$PYTHON" - <<'PY'
+from importlib import metadata
+
+required = {
+    "typesafe-sdk": "0.6.0",
+    "agent-workflow-comparative-eval": "0.1.0",
+}
+for name, expected in required.items():
+    try:
+        observed = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        raise SystemExit(1)
+    if observed != expected:
+        raise SystemExit(1)
+PY
+}
+
+verify_semantic_runtime() {
+  [[ -n "${TYPESAFE_API_KEY:-}" ]] || {
+    echo "benchmark comparative mode requires TYPESAFE_API_KEY in the environment" >&2
+    return 1
+  }
+  "$PYTHON" - <<'PY'
+from importlib import metadata
+
+from agent_workflow.config import load_settings
+from agent_workflow.decisions import require_decision_runtime_ready
+
+required = {
+    "typesafe-sdk": "0.6.0",
+    "agent-workflow-comparative-eval": "0.1.0",
+}
+for name, expected in required.items():
+    try:
+        observed = metadata.version(name)
+    except metadata.PackageNotFoundError as exc:
+        raise SystemExit(f"required semantic dependency is not installed: {name}=={expected}") from exc
+    if observed != expected:
+        raise SystemExit(
+            f"semantic dependency version mismatch: {name} {observed}; expected {expected}"
+        )
+
+settings = load_settings()
+if settings.decision_mode != "comparative":
+    raise SystemExit(
+        f"benchmark runtime must use decision_policy.mode='comparative'; observed {settings.decision_mode!r}"
+    )
+status = require_decision_runtime_ready(settings)
+if status.get("ready") is not True:
+    raise SystemExit(f"comparative semantic runtime is not ready: {status}")
+print(
+    "semantic runtime verified: mode=comparative; typesafe_sdk=0.6.0; "
+    "comparative_eval=0.1.0; typesafe_api_key=configured"
+)
+PY
+}
+
+ensure_semantic_dependencies() {
+  [[ -n "${TYPESAFE_API_KEY:-}" ]] || {
+    echo "benchmark comparative mode requires TYPESAFE_API_KEY in the environment" >&2
+    exit 1
+  }
+
+  if "$PYTHON" - <<'PY'
+from importlib import metadata
+try:
+    raise SystemExit(0 if metadata.version("typesafe-sdk") == "0.6.0" else 1)
+except metadata.PackageNotFoundError:
+    raise SystemExit(1)
+PY
+  then
+    echo "TypeSafe SDK already installed: 0.6.0"
+  else
+    echo "installing TypeSafe SDK 0.6.0 into shared virtualenv"
+    "$PYTHON" -m pip install --upgrade "typesafe-sdk==0.6.0"
+  fi
+
+  if "$PYTHON" - <<'PY'
+from importlib import metadata
+try:
+    raise SystemExit(
+        0 if metadata.version("agent-workflow-comparative-eval") == "0.1.0" else 1
+    )
+except metadata.PackageNotFoundError:
+    raise SystemExit(1)
+PY
+  then
+    echo "comparative-eval library already installed: 0.1.0"
+  else
+    local source
+    source="$(resolve_comparative_eval_source)"
+    if [[ -n "$source" && -f "$source/pyproject.toml" ]]; then
+      echo "installing comparative-eval 0.1.0 from local source: $source"
+      "$PYTHON" -m pip install --no-deps --force-reinstall "$source"
+    else
+      echo "local comparative-eval source not found; installing distribution agent-workflow-comparative-eval==0.1.0"
+      "$PYTHON" -m pip install --no-deps --force-reinstall "agent-workflow-comparative-eval==0.1.0"
+    fi
+  fi
+
+  semantic_dependency_versions_ok || {
+    echo "semantic dependency installation did not produce the required versions" >&2
+    exit 1
+  }
+}
 verify_path_shadowing() {
   local active resolved_active resolved_expected
   active="$(command -v agent-workflow 2>/dev/null || true)"
@@ -708,45 +777,17 @@ print(
 )
 PY
 
-  "$PYTHON" - <<'PY'
-from agent_workflow.config import load_settings
-from agent_workflow.decisions import decision_mode
-from agent_workflow.semantic.typesafe import capability
-
-settings = load_settings()
-mode = decision_mode(settings.decision_mode)
-if mode.provider == "typesafe":
-    cap = capability(settings)
-    if not cap.get("typesafe_sdk_installed"):
-        raise SystemExit(
-            f"decision mode {mode.name!r} requires the TypeSafe SDK in the shared virtualenv"
-        )
-    if not cap.get("api_key_configured"):
-        raise SystemExit(
-            f"decision mode {mode.name!r} requires TYPESAFE_API_KEY in the runtime environment"
-        )
-    if mode.capture_comparison:
-        from agent_workflow.comparative_eval import shared_library_status
-        shared = shared_library_status()
-        if not shared.get("installed") or not shared.get("compatible"):
-            raise SystemExit(
-                "comparative decision mode requires compatible "
-                "agent-workflow-comparative-eval in the shared virtualenv"
-            )
-    print(
-        f"semantic runtime verified: mode={mode.name}; "
-        "typesafe_api_key=configured"
-    )
-else:
-    print("semantic runtime verified: mode=deterministic; TypeSafe key not required")
-PY
+  verify_semantic_runtime
 }
 
 if [[ "$VERIFY_ONLY" -eq 1 ]]; then
+  verify_semantic_runtime
   verify_host_artifacts
   verify_installed_state
   exit 0
 fi
+
+ensure_semantic_dependencies
 
 if ! "$PYTHON" -c 'import build' >/dev/null 2>&1; then
   if [[ "$BOOTSTRAP_BUILD" -ne 1 ]]; then
