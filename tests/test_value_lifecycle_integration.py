@@ -11,8 +11,7 @@ from agent_workflow_benchmark.benchmarking.planning import (
     create_run_plan,
     materialize_fixture,
 )
-from agent_workflow_benchmark.benchmarking.runner import execute_run
-from agent_workflow_benchmark.benchmarking.service import export_value_smoke_suite
+from agent_workflow_benchmark.benchmarking.service import export_value_smoke_suite, run_benchmark
 
 
 FAKE_CODEX = r"""#!/usr/bin/env python3
@@ -177,9 +176,11 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     plan = read_object(plan_path)
     assert all(item["passed"] for item in plan["treatment_runtime_checks"])
 
-    executed = execute_run(plan_path, settings=settings)
+    executed = run_benchmark(settings, plan_path, execution_only=True)
     assert executed["state"] == "executed"
     assert executed["pairs_terminal"] == 1
+    assert executed["execution_only"] is True
+    assert executed["report"] is None
 
     pair = plan["pairs"][0]
     pair_state_path = (
