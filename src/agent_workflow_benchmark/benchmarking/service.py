@@ -16,6 +16,7 @@ from .auth import preflight_authentication
 from .policy import apply_operating_policy, implicit_operating_policy, load_operating_policy
 from .pairing import attempts_for
 from .runtime import attest_runtime, seal_runtime_lock, validate_runtime_lock
+from .treatments import treatment_runtime_checks
 from .consolidation import consolidate_run, verify_consolidated_run
 from .contracts import BENCHMARK_SPEC_V3_SCHEMA, validate_executor_config, validate_spec
 from .planning import create_run_plan, materialize_fixture
@@ -494,6 +495,7 @@ def benchmark_readiness(
     *,
     policy: Path | None = None,
     runtime_lock: Path | None = None,
+    settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Evaluate whether a benchmark profile can be planned without creating worktrees."""
     base_spec = validate_spec(spec)
@@ -545,8 +547,18 @@ def benchmark_readiness(
     checks.extend([
         {
             "id": "headless-executor",
-            "passed": shutil.which(str(configured["executor"])) is not None or Path(str(configured["executor"])).exists(),
-            "detail": f"executor={configured['executor']}; benchmark arms execute without a terminal host",
+            "passed": (
+                bool(configured.get("argv_template"))
+                and (
+                    shutil.which(str(configured["argv_template"][0])) is not None
+                    or Path(str(configured["argv_template"][0])).exists()
+                )
+            ),
+            "detail": (
+                f"executor={configured['executor']}; "
+                f"binary={configured['argv_template'][0] if configured.get('argv_template') else 'missing'}; "
+                "benchmark arms execute without a terminal host"
+            ),
         },
         {
             "id": "paired-repetitions",
@@ -572,6 +584,15 @@ def benchmark_readiness(
             ),
         },
     ])
+    if effective_spec.get("schema") == BENCHMARK_SPEC_V3_SCHEMA:
+        if settings is None:
+            checks.append({
+                "id": "agent-workflow-settings",
+                "passed": False,
+                "detail": "benchmark v3 Agent-Workflow treatment readiness requires host Settings",
+            })
+        else:
+            checks.extend(treatment_runtime_checks(settings, effective_spec, configured))
     return {
         "benchmark_id": effective_spec["benchmark_id"],
         "claim_level": effective_spec["claim_level"],
