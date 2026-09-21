@@ -23,6 +23,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+if "login" in sys.argv and "status" in sys.argv:
+    print("Logged in with ChatGPT OAuth")
+    raise SystemExit(0)
 if "--version" in sys.argv:
     print("codex-cli 0.0.0-benchmark-test")
     raise SystemExit(0)
@@ -111,7 +114,7 @@ def _write_fake_codex(path: Path) -> None:
     path.chmod(0o755)
 
 
-def _write_synthetic_codex_executor(source: Path, destination: Path, fake_codex: Path) -> None:
+def _write_fake_codex_executor(source: Path, destination: Path, fake_codex: Path) -> None:
     value = json.loads(source.read_text(encoding="utf-8"))
     value["executor_version"] = "0.0.0-benchmark-test"
     value["argv_template"] = [
@@ -124,20 +127,8 @@ def _write_synthetic_codex_executor(source: Path, destination: Path, fake_codex:
         "{usage_file}",
     ]
     value["timeout_seconds"] = 20
-    value["authentication"] = {
-        "mode": "synthetic-none",
-        "status_argv": [],
-        "status_timeout_seconds": 5,
-        "credential_environment": [],
-    }
-    value["billing"] = {
-        "mode": "synthetic",
-        "provider_billed_cost_semantics": "synthetic",
-        "subscription_plan": None,
-        "subscription_allocation": {"method": "none", "amount": None},
-    }
-    value["price_catalog_id"] = "benchmark-test"
-    value["pricing"] = None
+    value["authentication"]["status_argv"] = [str(fake_codex), "login", "status"]
+    value["authentication"]["status_timeout_seconds"] = 5
     destination.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
@@ -153,7 +144,7 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     materialize_fixture(spec, fixture)
 
     executor = tmp_path / "codex-synthetic.json"
-    _write_synthetic_codex_executor(
+    _write_fake_codex_executor(
         suite / "executors" / "codex-subscription.json",
         executor,
         fake_codex,
