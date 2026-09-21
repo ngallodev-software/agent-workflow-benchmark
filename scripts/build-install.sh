@@ -173,6 +173,55 @@ verify_path_shadowing() {
   fi
 }
 
+cleanup_stale_host_artifacts() {
+  local data_home host_schema_dir path
+  data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+  host_schema_dir="$data_home/agent-workflow/schemas"
+
+  if [[ -d "$host_schema_dir" ]]; then
+    while IFS= read -r schema_name; do
+      [[ -n "$schema_name" ]] || continue
+      path="$host_schema_dir/$schema_name"
+      if [[ -f "$path" || -L "$path" ]]; then
+        echo "removing stale core-era benchmark schema: $path"
+        rm -f "$path"
+      fi
+    done < <(
+      find "$ROOT/src/agent_workflow_benchmark/schemas" -maxdepth 1 -type f -name '*.json' -printf '%f\n' | sort
+    )
+
+    mapfile -t remaining_benchmark_schemas < <(
+      find "$host_schema_dir" -maxdepth 1 \( -type f -o -type l \) -name 'benchmark-*.schema.json' -print | sort
+    )
+    if (( ${#remaining_benchmark_schemas[@]} > 0 )); then
+      echo "unrecognized stale benchmark schemas remain in Agent-Workflow host data:" >&2
+      printf '  %s\n' "${remaining_benchmark_schemas[@]}" >&2
+      exit 1
+    fi
+  fi
+
+  local candidate content
+  for candidate in "$VENV/bin/agent-workflow-benchmark" "$HOME/.local/bin/agent-workflow-benchmark"; do
+    [[ -e "$candidate" || -L "$candidate" ]] || continue
+    if [[ -L "$candidate" ]]; then
+      content="$(readlink "$candidate" || true)"
+      if [[ "$content" == *agent-workflow-benchmark* || "$content" == *agent_workflow_benchmark* ]]; then
+        echo "removing obsolete benchmark launcher symlink: $candidate"
+        rm -f "$candidate"
+        continue
+      fi
+    elif [[ -f "$candidate" ]]; then
+      if grep -q 'agent_workflow_benchmark' "$candidate" 2>/dev/null; then
+        echo "removing obsolete benchmark launcher: $candidate"
+        rm -f "$candidate"
+        continue
+      fi
+    fi
+    echo "refusing to remove unrelated path matching obsolete benchmark launcher name: $candidate" >&2
+    exit 1
+  done
+}
+
 verify_installed_state() {
   "$PYTHON" - "$ROOT" "$EXPECTED_VERSION" <<'PY'
 from __future__ import annotations
@@ -316,12 +365,13 @@ PY
   verify_path_shadowing
 
   PLUGINS_JSON="$("$AW_LAUNCHER" --json plugins list)"
-  printf '%s' "$PLUGINS_JSON" | "$PYTHON" - "$EXPECTED_VERSION" <<'PY'
+  PLUGINS_JSON="$PLUGINS_JSON" "$PYTHON" - "$EXPECTED_VERSION" <<'PY'
 import json
+import os
 import sys
 
 expected = sys.argv[1]
-payload = json.load(sys.stdin)
+payload = json.loads(os.environ["PLUGINS_JSON"])
 rows = [
     row for row in payload.get("plugins", [])
     if row.get("name") == "agent-workflow-benchmark"
@@ -345,6 +395,7 @@ PY
 }
 
 if [[ "$VERIFY_ONLY" -eq 1 ]]; then
+  cleanup_stale_host_artifacts
   verify_installed_state
   exit 0
 fi
@@ -441,6 +492,8 @@ PY
 
 echo "removing previous benchmark distribution from shared virtualenv"
 "$PYTHON" -m pip uninstall -y agent-workflow-benchmark >/dev/null 2>&1 || true
+
+cleanup_stale_host_artifacts
 
 "$PYTHON" - <<'PY'
 from pathlib import Path
