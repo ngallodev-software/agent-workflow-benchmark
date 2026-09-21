@@ -98,21 +98,52 @@ prepare_dev_config() {
   mkdir -p "$(dirname "$target_config")"
   "$PYTHON" - "$source_config" "$target_config" "$VENV" <<'PY'
 from pathlib import Path
+from datetime import datetime, timezone
 import json
+import os
 import re
 import sys
+import tempfile
 import tomllib
 
 source = Path(sys.argv[1])
 target = Path(sys.argv[2])
 venv = Path(sys.argv[3]).resolve()
-input_path = target if target.is_file() else source
-text = input_path.read_text(encoding="utf-8") if input_path.is_file() else "schema_version = 1\n"
 
-try:
-    parsed = tomllib.loads(text)
-except tomllib.TOMLDecodeError as exc:
-    raise SystemExit(f"cannot prepare dev config from {input_path}: {exc}") from exc
+def read_valid(path: Path):
+    if not path.is_file():
+        return None, None
+    text = path.read_text(encoding="utf-8")
+    try:
+        parsed = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        return text, str(exc)
+    return text, parsed
+
+target_text, target_parsed = read_valid(target)
+source_text, source_parsed = read_valid(source)
+
+backup = None
+if target_text is not None and isinstance(target_parsed, dict):
+    text = target_text
+    parsed = target_parsed
+elif source_text is not None and isinstance(source_parsed, dict):
+    if target_text is not None and isinstance(target_parsed, str):
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup = target.with_name(f"{target.name}.invalid-{stamp}")
+        backup.write_text(target_text, encoding="utf-8")
+    text = source_text
+    parsed = source_parsed
+elif target_text is None and source_text is None:
+    text = "schema_version = 1\n"
+    parsed = {"schema_version": 1}
+else:
+    details = []
+    if target_text is not None and isinstance(target_parsed, str):
+        details.append(f"target {target}: {target_parsed}")
+    if source_text is not None and isinstance(source_parsed, str):
+        details.append(f"source {source}: {source_parsed}")
+    raise SystemExit("cannot prepare dev config from valid TOML; " + "; ".join(details))
 
 plugins = parsed.get("plugins", {})
 enabled = plugins.get("enabled", []) if isinstance(plugins, dict) else []
@@ -172,7 +203,27 @@ text = patch_section(
     },
 )
 text = patch_section(text, "plugins", {"enabled": json.dumps(enabled)})
-target.write_text(text, encoding="utf-8")
+
+try:
+    tomllib.loads(text)
+except tomllib.TOMLDecodeError as exc:
+    raise SystemExit(f"refusing to write invalid development config: {exc}") from exc
+
+target.parent.mkdir(parents=True, exist_ok=True)
+with tempfile.NamedTemporaryFile(
+    "w",
+    encoding="utf-8",
+    dir=target.parent,
+    prefix=target.name + ".",
+    suffix=".tmp",
+    delete=False,
+) as handle:
+    handle.write(text)
+    temp = Path(handle.name)
+os.replace(temp, target)
+
+if backup is not None:
+    print(f"recovered invalid development config; backup preserved at {backup}", file=sys.stderr)
 PY
 }
 
