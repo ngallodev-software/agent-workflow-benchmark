@@ -24,7 +24,7 @@ def _binary_name(argv: object) -> str | None:
     return Path(str(first)).name if first is not None else None
 
 
-def _uses_agent_workflow(spec: Mapping[str, Any]) -> bool:
+def uses_agent_workflow(spec: Mapping[str, Any]) -> bool:
     arms = spec.get("arms")
     return isinstance(arms, Mapping) and any(
         isinstance(profile, Mapping)
@@ -45,7 +45,7 @@ def treatment_runtime_checks(
     provider executable/model family as the direct benchmark executor. They do
     not require a provider call and therefore belong in readiness/planning.
     """
-    if not _uses_agent_workflow(spec):
+    if not uses_agent_workflow(spec):
         return []
 
     benchmark_executor = str(executor["executor"])
