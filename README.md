@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.3` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.4` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -146,6 +146,14 @@ VALUE_SMOKE_ROOT=/tmp/aw-value-smoke-run bash scripts/run-value-smoke.sh
 ```
 
 The helper exports the v3 smoke suite, creates the frozen fixture repository, runs execution-only readiness, creates the paired plan, and executes the paired treatments without entering visual capture or human-review finalization. Visual runtime attestation remains required for normal benchmark runs. The smoke stops before planning if runtime comparability or Codex subscription authentication is not verified.
+
+After any completed or failed smoke run, preserve the raw evidence with:
+
+```bash
+python scripts/collect-value-smoke-evidence.py /tmp/agent-workflow-value-smoke.XXXXXX
+```
+
+If the smoke root is omitted, the collector chooses the newest `$TMPDIR/agent-workflow-value-smoke.*` directory. It packages the complete smoke root plus the referenced benchmark run directory, records package/runtime identity without secret values, writes SHA-256 checksums, and refuses to archive if the current `TYPESAFE_API_KEY` value is found in collected files.
 
 ## Legacy command migration
 

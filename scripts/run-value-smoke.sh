@@ -142,4 +142,4 @@ print(f"  state: {result.get('state')}")
 PY
 
 echo "local smoke artifacts: ${ROOT}"
-echo "smoke XDG isolation was process-local; caller shell environment is unchanged"
+echo "smoke XDG isolation was process-local; caller shell environment is unchanged"\necho "collect durable evidence with:"\necho "  python scripts/collect-value-smoke-evidence.py ${ROOT}"
