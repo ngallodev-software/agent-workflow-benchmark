@@ -14,6 +14,7 @@ from agent_workflow_benchmark.benchmarking.treatments import (
     treatment_runtime_checks,
     uses_agent_workflow,
 )
+import agent_workflow_benchmark.benchmarking.service as benchmark_service
 from agent_workflow_benchmark.benchmarking.service import export_value_smoke_suite
 
 
@@ -124,3 +125,28 @@ def test_runtime_checks_accept_agent_workflow_codex_wrapper(tmp_path: Path) -> N
 
     assert by_id["agent-workflow-executable"]["passed"] is True
     assert "binding=agent-workflow-wrapper" in by_id["agent-workflow-executable"]["detail"]
+
+
+def test_execution_only_readiness_skips_visual_attestation(tmp_path: Path, monkeypatch) -> None:
+    destination = tmp_path / "suite"
+    result = export_value_smoke_suite(destination)
+    monkeypatch.setattr(
+        benchmark_service,
+        "preflight_authentication",
+        lambda configured: {"authenticated": True, "detail": "test authenticated"},
+    )
+    monkeypatch.setattr(benchmark_service.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    readiness = benchmark_service.benchmark_readiness(
+        Path(result["spec"]),
+        destination / "executors" / "codex-subscription.json",
+        policy=destination / "policies" / "development.json",
+        settings=defaults(),
+        execution_only=True,
+    )
+    by_id = {item["id"]: item for item in readiness["checks"]}
+
+    assert readiness["ready"] is True
+    assert readiness["runtime"]["runtime_state"] == "not-required"
+    assert by_id["visual-runtime"]["passed"] is True
+    assert "not required for execution-only" in by_id["visual-runtime"]["detail"]
