@@ -18,6 +18,41 @@ For visual benchmark capture:
 python -m pip install 'agent-workflow-benchmark[visual]'
 ```
 
+For a source checkout used alongside an Agent-Workflow wheel, use the repository
+installer so the plugin is built and installed into the **same shared virtualenv**
+that owns the `agent-workflow` launcher:
+
+```bash
+bash scripts/build-install.sh
+```
+
+The script discovers that virtualenv from the resolved `agent-workflow` launcher,
+or accepts an explicit path:
+
+```bash
+bash scripts/build-install.sh --venv /path/to/shared-agent-workflow-venv
+```
+
+It performs a clean wheel build, uninstalls the previous benchmark distribution,
+removes only benchmark-owned stale package artifacts, installs the new wheel with
+`--no-deps` so Agent-Workflow itself is not replaced, then verifies:
+
+- Agent-Workflow and the benchmark distribution resolve from the same virtualenv;
+- the installed benchmark version matches this checkout;
+- the source, wheel, installed package, and plugin descriptor expose the same schema set and digests;
+- exactly one `agent_workflow.plugins` benchmark entry point exists;
+- the benchmark distribution owns no standalone console script;
+- no stale `benchmark-*.schema.json` files remain in Agent-Workflow's XDG host-data schema directory;
+- no stale benchmark schemas remain under the shared virtualenv's Agent-Workflow data files;
+- no obsolete `agent-workflow-benchmark` launcher shadows plugin discovery;
+- the active `agent-workflow` command resolves to the selected shared virtualenv.
+
+To audit an existing installation without rebuilding it:
+
+```bash
+bash scripts/build-install.sh --verify-only
+```
+
 Enable the plugin in Agent-Workflow configuration:
 
 ```toml
