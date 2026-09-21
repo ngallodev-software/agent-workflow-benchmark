@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.4` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.5` declares `agent-workflow>=0.11.0,<0.12`; Agent-Workflow `0.11.2` is inside that supported range. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -146,6 +146,8 @@ VALUE_SMOKE_ROOT=/tmp/aw-value-smoke-run bash scripts/run-value-smoke.sh
 ```
 
 The helper exports the v3 smoke suite, creates the frozen fixture repository, runs execution-only readiness, creates the paired plan, and executes the paired treatments without entering visual capture or human-review finalization. Visual runtime attestation remains required for normal benchmark runs. The smoke stops before planning if runtime comparability or Codex subscription authentication is not verified.
+
+Git evidence now records committed, uncommitted, and untracked task changes. The canonical patch includes tracked changes relative to the benchmark base revision plus synthetic patches for untracked files, and `git-evidence.json` records both `base_revision` and `head_revision` so Agent-Workflow commits remain visible even when the worktree is clean.
 
 After any completed or failed smoke run, preserve the raw evidence with:
 
