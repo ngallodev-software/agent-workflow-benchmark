@@ -2,14 +2,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ORIGINAL_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 VENV_ARG=""
+COMPARATIVE_EVAL_SOURCE_ARG=""
 VERIFY_ONLY=0
 BOOTSTRAP_BUILD=1
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/build-install.sh [--venv PATH] [--verify-only] [--no-bootstrap-build]
+Usage: scripts/build-install.sh [--venv PATH] [--comparative-eval-source PATH] [--verify-only] [--no-bootstrap-build]
 
 Build and install agent-workflow-benchmark into the same shared virtualenv that
 owns the Agent-Workflow wheel/launcher, then verify there are no stale benchmark
@@ -22,6 +22,8 @@ Virtualenv selection, in priority order:
 
 Options:
   --venv PATH            Explicit shared Agent-Workflow virtualenv.
+  --comparative-eval-source PATH
+                         Local agent-workflow-comparative-eval checkout to install if needed.
   --verify-only          Skip build/install and only verify the existing install.
   --no-bootstrap-build   Do not install the Python 'build' package if missing.
   -h, --help             Show this help.
@@ -36,6 +38,11 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { echo "--venv requires a value" >&2; exit 2; }
       VENV_ARG="$1"
+      ;;
+    --comparative-eval-source)
+      shift
+      [[ $# -gt 0 ]] || { echo "--comparative-eval-source requires a value" >&2; exit 2; }
+      COMPARATIVE_EVAL_SOURCE_ARG="$1"
       ;;
     --verify-only) VERIFY_ONLY=1 ;;
     --no-bootstrap-build) BOOTSTRAP_BUILD=0 ;;
@@ -93,121 +100,65 @@ PY
 }
 
 prepare_dev_config() {
-  local source_config="$ORIGINAL_CONFIG_HOME/agent-workflow/config.toml"
   local target_config="$XDG_CONFIG_HOME/agent-workflow/config.toml"
   mkdir -p "$(dirname "$target_config")"
-  "$PYTHON" - "$source_config" "$target_config" "$VENV" <<'PY'
+  "$PYTHON" - "$target_config" "$VENV" <<'PY'
 from pathlib import Path
 from datetime import datetime, timezone
 import json
 import os
-import re
 import sys
 import tempfile
 import tomllib
 
-source = Path(sys.argv[1])
-target = Path(sys.argv[2])
-venv = Path(sys.argv[3]).resolve()
+target = Path(sys.argv[1])
+venv = Path(sys.argv[2]).resolve()
 
-def read_valid(path: Path):
-    if not path.is_file():
-        return None, None
-    text = path.read_text(encoding="utf-8")
+if target.is_file():
+    existing = target.read_text(encoding="utf-8")
     try:
-        parsed = tomllib.loads(text)
-    except tomllib.TOMLDecodeError as exc:
-        return text, str(exc)
-    return text, parsed
-
-target_text, target_parsed = read_valid(target)
-source_text, source_parsed = read_valid(source)
-
-backup = None
-if target_text is not None and isinstance(target_parsed, dict):
-    text = target_text
-    parsed = target_parsed
-elif source_text is not None and isinstance(source_parsed, dict):
-    if target_text is not None and isinstance(target_parsed, str):
+        tomllib.loads(existing)
+    except tomllib.TOMLDecodeError:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         backup = target.with_name(f"{target.name}.invalid-{stamp}")
-        backup.write_text(target_text, encoding="utf-8")
-    text = source_text
-    parsed = source_parsed
-elif target_text is None and source_text is None:
-    text = "schema_version = 1\n"
-    parsed = {"schema_version": 1}
-else:
-    details = []
-    if target_text is not None and isinstance(target_parsed, str):
-        details.append(f"target {target}: {target_parsed}")
-    if source_text is not None and isinstance(source_parsed, str):
-        details.append(f"source {source}: {source_parsed}")
-    raise SystemExit("cannot prepare dev config from valid TOML; " + "; ".join(details))
+        backup.write_text(existing, encoding="utf-8")
+        print(
+            f"recovered invalid benchmark config; backup preserved at {backup}",
+            file=sys.stderr,
+        )
 
-plugins = parsed.get("plugins", {})
-enabled = plugins.get("enabled", []) if isinstance(plugins, dict) else []
-if not isinstance(enabled, list) or not all(isinstance(item, str) and item for item in enabled):
-    raise SystemExit("[plugins].enabled must be a string list")
-enabled = list(dict.fromkeys([*enabled, "agent-workflow-benchmark"]))
+def q(value: str) -> str:
+    return json.dumps(value)
 
-def patch_section(source_text: str, section: str, replacements: dict[str, str]) -> str:
-    lines = source_text.splitlines()
-    out: list[str] = []
-    in_section = False
-    saw_section = False
-    written: set[str] = set()
-    header = f"[{section}]"
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            if in_section:
-                for key, value in replacements.items():
-                    if key not in written:
-                        out.append(f"{key} = {value}")
-            in_section = stripped == header
-            saw_section = saw_section or in_section
-            if in_section:
-                written = set()
-            out.append(line)
-            continue
-        if in_section:
-            matched = False
-            for key, value in replacements.items():
-                if re.match(rf"^\s*{re.escape(key)}\s*=", line):
-                    out.append(f"{key} = {value}")
-                    written.add(key)
-                    matched = True
-                    break
-            if matched:
-                continue
-        out.append(line)
-    if in_section:
-        for key, value in replacements.items():
-            if key not in written:
-                out.append(f"{key} = {value}")
-    if not saw_section:
-        if out and out[-1].strip():
-            out.append("")
-        out.append(header)
-        for key, value in replacements.items():
-            out.append(f"{key} = {value}")
-    return "\n".join(out).rstrip() + "\n"
-
-text = patch_section(
-    text,
-    "paths",
-    {
-        "worktree_root": json.dumps(str(venv / ".xdg" / "data" / "agent-workflow" / "worktrees")),
-        "state_root": json.dumps(str(venv / ".xdg" / "state" / "agent-workflow")),
-    },
+rendered = "\n".join(
+    [
+        "schema_version = 1",
+        "",
+        "[paths]",
+        f"worktree_root = {q(str(venv / '.xdg' / 'data' / 'agent-workflow' / 'worktrees'))}",
+        f"state_root = {q(str(venv / '.xdg' / 'state' / 'agent-workflow'))}",
+        "",
+        "[plugins]",
+        'enabled = ["agent-workflow-benchmark"]',
+        "",
+        "[semantic]",
+        'provider = "typesafe"',
+        "",
+        "[decision_policy]",
+        'mode = "comparative"',
+        'profile = "default"',
+        "",
+    ]
 )
-text = patch_section(text, "plugins", {"enabled": json.dumps(enabled)})
 
 try:
-    tomllib.loads(text)
+    parsed = tomllib.loads(rendered)
 except tomllib.TOMLDecodeError as exc:
-    raise SystemExit(f"refusing to write invalid development config: {exc}") from exc
+    raise SystemExit(f"internal benchmark config generation produced invalid TOML: {exc}") from exc
+
+assert parsed["plugins"]["enabled"] == ["agent-workflow-benchmark"]
+assert parsed["semantic"]["provider"] == "typesafe"
+assert parsed["decision_policy"]["mode"] == "comparative"
 
 target.parent.mkdir(parents=True, exist_ok=True)
 with tempfile.NamedTemporaryFile(
@@ -218,12 +169,10 @@ with tempfile.NamedTemporaryFile(
     suffix=".tmp",
     delete=False,
 ) as handle:
-    handle.write(text)
+    handle.write(rendered)
     temp = Path(handle.name)
 os.replace(temp, target)
-
-if backup is not None:
-    print(f"recovered invalid development config; backup preserved at {backup}", file=sys.stderr)
+print(f"benchmark runtime config: {target}")
 PY
 }
 
