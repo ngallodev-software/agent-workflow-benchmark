@@ -3,6 +3,63 @@ set -euo pipefail
 
 AW_BIN="${AGENT_WORKFLOW_BIN:-agent-workflow}"
 AGENT_CLASS="${AGENT_CLASS:-implementation}"
+
+if [[ "$AW_BIN" == */* ]]; then
+  AW_PATH="$(python3 - "$AW_BIN" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+else
+  AW_PATH="$(command -v "$AW_BIN" 2>/dev/null || true)"
+fi
+[[ -n "$AW_PATH" ]] || {
+  echo "Agent-Workflow launcher not found: $AW_BIN" >&2
+  exit 1
+}
+
+if [[ -n "${AGENT_WORKFLOW_VENV:-}" ]]; then
+  DEV_VENV="$(python3 - "$AGENT_WORKFLOW_VENV" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+elif [[ -n "${VIRTUAL_ENV:-}" ]]; then
+  DEV_VENV="$(python3 - "$VIRTUAL_ENV" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+else
+  DEV_VENV="$(dirname "$(dirname "$AW_PATH")")"
+fi
+
+[[ -x "$DEV_VENV/bin/python" || -x "$DEV_VENV/bin/python3" ]] || {
+  echo "could not resolve shared Agent-Workflow virtualenv from $AW_PATH" >&2
+  exit 1
+}
+if [[ -x "$DEV_VENV/bin/python" ]]; then PYTHON="$DEV_VENV/bin/python"; else PYTHON="$DEV_VENV/bin/python3"; fi
+
+export VIRTUAL_ENV="$DEV_VENV"
+export AGENT_WORKFLOW_VENV="$DEV_VENV"
+export AGENT_WORKFLOW_BIN="$DEV_VENV/bin/agent-workflow"
+export PATH="$DEV_VENV/bin:$PATH"
+export XDG_CONFIG_HOME="$DEV_VENV/.xdg/config"
+export XDG_STATE_HOME="$DEV_VENV/.xdg/state"
+export XDG_DATA_HOME="$DEV_VENV/.xdg/data"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME"
+
+AW_BIN="$AGENT_WORKFLOW_BIN"
+DEV_CONFIG="$XDG_CONFIG_HOME/agent-workflow/config.toml"
+[[ -f "$DEV_CONFIG" ]] || {
+  echo "venv-local Agent-Workflow config is missing: $DEV_CONFIG" >&2
+  echo "run the Agent-Workflow and benchmark build-install scripts first" >&2
+  exit 1
+}
+
 ROOT="${VALUE_SMOKE_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/agent-workflow-value-smoke.XXXXXX")}"
 SUITE="${ROOT}/suite"
 FIXTURE="${ROOT}/fixture"
@@ -13,6 +70,10 @@ RUN_JSON="${ROOT}/run.json"
 mkdir -p "${ROOT}"
 
 echo "value-smoke root: ${ROOT}"
+echo "shared venv: ${DEV_VENV}"
+echo "XDG config: ${XDG_CONFIG_HOME}"
+echo "XDG state: ${XDG_STATE_HOME}"
+echo "XDG data: ${XDG_DATA_HOME}"
 "${AW_BIN}" benchmark value-smoke-export "${SUITE}" --agent-class "${AGENT_CLASS}"
 "${AW_BIN}" benchmark fixture-create "${SUITE}/benchmark-spec.json" "${FIXTURE}"
 
@@ -29,7 +90,7 @@ fi
   --policy "${POLICY}" \
   --execution-only > "${READINESS_JSON}"
 
-python - "${READINESS_JSON}" <<'PY'
+"${PYTHON}" - "${READINESS_JSON}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -53,7 +114,7 @@ PY
   --executor "${EXECUTOR}" \
   --policy "${POLICY}" > "${PLAN_JSON}"
 
-RUN_PLAN="$(python - "${PLAN_JSON}" <<'PY'
+RUN_PLAN="$("${PYTHON}" - "${PLAN_JSON}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -65,7 +126,7 @@ PY
 echo "run plan: ${RUN_PLAN}"
 "${AW_BIN}" --json benchmark run "${RUN_PLAN}" --execution-only | tee "${RUN_JSON}"
 
-python - "${PLAN_JSON}" "${RUN_JSON}" <<'PY'
+"${PYTHON}" - "${PLAN_JSON}" "${RUN_JSON}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -81,3 +142,4 @@ print(f"  state: {result.get('state')}")
 PY
 
 echo "local smoke artifacts: ${ROOT}"
+echo "smoke XDG isolation was process-local; caller shell environment is unchanged"
