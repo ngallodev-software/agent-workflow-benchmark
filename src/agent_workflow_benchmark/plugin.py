@@ -8,7 +8,7 @@ from agent_workflow.util import atomic_write_bytes, atomic_write_json
 from .handler import handle_benchmark_command
 from .legacy import build_benchmark_report, render_benchmark_markdown, validate_benchmark_manifest
 
-__version__="0.2.8"
+__version__="0.3.0"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
@@ -19,6 +19,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     a = c.add_parser("runtime-seal", help="seal a runtime lock to an immutable container image"); a.add_argument("base_lock", type=Path); a.add_argument("output", type=Path); a.add_argument("--container-image", required=True)
     a = c.add_parser("suite-export", help="materialize a built-in benchmark suite"); a.add_argument("destination", type=Path); a.add_argument("--benchmark-id", default="priority-picker-v1"); a.add_argument("--force", action="store_true")
     a = c.add_parser("value-smoke-export", help="materialize the raw-direct vs Agent-Workflow value smoke suite"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
+    a = c.add_parser("structured-value-smoke-export", help="materialize structured-direct vs Agent-Workflow BM3 study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("fixture-create", help="create an isolated benchmark fixture from a suite spec"); a.add_argument("spec", type=Path); a.add_argument("destination", type=Path); a.add_argument("--force", action="store_true")
     a = c.add_parser("target-prepare", help="prepare and verify an external benchmark target checkout"); a.add_argument("manifest", type=Path); a.add_argument("destination", type=Path)
     a = c.add_parser("plan", help="create a paired benchmark run plan"); a.add_argument("spec", type=Path); a.add_argument("--executor", type=Path, required=True); a.add_argument("--repo", type=Path, required=True); a.add_argument("--base-ref", default="HEAD"); a.add_argument("--run-id"); a.add_argument("--repetitions", type=int); a.add_argument("--worktree-root", type=Path); a.add_argument("--allow-dirty", action="store_true"); a.add_argument("--assistance-cohort", choices=("unassisted", "assisted")); a.add_argument("--policy", type=Path); a.add_argument("--runtime-lock", type=Path); a.add_argument("--codebase-memory-mode", choices=("none", "mcp", "cli"), default="none")

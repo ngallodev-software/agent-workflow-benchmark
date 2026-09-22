@@ -122,9 +122,9 @@ def _run_direct_phase_arm(
         environment=EnvironmentPolicy(allowlist=allowlist, values=environment),
         input_text=prompt_text,
     )
+    process_finished_monotonic = time.monotonic()
     stdout_path.write_text(str(result.stdout), encoding="utf-8")
     stderr_path.write_text(str(result.stderr), encoding="utf-8")
-    wall = round(time.monotonic() - actual_start_monotonic, 6)
     stdout_text = str(result.stdout)
     usage = load_usage(
         phase_dir / "usage.json", stdout_text,
@@ -132,6 +132,10 @@ def _run_direct_phase_arm(
         price_catalog_id=plan["executor"].get("price_catalog_id"),
         billing=plan["executor"].get("billing"), pricing=plan["executor"].get("pricing"),
     )
+    wall = round(time.monotonic() - actual_start_monotonic, 6)
+    direct_postprocess_seconds = round(time.monotonic() - process_finished_monotonic, 6)
+    direct_active_seconds = float(result.duration_seconds)
+    direct_host_overhead_seconds = round(max(0.0, wall - direct_active_seconds), 6)
     if result.timed_out:
         state = "timed_out"
     elif result.returncode == 0:
@@ -150,6 +154,12 @@ def _run_direct_phase_arm(
         "first_output_latency_seconds": usage["first_output_latency_seconds"],
         "verification_seconds": 0.0, "queue_wait_seconds": 0.0, "human_review_seconds": None,
         "process": result.as_dict(include_output=False), "usage": usage,
+        "timing_breakdown": {
+            "runner_kind": "direct-executor",
+            "executor_active_seconds": direct_active_seconds,
+            "benchmark_postprocess_seconds": direct_postprocess_seconds,
+            "host_overhead_seconds": direct_host_overhead_seconds,
+        },
         "stdout": str(stdout_path), "stderr": str(stderr_path),
         "usage_file": str(phase_dir / "usage.json") if (phase_dir / "usage.json").is_file() else None,
     }
@@ -303,6 +313,7 @@ def _run_agent_workflow_phase_arm(
     )
 
     delegate_error: str | None = None
+    delegate_started_monotonic = time.monotonic()
     try:
         delegate_agent_run(
             settings,
@@ -319,10 +330,12 @@ def _run_agent_workflow_phase_arm(
         )
     except WorkflowError as exc:
         delegate_error = str(exc)
+    delegate_call_seconds = round(time.monotonic() - delegate_started_monotonic, 6)
 
     deadline = actual_start_monotonic + float(phase["timeout_seconds"])
     observed: dict[str, Any] = {}
     timed_out = False
+    terminal_wait_started_monotonic = time.monotonic()
     if delegate_error is None:
         while True:
             observed = observe_agent_run(settings, agent_run_id)
@@ -335,7 +348,9 @@ def _run_agent_workflow_phase_arm(
                 observed = observe_agent_run(settings, agent_run_id)
                 break
             time.sleep(0.25)
+    terminal_wait_seconds = round(time.monotonic() - terminal_wait_started_monotonic, 6)
 
+    evidence_collection_started_monotonic = time.monotonic()
     aw_root = agent_workflow_run_dir(settings, agent_run_id)
     paths = AgentRunPaths(aw_root)
     _copy_if_present(paths.output_log, stdout_path)
@@ -351,6 +366,12 @@ def _run_agent_workflow_phase_arm(
         currency=plan["executor"].get("currency"),
         price_catalog_id=plan["executor"].get("price_catalog_id"),
     )
+
+    terminal_timing_path = aw_root / "terminal-timing.json"
+    try:
+        terminal_timing = read_object(terminal_timing_path) if terminal_timing_path.is_file() else None
+    except (OSError, WorkflowError, ValueError):
+        terminal_timing = None
 
     process_path = aw_root / "process-result.json"
     try:
@@ -382,6 +403,8 @@ def _run_agent_workflow_phase_arm(
     if not isinstance(active_seconds, (int, float)) or isinstance(active_seconds, bool):
         active_seconds = wall
 
+    evidence_collection_seconds = round(time.monotonic() - evidence_collection_started_monotonic, 6)
+    host_overhead_seconds = round(max(0.0, wall - float(active_seconds)), 6)
     record = {
         "phase_id": phase["id"],
         "state": state,
@@ -406,6 +429,15 @@ def _run_agent_workflow_phase_arm(
             ),
         },
         "usage": usage,
+        "timing_breakdown": {
+            "runner_kind": "agent-workflow",
+            "delegate_call_seconds": delegate_call_seconds,
+            "terminal_wait_seconds": terminal_wait_seconds,
+            "benchmark_evidence_collection_seconds": evidence_collection_seconds,
+            "executor_active_seconds": float(active_seconds),
+            "host_overhead_seconds": host_overhead_seconds,
+            "terminal_pipeline": terminal_timing,
+        },
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
         "usage_file": str(copied_metrics) if metrics_path.is_file() else None,
