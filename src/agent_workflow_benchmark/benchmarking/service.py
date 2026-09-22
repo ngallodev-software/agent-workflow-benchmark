@@ -437,6 +437,15 @@ def run_benchmark(
             "run_id": plan_value["run_id"],
             "run_dir": str(Path(plan_value["coordinator"]["run_dir"])),
             "execution_only": True,
+            "execution_complete": state.get("state") == "executed",
+            "benchmark_complete": False,
+            "score_eligible": False,
+            "pending_stages": [
+                "visual-capture",
+                "machine-scoring",
+                "consolidation",
+                "human-review/report",
+            ],
             "report": None,
         }
     return _existing_automated_result(plan) or _finalize_automated(settings, plan)
@@ -611,6 +620,7 @@ def benchmark_readiness(
         "passed": bool(authentication["authenticated"]),
         "detail": authentication["detail"],
     })
+    benchmark_runtime_passed = False
     try:
         lock_value = read_object(lock_path)
         validate_runtime_lock(lock_value, claim_level=str(effective_spec["claim_level"]))
@@ -636,6 +646,7 @@ def benchmark_readiness(
                 if required_state == "publication-verified"
                 else {"development-verified", "publication-verified"}
             )
+            benchmark_runtime_passed = runtime_passed
             checks.append({
                 "id": "visual-runtime",
                 "passed": runtime_passed,
@@ -693,6 +704,8 @@ def benchmark_readiness(
             })
         else:
             checks.extend(treatment_runtime_checks(settings, effective_spec, configured))
+    execution_ready = all(item["passed"] for item in checks)
+    full_pipeline_ready = execution_ready and benchmark_runtime_passed
     return {
         "benchmark_id": effective_spec["benchmark_id"],
         "claim_level": effective_spec["claim_level"],
@@ -707,7 +720,17 @@ def benchmark_readiness(
         "authentication": authentication,
         "runtime": runtime,
         "checks": checks,
-        "ready": all(item["passed"] for item in checks),
+        "execution_only": execution_only,
+        "execution_ready": execution_ready,
+        "full_pipeline_ready": full_pipeline_ready,
+        "benchmark_completion_requires": [
+            "verified visual runtime",
+            "visual capture for every selected arm",
+            "machine scoring",
+            "consolidated evidence",
+            "required human review before composite/winner claims",
+        ],
+        "ready": execution_ready if execution_only else full_pipeline_ready,
     }
 
 def check_benchmark_auth(executor: Path) -> dict[str, Any]:
@@ -730,14 +753,24 @@ def status_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
     state = read_object(run_dir / "run.json")
     reviews = list((run_dir / "human-review" / "reviews").glob("*.json")) if (run_dir / "human-review" / "reviews").is_dir() else []
     live = live_review_status(_resolve_plan(settings, run))
+    visual_capture = (run_dir / "visual-capture-summary.json").is_file()
+    machine_scores = (run_dir / "machine-scores.json").is_file()
+    consolidated = (run_dir / "consolidation-receipt.json").is_file()
+    report_path = run_dir / "report.json"
+    execution_complete = state.get("state") in {"executed", "awaiting_human_review", "completed"}
+    benchmark_complete = bool(
+        execution_complete and visual_capture and machine_scores and consolidated and report_path.is_file()
+    )
     return {
         **state,
         "run_dir": str(run_dir),
         "live_review": live,
         "run_plan": str(run_dir / "run-plan.json"),
-        "visual_capture": (run_dir / "visual-capture-summary.json").is_file(),
-        "machine_scores": (run_dir / "machine-scores.json").is_file(),
-        "consolidated": (run_dir / "consolidation-receipt.json").is_file(),
+        "execution_complete": execution_complete,
+        "benchmark_complete": benchmark_complete,
+        "visual_capture": visual_capture,
+        "machine_scores": machine_scores,
+        "consolidated": consolidated,
         "human_reviews": len(reviews),
-        "report": str(run_dir / "report.json") if (run_dir / "report.json").is_file() else None,
+        "report": str(report_path) if report_path.is_file() else None,
     }
