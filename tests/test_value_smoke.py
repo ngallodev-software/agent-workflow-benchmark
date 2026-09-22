@@ -57,8 +57,8 @@ def test_structured_bm3_export_is_structured_direct_vs_agent_workflow(tmp_path: 
     assert profiles["workflow_full"]["treatment_id"] == "agent-workflow-full/v1"
     assert profiles["workflow_full"]["runner"]["kind"] == "agent-workflow"
     assert profiles["workflow_full"]["runner"]["agent_class"] == "implementation"
-    assert spec["arms"]["control"]["profile_path"] == spec["arms"]["candidate"]["profile_path"]
-    assert spec["arms"]["control"]["profile_path"].endswith("profiles/workflow_full.md")
+    assert spec["arms"]["control"]["wrapper_path"] == spec["arms"]["candidate"]["wrapper_path"]
+    assert spec["arms"]["control"]["wrapper_path"].endswith("profiles/workflow_full.md")
     assert not (destination / "executors" / "claude-subscription.json").exists()
 
 
