@@ -67,6 +67,23 @@ def test_toolchain_identity_prefers_stack_install_provenance(tmp_path: Path, mon
     assert identity["source_provenance"] == "stack-install-manifest"
 
 
+def test_generic_priority_picker_export_uses_future_gpt6_model(tmp_path: Path) -> None:
+    import json
+
+    destination = tmp_path / "suite"
+    benchmark_service.export_builtin_suite(
+        destination,
+        benchmark_id="priority-picker-v2",
+    )
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+
+    assert executor["model"] == "gpt-6-luna"
+    assert executor["price_catalog_id"] is None
+    assert executor["pricing"] is None
+
+
 def test_value_smoke_export_uses_explicit_treatments(tmp_path: Path) -> None:
     destination = tmp_path / "suite"
     result = export_value_smoke_suite(destination)
@@ -86,6 +103,12 @@ def test_value_smoke_export_uses_explicit_treatments(tmp_path: Path) -> None:
     assert result["default_subscription_executors"] == [
         str(destination / "executors" / "codex-subscription.json")
     ]
+    import json
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+    assert executor["model"] == "gpt-5.6-luna"
+    assert executor["price_catalog_id"] == "openai-gpt-5.6-standard-20260802"
 
 
 
@@ -106,6 +129,12 @@ def test_structured_bm3_export_is_structured_direct_vs_agent_workflow(tmp_path: 
     assert spec["arms"]["control"]["wrapper_path"] == spec["arms"]["candidate"]["wrapper_path"]
     assert spec["arms"]["control"]["wrapper_path"].endswith("profiles/workflow_full.md")
     assert not (destination / "executors" / "claude-subscription.json").exists()
+    import json
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+    assert executor["model"] == "gpt-5.6-luna"
+    assert executor["price_catalog_id"] == "openai-gpt-5.6-standard-20260802"
 
 
 def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None:
