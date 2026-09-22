@@ -15,7 +15,10 @@ from agent_workflow_benchmark.benchmarking.treatments import (
     uses_agent_workflow,
 )
 import agent_workflow_benchmark.benchmarking.service as benchmark_service
-from agent_workflow_benchmark.benchmarking.service import export_value_smoke_suite
+from agent_workflow_benchmark.benchmarking.service import (
+    export_structured_value_smoke_suite,
+    export_value_smoke_suite,
+)
 
 
 def test_value_smoke_export_uses_explicit_treatments(tmp_path: Path) -> None:
@@ -37,6 +40,26 @@ def test_value_smoke_export_uses_explicit_treatments(tmp_path: Path) -> None:
     assert result["default_subscription_executors"] == [
         str(destination / "executors" / "codex-subscription.json")
     ]
+
+
+
+def test_structured_bm3_export_is_structured_direct_vs_agent_workflow(tmp_path: Path) -> None:
+    destination = tmp_path / "suite"
+    result = export_structured_value_smoke_suite(destination)
+
+    spec = validate_spec(Path(result["spec"]))
+    profiles = normalized_arm_profiles(spec)
+
+    assert spec["schema"] == BENCHMARK_SPEC_V3_SCHEMA
+    assert result["study"] == "structured-direct-vs-agent-workflow-full"
+    assert profiles["control_raw"]["treatment_id"] == "structured-direct/v1"
+    assert profiles["control_raw"]["runner"]["kind"] == "direct-executor"
+    assert profiles["workflow_full"]["treatment_id"] == "agent-workflow-full/v1"
+    assert profiles["workflow_full"]["runner"]["kind"] == "agent-workflow"
+    assert profiles["workflow_full"]["runner"]["agent_class"] == "implementation"
+    assert spec["arms"]["control"]["profile_path"] == spec["arms"]["candidate"]["profile_path"]
+    assert spec["arms"]["control"]["profile_path"].endswith("profiles/workflow_full.md")
+    assert not (destination / "executors" / "claude-subscription.json").exists()
 
 
 def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None:
