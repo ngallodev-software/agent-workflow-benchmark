@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.9` declares `agent-workflow>=0.11.5,<0.12`; Agent-Workflow `0.11.5` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.0` declares `agent-workflow>=0.11.5,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -133,7 +133,7 @@ The benchmark runtime is intentionally comparative: `typesafe-sdk==0.6.0`, `TYPE
 ### TypeSafe request/response audit
 
 The value-smoke runner sets `AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG` to
-`<smoke-root>/typesafe-api-audit.jsonl`. Agent-Workflow 0.11.5+ writes
+`<smoke-root>/typesafe-api-audit.jsonl`. Agent-Workflow 0.11.6+ writes
 redacted `agent-workflow/typesafe-api-call/v2` records there, including the
 logical request, raw HTTP request/response bodies when exposed by TypeSafe SDK
 0.6.0, normalized typed answers, model/version identity, hashes, and duration.
@@ -149,7 +149,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.2.9` requires Agent-Workflow `>=0.11.5,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.0` requires Agent-Workflow `>=0.11.5,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -169,6 +169,32 @@ python scripts/collect-value-smoke-evidence.py /tmp/agent-workflow-value-smoke.X
 ```
 
 If the smoke root is omitted, the collector chooses the newest `$TMPDIR/agent-workflow-value-smoke.*` directory. It packages the complete smoke root, the referenced coordinator run directory, and every arm evidence directory referenced by the run plan so `arm.json`, provider telemetry, Git evidence, and phase receipts remain self-contained. It records package/runtime identity without secret values, writes SHA-256 checksums, and refuses to archive if the current `TYPESAFE_API_KEY` value is found in collected files.
+
+## BM3 structured-direct study
+
+Benchmark 0.3 adds the diagnostic BM3 comparison:
+
+```text
+structured-direct/v1
+vs
+agent-workflow-full/v1
+```
+
+Both arms receive the structured `workflow_full` prompt profile; only the candidate runs through the real Agent-Workflow lifecycle. This isolates lifecycle/orchestration overhead from the structured-prompt treatment itself.
+
+Run the full development study with:
+
+```bash
+bash scripts/run-bm3-structured.sh --help
+
+bash scripts/run-bm3-structured.sh \
+  --root /path/to/artifacts/bm3-$(date -u +%Y%m%dT%H%M%SZ) \
+  --repetitions 1
+```
+
+The runner performs readiness, planning, paired execution, machine scoring, descriptive reporting, granular timing capture, TypeSafe request/response audit capture, and self-contained evidence collection.
+
+See [docs/BM3_STRUCTURED.md](docs/BM3_STRUCTURED.md) for the complete self-service workflow, manual command equivalent, evidence layout, troubleshooting, and interpretation rules.
 
 ## Legacy command migration
 
