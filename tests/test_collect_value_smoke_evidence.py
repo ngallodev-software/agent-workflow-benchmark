@@ -18,6 +18,33 @@ def test_collect_value_smoke_evidence_archives_smoke_and_run(tmp_path: Path) -> 
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "artifact.txt").write_text("evidence\n", encoding="utf-8")
+    arm_dir = tmp_path / "arm-control"
+    arm_dir.mkdir()
+    (arm_dir / "arm.json").write_text(
+        json.dumps({"usage": {"token_evidence_complete": True}}) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "run-plan.json").write_text(
+        json.dumps(
+            {
+                "pairs": [
+                    {
+                        "pair_id": "case-r01",
+                        "attempts": [
+                            {
+                                "attempt": 1,
+                                "arms": {
+                                    "control_raw": {"stage_dir": str(arm_dir)}
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (smoke / "readiness.json").write_text(
         json.dumps({"ready": True}) + "\n",
         encoding="utf-8",
