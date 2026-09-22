@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import importlib.metadata
+import json
 import platform
 import secrets
 import shutil
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from agent_workflow.config import Settings
 from agent_workflow.errors import WorkflowError
@@ -57,6 +60,90 @@ def _git_version() -> str | None:
     return value or None
 
 
+TOOLCHAIN_DISTRIBUTIONS = (
+    "agent-workflow",
+    "agent-workflow-benchmark",
+    "agent-workflow-comparative-eval",
+    "specgen-agent-workflow-contracts",
+    "typesafe-sdk",
+)
+
+
+def _git_source_identity(root: Path) -> dict[str, Any]:
+    root = root.expanduser().resolve()
+    revision = run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
+        check=False,
+        probe_version=False,
+    )
+    if revision.returncode != 0:
+        return {"source_revision": None, "source_dirty": None}
+    status = run(
+        ["git", "-C", str(root), "status", "--porcelain=v1", "--untracked-files=no"],
+        check=False,
+        probe_version=False,
+        environment=EnvironmentPolicy(unsafe_inherit=True, git_config_policy="operator"),
+    )
+    observed = str(revision.stdout).strip()
+    return {
+        "source_revision": observed if observed else None,
+        "source_dirty": bool(str(status.stdout).strip()) if status.returncode == 0 else None,
+    }
+
+
+def _distribution_identity(
+    distribution_name: str,
+    *,
+    fallback_root: Path | None = None,
+) -> dict[str, Any] | None:
+    try:
+        distribution = importlib.metadata.distribution(distribution_name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+    direct_url_text = distribution.read_text("direct_url.json")
+    editable = False
+    root: Path | None = None
+    if direct_url_text:
+        try:
+            direct_url = json.loads(direct_url_text)
+        except json.JSONDecodeError:
+            direct_url = {}
+        editable = bool(
+            isinstance(direct_url.get("dir_info"), dict)
+            and direct_url["dir_info"].get("editable")
+        )
+        raw_url = direct_url.get("url")
+        if isinstance(raw_url, str):
+            parsed = urlparse(raw_url)
+            if parsed.scheme == "file":
+                root = Path(unquote(parsed.path))
+    if root is None and fallback_root is not None:
+        root = fallback_root
+    source = (
+        _git_source_identity(root)
+        if root is not None
+        else {"source_revision": None, "source_dirty": None}
+    )
+    return {
+        "version": distribution.version,
+        "editable": editable,
+        **source,
+    }
+
+
+def _toolchain_identity() -> dict[str, Any]:
+    identities: dict[str, Any] = {}
+    benchmark_root = Path(__file__).resolve().parents[3]
+    for name in TOOLCHAIN_DISTRIBUTIONS:
+        identity = _distribution_identity(
+            name,
+            fallback_root=benchmark_root if name == "agent-workflow-benchmark" else None,
+        )
+        if identity is not None:
+            identities[name] = identity
+    return identities
+
+
 def _environment_identity(executor: dict[str, Any], codebase_memory_mode: str) -> dict[str, Any]:
     value = {
         "platform": platform.platform(),
@@ -67,6 +154,7 @@ def _environment_identity(executor: dict[str, Any], codebase_memory_mode: str) -
         "locale": "C",
         "timezone": "UTC",
         "codebase_memory_mode": codebase_memory_mode,
+        "toolchain": _toolchain_identity(),
         "executor": {
             "provider": executor["provider"],
             "executor": executor["executor"],
