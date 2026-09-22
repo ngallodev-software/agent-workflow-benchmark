@@ -129,6 +129,7 @@ def build_report(plan_path: Path) -> dict[str, Any]:
                     "first_output_latency_seconds": item["first_output_latency_seconds"],
                     "queue_wait_seconds": item["queue_wait_seconds"],
                     "usage": item["usage"],
+                    "timing_breakdown": item.get("timing_breakdown"),
                 }
                 for item in arm_value["phases"]
             ]
