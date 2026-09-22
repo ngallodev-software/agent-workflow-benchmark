@@ -17,7 +17,8 @@ def test_descriptor_owns_benchmark_command_and_schemas():
 
 
 def test_exported_suite_validates_with_plugin_owned_contracts(tmp_path: Path):
-    destination = tmp_path / "suite"
-    export_builtin_suite(destination, benchmark_id="priority-picker-v2", force=True)
-    value = validate_benchmark(destination / "benchmark-spec.json", None)
-    assert value["benchmark_id"] == "priority-picker-v2"
+    for benchmark_id in ("priority-picker-v1", "priority-picker-v2", "priority-picker-fast-v1"):
+        destination = tmp_path / benchmark_id
+        export_builtin_suite(destination, benchmark_id=benchmark_id, force=True)
+        value = validate_benchmark(destination / "benchmark-spec.json", None)
+        assert value["benchmark_id"] == benchmark_id
