@@ -40,3 +40,24 @@ def test_bm3_script_keeps_raw_typesafe_audit_private() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
     assert 'chmod 600 "$AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"' in text
     assert "raw TypeSafe" not in text
+
+
+def test_bm3_script_help_is_self_service() -> None:
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--help"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    for value in (
+        "--root PATH",
+        "--repetitions N",
+        "--agent-class NAME",
+        "--evidence PATH",
+        "structured-direct/v1",
+        "agent-workflow-full/v1",
+        "machine scoring",
+        "TypeSafe",
+    ):
+        assert value in result.stdout
