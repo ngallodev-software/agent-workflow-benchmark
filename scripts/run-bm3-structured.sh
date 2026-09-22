@@ -273,11 +273,44 @@ for pair in plan.get("pairs", []):
         "arms": {},
     }
     for arm_name, arm in attempt["arms"].items():
-        arm_value = json.loads((Path(arm["stage_dir"]) / "arm.json").read_text(encoding="utf-8"))
+        stage_dir = Path(arm["stage_dir"])
+        arm_value = json.loads((stage_dir / "arm.json").read_text(encoding="utf-8"))
+        score_path = stage_dir / "score.json"
+        score_value = (
+            json.loads(score_path.read_text(encoding="utf-8"))
+            if score_path.is_file()
+            else {}
+        )
+        phases = arm_value.get("phases", [])
+        phase_wall = sum(
+            float(phase.get("phase_wall_seconds", 0.0))
+            for phase in phases
+            if isinstance(phase.get("phase_wall_seconds"), (int, float))
+            and not isinstance(phase.get("phase_wall_seconds"), bool)
+        )
+        active = sum(
+            float(phase.get("active_process_seconds", 0.0))
+            for phase in phases
+            if isinstance(phase.get("active_process_seconds"), (int, float))
+            and not isinstance(phase.get("active_process_seconds"), bool)
+        )
+        host_overhead = sum(
+            float((phase.get("timing_breakdown") or {}).get("host_overhead_seconds", 0.0))
+            for phase in phases
+            if isinstance((phase.get("timing_breakdown") or {}).get("host_overhead_seconds"), (int, float))
+            and not isinstance((phase.get("timing_breakdown") or {}).get("host_overhead_seconds"), bool)
+        )
         item["arms"][arm_name] = {
             "treatment_id": plan["treatments"][arm_name]["treatment_id"],
             "state": arm_value.get("state"),
+            "machine_score": score_value.get("machine_score"),
+            "machine_score_eligibility": (score_value.get("eligibility") or {}).get("state"),
             "usage": arm_value.get("usage"),
+            "timing_totals": {
+                "phase_wall_seconds": round(phase_wall, 6),
+                "executor_active_seconds": round(active, 6),
+                "host_overhead_seconds": round(host_overhead, 6),
+            },
             "phase_timings": [
                 {
                     "phase_id": phase.get("phase_id"),
@@ -285,9 +318,38 @@ for pair in plan.get("pairs", []):
                     "active_process_seconds": phase.get("active_process_seconds"),
                     "timing_breakdown": phase.get("timing_breakdown"),
                 }
-                for phase in arm_value.get("phases", [])
+                for phase in phases
             ],
         }
+    control = item["arms"].get("control_raw", {})
+    candidate = item["arms"].get("workflow_full", {})
+    deltas = {}
+    for field in ("machine_score",):
+        left, right = control.get(field), candidate.get(field)
+        deltas[field] = (
+            round(float(right) - float(left), 6)
+            if isinstance(left, (int, float)) and not isinstance(left, bool)
+            and isinstance(right, (int, float)) and not isinstance(right, bool)
+            else None
+        )
+    for field in ("phase_wall_seconds", "executor_active_seconds", "host_overhead_seconds"):
+        left = (control.get("timing_totals") or {}).get(field)
+        right = (candidate.get("timing_totals") or {}).get(field)
+        deltas[field] = (
+            round(float(right) - float(left), 6)
+            if isinstance(left, (int, float)) and not isinstance(left, bool)
+            and isinstance(right, (int, float)) and not isinstance(right, bool)
+            else None
+        )
+    left_tokens = (control.get("usage") or {}).get("provider_total_tokens")
+    right_tokens = (candidate.get("usage") or {}).get("provider_total_tokens")
+    deltas["provider_total_tokens"] = (
+        float(right_tokens) - float(left_tokens)
+        if isinstance(left_tokens, (int, float)) and not isinstance(left_tokens, bool)
+        and isinstance(right_tokens, (int, float)) and not isinstance(right_tokens, bool)
+        else None
+    )
+    item["deltas"] = deltas
     summary["pairs"].append(item)
 
 out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
