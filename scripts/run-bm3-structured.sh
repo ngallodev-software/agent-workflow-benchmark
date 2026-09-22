@@ -159,6 +159,7 @@ RUN_JSON="$ROOT/run.json"
 SCORE_JSON="$ROOT/score.json"
 REPORT_JSON="$ROOT/report-command.json"
 SUMMARY_JSON="$ROOT/bm3-summary.json"
+SEMANTIC_QUALIFICATION_JSON="$ROOT/typesafe-semantic-qualification.json"
 EVIDENCE_ARCHIVE="${EVIDENCE_ARG:-${BM3_EVIDENCE_ARCHIVE:-${ROOT}-evidence.tar.gz}}"
 
 mkdir -p "$ROOT"
@@ -173,6 +174,93 @@ echo "shared venv: $DEV_VENV"
 echo "TypeSafe audit: $AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
 
 "$AW_BIN" benchmark structured-value-smoke-export "$SUITE" --agent-class "$AGENT_CLASS"
+
+# Exercise the real Agent-Workflow routing decision boundary outside the paired
+# treatment. This produces private TypeSafe v2 request/response evidence without
+# changing either benchmark arm or charging semantic-routing time to the candidate.
+"$PYTHON" - "$SUITE" "$SEMANTIC_QUALIFICATION_JSON" "$AGENT_CLASS" <<'PY'
+from __future__ import annotations
+import json, os, sys
+from pathlib import Path
+
+from agent_workflow.config import load_settings
+from agent_workflow.routing import advise_routing_with_policy
+
+suite = Path(sys.argv[1])
+out = Path(sys.argv[2])
+agent_class = sys.argv[3]
+settings = load_settings()
+audit = Path(os.environ["AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"])
+
+def audit_count() -> int:
+    if not audit.is_file():
+        return 0
+    return sum(1 for line in audit.read_text(encoding="utf-8").splitlines() if line)
+
+spec = json.loads((suite / "benchmark-spec.json").read_text(encoding="utf-8"))
+before = audit_count()
+contexts = []
+for phase in spec["phases"]:
+    prompt_path = suite / phase["prompt_path"]
+    text = prompt_path.read_text(encoding="utf-8").strip()
+    metadata = {
+        "task_type": "implementation",
+        "risk": "normal",
+        "requires_interaction": False,
+        "benchmark_id": spec["benchmark_id"],
+        "phase_id": phase["id"],
+        "phase_name": phase["name"],
+        "purpose": "pre-benchmark semantic routing qualification only",
+    }
+    advice = advise_routing_with_policy(
+        metadata,
+        settings,
+        enforced_selection={"agent_class": agent_class},
+        task_text=text,
+        source_ref=f"bm3:{spec['benchmark_id']}:{phase['id']}",
+    )
+    contexts.append({
+        "phase_id": phase["id"],
+        "phase_name": phase["name"],
+        "prompt_path": phase["prompt_path"],
+        "prompt_text": text,
+        "deterministic_control": advice.get("deterministic_control"),
+        "counterfactual_candidate": advice.get("counterfactual_candidate"),
+        "decision_receipts": advice.get("decision_receipts"),
+        "decision_timing": advice.get("decision_timing"),
+        "applied": {
+            "recommendation": advice.get("recommendation"),
+            "enforced_selection": advice.get("enforced_selection"),
+        },
+    })
+after = audit_count()
+value = {
+    "schema": "agent-workflow/bm3-typesafe-semantic-qualification/v1",
+    "benchmark_id": spec["benchmark_id"],
+    "decision_mode": settings.decision_mode,
+    "decision_profile": settings.decision_profile,
+    "treatment_includes_semantic_routing": False,
+    "purpose": (
+        "Exercise the real routing Choice/Noul/Score boundary on representative BM3 "
+        "phase context before paired execution; this is diagnostic evidence, not a treatment."
+    ),
+    "audit_path": str(audit),
+    "audit_records_before": before,
+    "audit_records_after": after,
+    "qualification_calls": after - before,
+    "contexts": contexts,
+}
+out.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+if value["qualification_calls"] != len(contexts):
+    raise SystemExit(
+        f"expected {len(contexts)} TypeSafe qualification calls; observed {value['qualification_calls']}"
+    )
+print(
+    f"TypeSafe semantic qualification: {len(contexts)} contexts; "
+    f"{value['qualification_calls']} audited calls"
+)
+PY
+
 "$AW_BIN" benchmark fixture-create "$SUITE/benchmark-spec.json" "$FIXTURE"
 
 EXECUTOR="$SUITE/executors/codex-subscription.json"
@@ -218,7 +306,7 @@ echo "run plan: $RUN_PLAN"
 "$AW_BIN" --json benchmark score "$RUN_PLAN" | tee "$SCORE_JSON"
 "$AW_BIN" --json benchmark report "$RUN_PLAN" | tee "$REPORT_JSON"
 
-"$PYTHON" - "$RUN_PLAN" "$ROOT" "$SUMMARY_JSON" <<'PY'
+"$PYTHON" - "$RUN_PLAN" "$ROOT" "$SUMMARY_JSON" "$SEMANTIC_QUALIFICATION_JSON" <<'PY'
 from __future__ import annotations
 import json, sys
 from pathlib import Path
@@ -226,6 +314,7 @@ from pathlib import Path
 plan_path = Path(sys.argv[1])
 root = Path(sys.argv[2])
 out = Path(sys.argv[3])
+qualification_path = Path(sys.argv[4])
 plan = json.loads(plan_path.read_text(encoding="utf-8"))
 run_dir = Path(plan["coordinator"]["run_dir"])
 
@@ -236,10 +325,12 @@ summary = {
     "claim_level": plan["claim_level"],
     "treatments": plan.get("treatments"),
     "pairs": [],
-    "typesafe": {
+    "typesafe_qualification": {
+        "qualification_path": str(qualification_path),
         "audit_path": str(root / "typesafe-api-audit.jsonl"),
         "records": 0,
         "duration_ms_total": 0.0,
+        "treatment_additional_records": None,
     },
 }
 
@@ -249,13 +340,25 @@ if audit.is_file():
         if not line:
             continue
         value = json.loads(line)
-        summary["typesafe"]["records"] += 1
+        summary["typesafe_qualification"]["records"] += 1
         duration = value.get("duration_ms")
         if isinstance(duration, (int, float)) and not isinstance(duration, bool):
-            summary["typesafe"]["duration_ms_total"] += float(duration)
-summary["typesafe"]["duration_ms_total"] = round(
-    summary["typesafe"]["duration_ms_total"], 3
+            summary["typesafe_qualification"]["duration_ms_total"] += float(duration)
+summary["typesafe_qualification"]["duration_ms_total"] = round(
+    summary["typesafe_qualification"]["duration_ms_total"], 3
 )
+
+qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
+total_records = summary["typesafe_qualification"]["records"]
+qualification_records = int(qualification["audit_records_after"])
+summary["typesafe_qualification"]["qualification_calls"] = qualification["qualification_calls"]
+summary["typesafe_qualification"]["treatment_additional_records"] = total_records - qualification_records
+summary["typesafe_qualification"]["treatment_includes_semantic_routing"] = False
+if summary["typesafe_qualification"]["treatment_additional_records"] != 0:
+    raise SystemExit(
+        "BM3 treatment unexpectedly emitted additional TypeSafe calls; "
+        "paired treatment identity would be contaminated"
+    )
 
 for pair in plan.get("pairs", []):
     state_path = (
@@ -356,8 +459,9 @@ out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 print(f"BM3 summary: {out}")
 print(
     "TypeSafe audit: "
-    f"{summary['typesafe']['records']} calls; "
-    f"{summary['typesafe']['duration_ms_total']} ms total"
+    f"{summary['typesafe_qualification']['records']} calls; "
+    f"{summary['typesafe_qualification']['duration_ms_total']} ms total; "
+    "treatment additional calls=0"
 )
 PY
 
@@ -369,6 +473,7 @@ echo "  root:     $ROOT"
 echo "  summary:  $SUMMARY_JSON"
 echo "  score:    $SCORE_JSON"
 echo "  report:   $REPORT_JSON"
+echo "  semantic: $SEMANTIC_QUALIFICATION_JSON"
 echo "  audit:    $AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
 echo "  evidence: $EVIDENCE_ARCHIVE"
 echo
