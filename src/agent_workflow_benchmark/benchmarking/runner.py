@@ -136,6 +136,9 @@ def _run_direct_phase_arm(
     direct_postprocess_seconds = round(time.monotonic() - process_finished_monotonic, 6)
     direct_active_seconds = float(result.duration_seconds)
     direct_host_overhead_seconds = round(max(0.0, wall - direct_active_seconds), 6)
+    prompt_diagnostics = _file_diagnostics(_prompt_for(arm, str(phase["id"])))
+    stdout_diagnostics = _file_diagnostics(stdout_path)
+    stderr_diagnostics = _file_diagnostics(stderr_path)
     if result.timed_out:
         state = "timed_out"
     elif result.returncode == 0:
@@ -159,6 +162,12 @@ def _run_direct_phase_arm(
             "executor_active_seconds": direct_active_seconds,
             "benchmark_postprocess_seconds": direct_postprocess_seconds,
             "host_overhead_seconds": direct_host_overhead_seconds,
+            "prompt_bytes": prompt_diagnostics["bytes"],
+            "prompt_lines": prompt_diagnostics["lines"],
+            "stdout_bytes": stdout_diagnostics["bytes"],
+            "stdout_lines": stdout_diagnostics["lines"],
+            "stderr_bytes": stderr_diagnostics["bytes"],
+            "stderr_lines": stderr_diagnostics["lines"],
         },
         "stdout": str(stdout_path), "stderr": str(stderr_path),
         "usage_file": str(phase_dir / "usage.json") if (phase_dir / "usage.json").is_file() else None,
@@ -198,6 +207,43 @@ def _copy_if_present(source: Path, destination: Path) -> None:
         destination.write_bytes(source.read_bytes())
     elif not destination.exists():
         destination.write_text("", encoding="utf-8")
+
+
+def _file_diagnostics(path: Path) -> dict[str, int]:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return {"bytes": 0, "lines": 0}
+    return {"bytes": len(data), "lines": len(data.splitlines())}
+
+
+def _provider_diagnostics(run_root: Path) -> dict[str, Any]:
+    path = run_root / "provider-evidence.json"
+    if not path.is_file():
+        return {
+            "provider_event_bytes": None,
+            "provider_usage_event_count": None,
+            "provider_malformed_event_count": None,
+            "provider_capture_complete": None,
+            "provider_stream_format": None,
+        }
+    try:
+        value = read_object(path)
+    except (OSError, WorkflowError, ValueError):
+        return {
+            "provider_event_bytes": None,
+            "provider_usage_event_count": None,
+            "provider_malformed_event_count": None,
+            "provider_capture_complete": None,
+            "provider_stream_format": None,
+        }
+    return {
+        "provider_event_bytes": value.get("raw_event_bytes"),
+        "provider_usage_event_count": value.get("classified_usage_count"),
+        "provider_malformed_event_count": value.get("malformed_event_count"),
+        "provider_capture_complete": value.get("capture_complete"),
+        "provider_stream_format": value.get("stream_format"),
+    }
 
 
 def _agent_workflow_usage(
@@ -405,6 +451,10 @@ def _run_agent_workflow_phase_arm(
 
     evidence_collection_seconds = round(time.monotonic() - evidence_collection_started_monotonic, 6)
     host_overhead_seconds = round(max(0.0, wall - float(active_seconds)), 6)
+    prompt_diagnostics = _file_diagnostics(prompt_file)
+    stdout_diagnostics = _file_diagnostics(stdout_path)
+    stderr_diagnostics = _file_diagnostics(stderr_path)
+    provider_diagnostics = _provider_diagnostics(aw_root)
     record = {
         "phase_id": phase["id"],
         "state": state,
@@ -436,6 +486,13 @@ def _run_agent_workflow_phase_arm(
             "benchmark_evidence_collection_seconds": evidence_collection_seconds,
             "executor_active_seconds": float(active_seconds),
             "host_overhead_seconds": host_overhead_seconds,
+            "prompt_bytes": prompt_diagnostics["bytes"],
+            "prompt_lines": prompt_diagnostics["lines"],
+            "stdout_bytes": stdout_diagnostics["bytes"],
+            "stdout_lines": stdout_diagnostics["lines"],
+            "stderr_bytes": stderr_diagnostics["bytes"],
+            "stderr_lines": stderr_diagnostics["lines"],
+            "provider_evidence": provider_diagnostics,
             "terminal_pipeline": terminal_timing,
         },
         "stdout": str(stdout_path),
