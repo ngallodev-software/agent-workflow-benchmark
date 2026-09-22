@@ -5,6 +5,7 @@ import json
 import platform
 import secrets
 import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -131,16 +132,61 @@ def _distribution_identity(
     }
 
 
+def _stack_source_provenance() -> dict[str, dict[str, Any]]:
+    path = Path(sys.prefix) / "share" / "agent-workflow" / "source-provenance.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(value, dict) or value.get("schema") != "agent-workflow/source-provenance/v1":
+        return {}
+    components = value.get("components")
+    if not isinstance(components, dict):
+        return {}
+    return {
+        str(name): dict(item)
+        for name, item in components.items()
+        if isinstance(name, str) and isinstance(item, dict)
+    }
+
+
 def _toolchain_identity() -> dict[str, Any]:
     identities: dict[str, Any] = {}
     benchmark_root = Path(__file__).resolve().parents[3]
+    installed_sources = _stack_source_provenance()
     for name in TOOLCHAIN_DISTRIBUTIONS:
         identity = _distribution_identity(
             name,
             fallback_root=benchmark_root if name == "agent-workflow-benchmark" else None,
         )
-        if identity is not None:
-            identities[name] = identity
+        installed = installed_sources.get(name)
+        if identity is None:
+            if installed is None:
+                continue
+            identity = {
+                "version": installed.get("version"),
+                "editable": False,
+                "source_revision": None,
+                "source_dirty": None,
+            }
+        if (
+            installed is not None
+            and installed.get("version") == identity.get("version")
+            and isinstance(installed.get("revision"), str)
+            and installed.get("revision")
+        ):
+            identity["source_revision"] = installed["revision"]
+            identity["source_dirty"] = (
+                installed.get("dirty")
+                if isinstance(installed.get("dirty"), bool)
+                else None
+            )
+            identity["source_provenance"] = "stack-install-manifest"
+        elif identity.get("source_revision"):
+            identity["source_provenance"] = "package-source"
+        else:
+            identity["source_provenance"] = "unavailable"
+        identities[name] = identity
     return identities
 
 
