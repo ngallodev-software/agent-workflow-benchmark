@@ -106,6 +106,7 @@ def _environment_text() -> str:
         "XDG_CONFIG_HOME",
         "XDG_STATE_HOME",
         "XDG_DATA_HOME",
+        "AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG",
     ):
         lines.append(f"{name}={os.environ.get(name, 'unset')}")
     return "\n".join(lines) + "\n"
@@ -148,6 +149,52 @@ def _inside(path: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _typesafe_audit_summary(smoke: Path) -> dict:
+    path = smoke / "typesafe-api-audit.jsonl"
+    summary = {
+        "present": path.is_file(),
+        "records": 0,
+        "schema_v2_records": 0,
+        "raw_http_records": 0,
+        "statuses": {},
+        "primitive_counts": {},
+        "sha256": _sha256(path) if path.is_file() else None,
+    }
+    if not path.is_file():
+        return summary
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return summary
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        summary["records"] += 1
+        if value.get("schema") == "agent-workflow/typesafe-api-call/v2":
+            summary["schema_v2_records"] += 1
+        capture = value.get("capture")
+        if isinstance(capture, dict) and capture.get("raw_http_available") is True:
+            summary["raw_http_records"] += 1
+        status = value.get("status")
+        if isinstance(status, str):
+            summary["statuses"][status] = summary["statuses"].get(status, 0) + 1
+        request = value.get("request")
+        logical = request.get("logical_body") if isinstance(request, dict) else None
+        questions = logical.get("questions") if isinstance(logical, dict) else None
+        if isinstance(questions, dict):
+            for question in questions.values():
+                primitive = question.get("type") if isinstance(question, dict) else None
+                if isinstance(primitive, str):
+                    summary["primitive_counts"][primitive] = summary["primitive_counts"].get(primitive, 0) + 1
+    return summary
 
 
 def main() -> None:
@@ -227,6 +274,7 @@ def main() -> None:
             "execution_only": run.get("execution_only"),
             "report": run.get("report"),
         },
+        "typesafe_audit": _typesafe_audit_summary(smoke),
         "collection_environment": {
             "typesafe_api_key_configured": bool(secret),
             "virtual_env": os.environ.get("VIRTUAL_ENV"),

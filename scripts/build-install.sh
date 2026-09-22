@@ -144,6 +144,9 @@ rendered = "\n".join(
         "[semantic]",
         'provider = "typesafe"',
         "",
+        "[semantic.typesafe]",
+        f"api_call_log = {q(str(venv / '.xdg' / 'state' / 'agent-workflow' / 'typesafe-api-calls.jsonl'))}",
+        "",
         "[decision_policy]",
         'mode = "comparative"',
         'profile = "default"',
@@ -158,6 +161,7 @@ except tomllib.TOMLDecodeError as exc:
 
 assert parsed["plugins"]["enabled"] == ["agent-workflow-benchmark"]
 assert parsed["semantic"]["provider"] == "typesafe"
+assert parsed["semantic"]["typesafe"]["api_call_log"].endswith("typesafe-api-calls.jsonl")
 assert parsed["decision_policy"]["mode"] == "comparative"
 
 target.parent.mkdir(parents=True, exist_ok=True)

@@ -43,5 +43,7 @@ def test_build_install_script_uses_venv_local_xdg_runtime() -> None:
     assert "agent-workflow-comparative-eval" in text
     assert 'mode = "comparative"' in text
     assert 'provider = "typesafe"' in text
+    assert "api_call_log" in text
+    assert "typesafe-api-calls.jsonl" in text
     assert "typesafe-sdk" in text
     assert "--comparative-eval-source PATH" in subprocess.run(["bash", str(SCRIPT), "--help"], text=True, capture_output=True).stdout

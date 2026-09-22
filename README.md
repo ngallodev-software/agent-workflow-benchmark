@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.7` declares `agent-workflow>=0.11.4,<0.12`; Agent-Workflow `0.11.4` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.8` declares `agent-workflow>=0.11.5,<0.12`; Agent-Workflow `0.11.5` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -130,6 +130,17 @@ The installer writes a benchmark-owned, minimal venv-local Agent-Workflow config
 
 The benchmark runtime is intentionally comparative: `typesafe-sdk==0.6.0`, `TYPESAFE_API_KEY`, and `agent-workflow-comparative-eval==0.1.0` are required in the shared venv. The comparative-eval package is a shared library, not an `agent_workflow.plugins` entry point.
 
+### TypeSafe request/response audit
+
+The value-smoke runner sets `AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG` to
+`<smoke-root>/typesafe-api-audit.jsonl`. Agent-Workflow 0.11.5+ writes
+redacted `agent-workflow/typesafe-api-call/v2` records there, including the
+logical request, raw HTTP request/response bodies when exposed by TypeSafe SDK
+0.6.0, normalized typed answers, model/version identity, hashes, and duration.
+The evidence collector includes that JSONL file and records only aggregate
+audit metadata in its manifest; the collector still refuses to archive if the
+current `TYPESAFE_API_KEY` value appears anywhere in collected files.
+
 For an authenticated end-to-end smoke run, the repository includes:
 
 ```bash
@@ -138,7 +149,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.2.7` requires Agent-Workflow `>=0.11.4,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.2.8` requires Agent-Workflow `>=0.11.5,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 

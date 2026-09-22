@@ -90,6 +90,9 @@ PLAN_JSON="${ROOT}/plan.json"
 RUN_JSON="${ROOT}/run.json"
 
 mkdir -p "${ROOT}"
+export AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG="${ROOT}/typesafe-api-audit.jsonl"
+: > "${AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG}"
+chmod 600 "${AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG}"
 
 echo "value-smoke root: ${ROOT}"
 echo "shared venv: ${DEV_VENV}"
@@ -225,6 +228,7 @@ if failures:
 print("token evidence qualification: passed")
 PY
 echo "local smoke artifacts: ${ROOT}"
+echo "TypeSafe audit: ${AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG} ($(wc -l < "${AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG}") records)"
 echo "smoke XDG isolation was process-local; caller shell environment is unchanged"
 echo "collect durable evidence with:"
 echo "  python scripts/collect-value-smoke-evidence.py ${ROOT}"
