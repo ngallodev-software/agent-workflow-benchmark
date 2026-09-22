@@ -26,7 +26,9 @@ def test_bm3_script_runs_structured_scored_audited_study() -> None:
     assert "benchmark plan" in text
     assert "benchmark run" in text
     assert "benchmark score" in text
+    assert "benchmark consolidate" in text
     assert "benchmark report" in text
+    assert text.index("benchmark score") < text.index("benchmark consolidate") < text.index("benchmark report")
     assert "BM3_REPETITIONS" in text
     assert "AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG" in text
     assert "typesafe-api-audit.jsonl" in text
