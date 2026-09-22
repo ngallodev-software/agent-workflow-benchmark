@@ -160,6 +160,31 @@ def export_builtin_suite(
     }
 
 
+HISTORICAL_CODEX_MODEL = "gpt-5.6-luna"
+HISTORICAL_CODEX_PRICE_CATALOG = "openai-gpt-5.6-standard-20260802"
+HISTORICAL_CODEX_PRICING = {
+    "input_tokens_include_cached": True,
+    "usd_per_million_tokens": {
+        "input": 0.2,
+        "cached_input": 0.02,
+        "cache_write_input": 0.25,
+        "output": 1.2,
+        "reasoning_output": 0,
+    },
+}
+
+
+def _pin_historical_codex_executor(destination: Path) -> None:
+    path = destination / "executors" / "codex-subscription.json"
+    value = read_object(path)
+    value["model"] = HISTORICAL_CODEX_MODEL
+    value["currency"] = "USD"
+    value["price_catalog_id"] = HISTORICAL_CODEX_PRICE_CATALOG
+    value["pricing"] = HISTORICAL_CODEX_PRICING
+    atomic_write_json(path, value)
+    validate_executor_config(path)
+
+
 def export_value_smoke_suite(
     destination: Path,
     *,
@@ -172,6 +197,7 @@ def export_value_smoke_suite(
         benchmark_id="priority-picker-v2",
         force=force,
     )
+    _pin_historical_codex_executor(destination)
     # The value smoke is deliberately Codex-only. Keep generic Claude support
     # in normal benchmark suites, but do not ship an alternate smoke executor.
     claude_profile = destination / "executors" / "claude-subscription.json"
@@ -237,6 +263,7 @@ def export_structured_value_smoke_suite(
         benchmark_id="priority-picker-v2",
         force=force,
     )
+    _pin_historical_codex_executor(destination)
     claude_profile = destination / "executors" / "claude-subscription.json"
     claude_profile.unlink(missing_ok=True)
     result["executors"] = [
