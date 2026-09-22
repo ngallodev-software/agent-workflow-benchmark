@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.2.8` declares `agent-workflow>=0.11.5,<0.12`; Agent-Workflow `0.11.5` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.2.9` declares `agent-workflow>=0.11.5,<0.12`; Agent-Workflow `0.11.5` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -149,7 +149,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.2.8` requires Agent-Workflow `>=0.11.5,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.2.9` requires Agent-Workflow `>=0.11.5,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -168,7 +168,7 @@ After any completed or failed smoke run, preserve the raw evidence with:
 python scripts/collect-value-smoke-evidence.py /tmp/agent-workflow-value-smoke.XXXXXX
 ```
 
-If the smoke root is omitted, the collector chooses the newest `$TMPDIR/agent-workflow-value-smoke.*` directory. It packages the complete smoke root plus the referenced benchmark run directory, records package/runtime identity without secret values, writes SHA-256 checksums, and refuses to archive if the current `TYPESAFE_API_KEY` value is found in collected files.
+If the smoke root is omitted, the collector chooses the newest `$TMPDIR/agent-workflow-value-smoke.*` directory. It packages the complete smoke root, the referenced coordinator run directory, and every arm evidence directory referenced by the run plan so `arm.json`, provider telemetry, Git evidence, and phase receipts remain self-contained. It records package/runtime identity without secret values, writes SHA-256 checksums, and refuses to archive if the current `TYPESAFE_API_KEY` value is found in collected files.
 
 ## Legacy command migration
 

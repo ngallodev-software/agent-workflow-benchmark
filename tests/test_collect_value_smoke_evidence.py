@@ -18,6 +18,33 @@ def test_collect_value_smoke_evidence_archives_smoke_and_run(tmp_path: Path) -> 
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "artifact.txt").write_text("evidence\n", encoding="utf-8")
+    arm_dir = tmp_path / "arm-control"
+    arm_dir.mkdir()
+    (arm_dir / "arm.json").write_text(
+        json.dumps({"usage": {"token_evidence_complete": True}}) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "run-plan.json").write_text(
+        json.dumps(
+            {
+                "pairs": [
+                    {
+                        "pair_id": "case-r01",
+                        "attempts": [
+                            {
+                                "attempt": 1,
+                                "arms": {
+                                    "control_raw": {"stage_dir": str(arm_dir)}
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (smoke / "readiness.json").write_text(
         json.dumps({"ready": True}) + "\n",
         encoding="utf-8",
@@ -71,6 +98,10 @@ def test_collect_value_smoke_evidence_archives_smoke_and_run(tmp_path: Path) -> 
         assert "agent-workflow-value-smoke-evidence/SHA256SUMS" in names
         assert "agent-workflow-value-smoke-evidence/smoke/run.json" in names
         assert "agent-workflow-value-smoke-evidence/run/artifact.txt" in names
+        assert (
+            "agent-workflow-value-smoke-evidence/arms/case-r01/attempt-01/control_raw/arm.json"
+            in names
+        )
         manifest = json.load(
             archive.extractfile("agent-workflow-value-smoke-evidence/manifest.json")
         )
@@ -80,6 +111,8 @@ def test_collect_value_smoke_evidence_archives_smoke_and_run(tmp_path: Path) -> 
 
     assert manifest["run_id"] == "run-1"
     assert manifest["summary"]["run_state"] == "executed"
+    assert manifest["summary"]["arm_evidence_roots"] == 1
+    assert len(manifest["source"]["arm_evidence_roots"]) == 1
     assert manifest["collection_environment"]["typesafe_api_key_configured"] is True
     assert manifest["typesafe_audit"]["present"] is True
     assert manifest["typesafe_audit"]["records"] == 1
