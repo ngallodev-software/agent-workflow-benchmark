@@ -30,6 +30,19 @@ def test_collect_value_smoke_evidence_archives_smoke_and_run(tmp_path: Path) -> 
         json.dumps({"run_id": "run-1", "state": "executed", "execution_only": True}) + "\n",
         encoding="utf-8",
     )
+    (smoke / "typesafe-api-audit.jsonl").write_text(
+        json.dumps({
+            "schema": "agent-workflow/typesafe-api-call/v2",
+            "status": "success",
+            "capture": {"raw_http_available": True, "credentials_redacted": True},
+            "request": {"logical_body": {"questions": {
+                "task_class": {"type": "choice"},
+                "interaction_needed": {"type": "noul"},
+                "semantic_risk": {"type": "score"},
+            }}},
+        }) + "\n",
+        encoding="utf-8",
+    )
 
     output = tmp_path / "evidence.tar.gz"
     env = os.environ.copy()
@@ -68,6 +81,11 @@ def test_collect_value_smoke_evidence_archives_smoke_and_run(tmp_path: Path) -> 
     assert manifest["run_id"] == "run-1"
     assert manifest["summary"]["run_state"] == "executed"
     assert manifest["collection_environment"]["typesafe_api_key_configured"] is True
+    assert manifest["typesafe_audit"]["present"] is True
+    assert manifest["typesafe_audit"]["records"] == 1
+    assert manifest["typesafe_audit"]["schema_v2_records"] == 1
+    assert manifest["typesafe_audit"]["raw_http_records"] == 1
+    assert manifest["typesafe_audit"]["primitive_counts"] == {"choice": 1, "noul": 1, "score": 1}
     assert "collector-test-secret-not-in-files" not in environment
     assert "TYPESAFE_API_KEY=configured" in environment
 
