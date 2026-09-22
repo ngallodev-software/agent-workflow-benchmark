@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.0` declares `agent-workflow>=0.11.5,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.0` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -192,7 +192,7 @@ bash scripts/run-bm3-structured.sh \
   --repetitions 1
 ```
 
-The runner performs readiness, planning, paired execution, machine scoring, descriptive reporting, granular timing capture, TypeSafe request/response audit capture, and self-contained evidence collection.
+The runner first performs a separate pre-treatment TypeSafe/Jev routing qualification over the three BM3 phase prompts, then runs readiness, planning, paired execution, machine scoring, descriptive reporting, granular timing capture, and self-contained evidence collection. The paired treatments themselves do not invoke semantic routing, preserving runtime comparability.
 
 See [docs/BM3_STRUCTURED.md](docs/BM3_STRUCTURED.md) for the complete self-service workflow, manual command equivalent, evidence layout, troubleshooting, and interpretation rules.
 
