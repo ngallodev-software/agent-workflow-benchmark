@@ -4,6 +4,61 @@ set -euo pipefail
 AW_BIN="${AGENT_WORKFLOW_BIN:-agent-workflow}"
 AGENT_CLASS="${AGENT_CLASS:-implementation}"
 REPETITIONS="${BM3_REPETITIONS:-1}"
+ROOT_ARG=""
+EVIDENCE_ARG=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/run-bm3-structured.sh [options]
+
+Run the BM3 development study:
+  structured-direct/v1 vs agent-workflow-full/v1
+
+Options:
+  --root PATH          durable BM3 artifact root (default: BM3_ROOT or mktemp)
+  --repetitions N      paired repetitions (default: BM3_REPETITIONS or 1)
+  --agent-class NAME   Agent-Workflow candidate class (default: AGENT_CLASS or implementation)
+  --evidence PATH      output evidence archive (default: <root>-evidence.tar.gz)
+  -h, --help
+
+Prerequisites:
+  Agent-Workflow 0.11.6
+  agent-workflow-benchmark 0.3.0
+  typesafe-sdk 0.6.0
+  comparative decision mode
+  TYPESAFE_API_KEY
+  authenticated Codex subscription session
+
+The script exports the structured suite, creates the fixture, verifies readiness,
+runs paired execution, performs machine scoring, writes a descriptive report,
+summarizes granular timing/TypeSafe audit evidence, and creates a self-contained
+evidence archive. Development results do not establish a generalized winner.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --root)
+      shift; [[ $# -gt 0 ]] || { echo "--root requires a value" >&2; exit 2; }
+      ROOT_ARG="$1"
+      ;;
+    --repetitions)
+      shift; [[ $# -gt 0 ]] || { echo "--repetitions requires a value" >&2; exit 2; }
+      REPETITIONS="$1"
+      ;;
+    --agent-class)
+      shift; [[ $# -gt 0 ]] || { echo "--agent-class requires a value" >&2; exit 2; }
+      AGENT_CLASS="$1"
+      ;;
+    --evidence)
+      shift; [[ $# -gt 0 ]] || { echo "--evidence requires a value" >&2; exit 2; }
+      EVIDENCE_ARG="$1"
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
 
 if [[ ! "$REPETITIONS" =~ ^[1-9][0-9]*$ ]]; then
   echo "BM3_REPETITIONS must be a positive integer; observed: $REPETITIONS" >&2
@@ -95,7 +150,7 @@ print(
 )
 PY
 
-ROOT="${BM3_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/agent-workflow-bm3.XXXXXX")}"
+ROOT="${ROOT_ARG:-${BM3_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/agent-workflow-bm3.XXXXXX")}}"
 SUITE="$ROOT/suite"
 FIXTURE="$ROOT/fixture"
 READINESS_JSON="$ROOT/readiness.json"
@@ -104,7 +159,7 @@ RUN_JSON="$ROOT/run.json"
 SCORE_JSON="$ROOT/score.json"
 REPORT_JSON="$ROOT/report-command.json"
 SUMMARY_JSON="$ROOT/bm3-summary.json"
-EVIDENCE_ARCHIVE="${BM3_EVIDENCE_ARCHIVE:-${ROOT}-evidence.tar.gz}"
+EVIDENCE_ARCHIVE="${EVIDENCE_ARG:-${BM3_EVIDENCE_ARCHIVE:-${ROOT}-evidence.tar.gz}}"
 
 mkdir -p "$ROOT"
 export AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG="$ROOT/typesafe-api-audit.jsonl"
@@ -244,7 +299,7 @@ print(
 )
 PY
 
-python scripts/collect-value-smoke-evidence.py "$ROOT" --output "$EVIDENCE_ARCHIVE"
+"$PYTHON" scripts/collect-value-smoke-evidence.py "$ROOT" --output "$EVIDENCE_ARCHIVE"
 
 echo
 echo "BM3 development run complete"
