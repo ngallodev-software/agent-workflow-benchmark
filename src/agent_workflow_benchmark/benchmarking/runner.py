@@ -139,6 +139,7 @@ def _run_direct_phase_arm(
     prompt_diagnostics = _file_diagnostics(_prompt_for(arm, str(phase["id"])))
     stdout_diagnostics = _file_diagnostics(stdout_path)
     stderr_diagnostics = _file_diagnostics(stderr_path)
+    event_diagnostics = _event_diagnostics_from_text(stdout_text)
     if result.timed_out:
         state = "timed_out"
     elif result.returncode == 0:
@@ -168,6 +169,7 @@ def _run_direct_phase_arm(
             "stdout_lines": stdout_diagnostics["lines"],
             "stderr_bytes": stderr_diagnostics["bytes"],
             "stderr_lines": stderr_diagnostics["lines"],
+            "amplification": event_diagnostics,
         },
         "stdout": str(stdout_path), "stderr": str(stderr_path),
         "usage_file": str(phase_dir / "usage.json") if (phase_dir / "usage.json").is_file() else None,
@@ -215,6 +217,96 @@ def _file_diagnostics(path: Path) -> dict[str, int]:
     except OSError:
         return {"bytes": 0, "lines": 0}
     return {"bytes": len(data), "lines": len(data.splitlines())}
+
+
+def _event_diagnostics_from_text(text: str) -> dict[str, int | None]:
+    """Count provider-exposed model turns and completed tool/command items."""
+    turns: set[str] = set()
+    anonymous_turns = 0
+    tools: set[str] = set()
+    anonymous_tools = 0
+    commands: set[str] = set()
+    anonymous_commands = 0
+    event_count = 0
+    for sequence, raw in enumerate(text.splitlines(), start=1):
+        if not raw.strip():
+            continue
+        try:
+            event = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        event_count += 1
+        event_type = str(event.get("type", ""))
+        if event_type == "turn.completed":
+            identity = event.get("turn_id", event.get("id"))
+            if isinstance(identity, (str, int)) and not isinstance(identity, bool):
+                turns.add(str(identity))
+            else:
+                anonymous_turns += 1
+        item = event.get("item")
+        if (
+            not isinstance(item, dict)
+            or event_type not in {"item.completed", "tool.completed", "command.completed"}
+        ):
+            continue
+        item_type = str(item.get("type", ""))
+        identity = item.get("id", event.get("item_id", event.get("id")))
+        identity_text = (
+            str(identity)
+            if isinstance(identity, (str, int)) and not isinstance(identity, bool)
+            else f"anonymous-{sequence}"
+        )
+        if item_type in {"command_execution", "tool_call", "function_call", "mcp_tool_call", "web_search"}:
+            if identity_text.startswith("anonymous-"):
+                anonymous_tools += 1
+            else:
+                tools.add(identity_text)
+        if item_type == "command_execution":
+            if identity_text.startswith("anonymous-"):
+                anonymous_commands += 1
+            else:
+                commands.add(identity_text)
+    turn_count = len(turns) + anonymous_turns
+    tool_count = len(tools) + anonymous_tools
+    command_count = len(commands) + anonymous_commands
+    return {
+        "provider_event_count": event_count,
+        "model_turn_count": turn_count or None,
+        "tool_call_count": tool_count or None,
+        "command_execution_count": command_count or None,
+    }
+
+
+def _executor_context_diagnostics(run_root: Path) -> dict[str, Any] | None:
+    path = run_root / "executor-context.json"
+    if not path.is_file():
+        return None
+    try:
+        value = read_object(path)
+    except (OSError, WorkflowError, ValueError):
+        return None
+    runtime = value.get("runtime") if isinstance(value.get("runtime"), dict) else {}
+    measurements = value.get("measurements") if isinstance(value.get("measurements"), dict) else {}
+    launch = measurements.get("launch_prompt") if isinstance(measurements.get("launch_prompt"), dict) else {}
+    injected = measurements.get("injected_context") if isinstance(measurements.get("injected_context"), dict) else {}
+    card = measurements.get("command_card") if isinstance(measurements.get("command_card"), dict) else {}
+    return {
+        "context_id": value.get("context_id"),
+        "projection_sha256": value.get("projection_sha256"),
+        "launch_prompt_bytes": launch.get("bytes"),
+        "launch_prompt_estimated_tokens": launch.get("estimated_tokens"),
+        "injected_context_bytes": injected.get("bytes"),
+        "injected_context_estimated_tokens": injected.get("estimated_tokens"),
+        "command_card_bytes": card.get("bytes"),
+        "model_turn_count": runtime.get("model_turn_count"),
+        "tool_call_count": runtime.get("tool_call_count"),
+        "command_execution_count": runtime.get("command_execution_count"),
+        "input_tokens_per_turn": runtime.get("input_tokens_per_turn"),
+        "cached_input_tokens_per_turn": runtime.get("cached_input_tokens_per_turn"),
+        "cached_input_ratio": runtime.get("cached_input_ratio"),
+    }
 
 
 def _provider_diagnostics(run_root: Path) -> dict[str, Any]:
@@ -455,6 +547,8 @@ def _run_agent_workflow_phase_arm(
     stdout_diagnostics = _file_diagnostics(stdout_path)
     stderr_diagnostics = _file_diagnostics(stderr_path)
     provider_diagnostics = _provider_diagnostics(aw_root)
+    executor_context = _executor_context_diagnostics(aw_root)
+    launch_prompt_diagnostics = _file_diagnostics(aw_root / "launch-prompt.md")
     record = {
         "phase_id": phase["id"],
         "state": state,
@@ -494,6 +588,9 @@ def _run_agent_workflow_phase_arm(
             "stderr_lines": stderr_diagnostics["lines"],
             "provider_evidence": provider_diagnostics,
             "terminal_pipeline": terminal_timing,
+            "agent_workflow_launch_prompt_bytes": launch_prompt_diagnostics["bytes"],
+            "agent_workflow_launch_prompt_lines": launch_prompt_diagnostics["lines"],
+            "executor_context": executor_context,
         },
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
