@@ -63,7 +63,7 @@ codex login status
 BM3 requires:
 
 - Agent-Workflow 0.11.6;
-- agent-workflow-benchmark 0.3.0;
+- agent-workflow-benchmark 0.3.1;
 - TypeSafe SDK 0.6.0;
 - comparative decision mode;
 - compatible comparative-eval library;
@@ -96,7 +96,7 @@ The runner performs:
 2. structured BM3 suite export;
 3. **pre-treatment TypeSafe/Jev semantic qualification** on the three phase prompts;
 4. frozen fixture creation;
-5. execution-only readiness checks;
+5. full-pipeline readiness checks, including visual runtime attestation;
 6. paired run planning;
 7. paired execution;
 8. machine scoring;
