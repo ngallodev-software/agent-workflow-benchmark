@@ -180,6 +180,10 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     assert executed["state"] == "executed"
     assert executed["pairs_terminal"] == 1
     assert executed["execution_only"] is True
+    assert executed["execution_complete"] is True
+    assert executed["benchmark_complete"] is False
+    assert executed["score_eligible"] is False
+    assert "visual-capture" in executed["pending_stages"]
     assert executed["report"] is None
 
     pair = plan["pairs"][0]
@@ -208,3 +212,7 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
         metrics_value = read_object(metrics)
         assert metrics_value["schema"] == "agent-workflow/execution-metrics/v1"
         assert any(item["stage"] == "total" for item in metrics_value["stages"])
+        diagnostics = phase["timing_breakdown"]
+        assert diagnostics["prompt_bytes"] > 0
+        assert diagnostics["stdout_bytes"] >= 0
+        assert "provider_evidence" in diagnostics
