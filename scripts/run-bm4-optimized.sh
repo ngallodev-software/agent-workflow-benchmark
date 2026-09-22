@@ -11,7 +11,7 @@ EVIDENCE_ARG=""
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/run-bm4-structured.sh [options]
+Usage: scripts/run-bm4-optimized.sh [options]
 
 Run the BM4 optimization study:
   structured-direct/v1 vs agent-workflow-optimized/v1
