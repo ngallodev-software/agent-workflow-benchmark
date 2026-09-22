@@ -54,6 +54,47 @@ def _resolve_run_dir(smoke: Path, explicit: Path | None) -> Path | None:
     return None
 
 
+def _arm_evidence_sources(run_dir: Path | None) -> list[tuple[str, Path]]:
+    """Resolve benchmark arm evidence roots referenced by the run plan.
+
+    Arm stage directories live in treatment worktrees rather than beneath the
+    coordinator run directory, so collectors must follow those explicit plan
+    references to make the resulting archive self-contained.
+    """
+    if run_dir is None:
+        return []
+    plan = _load_object(run_dir / "run-plan.json")
+    sources: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
+    for pair in plan.get("pairs", []):
+        if not isinstance(pair, dict):
+            continue
+        pair_id = str(pair.get("pair_id") or "pair")
+        for attempt in pair.get("attempts", []):
+            if not isinstance(attempt, dict):
+                continue
+            try:
+                attempt_number = int(attempt.get("attempt", 0))
+            except (TypeError, ValueError):
+                attempt_number = 0
+            arms = attempt.get("arms", {})
+            if not isinstance(arms, dict):
+                continue
+            for arm_name, arm in arms.items():
+                if not isinstance(arm, dict):
+                    continue
+                stage_dir = arm.get("stage_dir")
+                if not isinstance(stage_dir, str) or not stage_dir:
+                    continue
+                path = Path(stage_dir).expanduser().resolve()
+                if not path.is_dir() or path in seen:
+                    continue
+                seen.add(path)
+                label = f"arms/{pair_id}/attempt-{attempt_number:02d}/{arm_name}"
+                sources.append((label, path))
+    return sources
+
+
 def _latest_smoke(tmp_root: Path) -> Path:
     candidates = [p for p in tmp_root.glob("agent-workflow-value-smoke.*") if p.is_dir()]
     if not candidates:
@@ -236,9 +277,11 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
 
     secret = os.environ.get("TYPESAFE_API_KEY", "").encode()
+    arm_sources = _arm_evidence_sources(run_dir)
     sources: list[tuple[str, Path]] = [("smoke", smoke)]
     if run_dir is not None and not _inside(run_dir, smoke):
         sources.append(("run", run_dir))
+    sources.extend(arm_sources)
 
     if secret:
         hits: list[str] = []
@@ -263,6 +306,10 @@ def main() -> None:
             "smoke_root": str(smoke),
             "run_dir": str(run_dir) if run_dir is not None else None,
             "run_dir_in_smoke_root": bool(run_dir is not None and _inside(run_dir, smoke)),
+            "arm_evidence_roots": [
+                {"archive_path": label, "source": str(path)}
+                for label, path in arm_sources
+            ],
         },
         "files_present": {
             name: (smoke / name).is_file()
@@ -273,6 +320,7 @@ def main() -> None:
             "run_state": run.get("state"),
             "execution_only": run.get("execution_only"),
             "report": run.get("report"),
+            "arm_evidence_roots": len(arm_sources),
         },
         "typesafe_audit": _typesafe_audit_summary(smoke),
         "collection_environment": {
