@@ -100,9 +100,10 @@ The runner performs:
 6. paired run planning;
 7. paired execution;
 8. machine scoring;
-9. descriptive report generation;
-10. timing + semantic qualification summary generation;
-11. self-contained evidence collection.
+9. benchmark consolidation;
+10. descriptive report generation;
+11. timing + semantic qualification summary generation;
+12. self-contained evidence collection.
 
 The semantic qualification is intentionally outside both benchmark arms. BM3 pins the candidate executor/model/class explicitly for fair paired runtime comparison, which bypasses the scheduler routing boundary. The qualification therefore exercises the real `advise_routing_with_policy()` Choice/Noul/Score seam before execution, records the full private audit, and asserts the paired treatment adds **zero** further TypeSafe calls.
 
@@ -139,6 +140,7 @@ Read `run_plan` from `plan.json`, then:
 ```bash
 agent-workflow benchmark run RUN_PLAN.json --execution-only
 agent-workflow benchmark score RUN_PLAN.json
+agent-workflow benchmark consolidate RUN_PLAN.json
 agent-workflow benchmark report RUN_PLAN.json
 ```
 
@@ -302,6 +304,19 @@ agent-workflow benchmark auth-check \
 ```
 
 The study is subscription-session only.
+
+### Report says benchmark must be consolidated
+
+Reporting requires a consolidation receipt. If paired execution and scoring already completed, do **not** rerun the benchmark. Resolve `run_plan` from the existing BM3 root and continue:
+
+```bash
+RUN_PLAN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["run_plan"])' "$ROOT/plan.json")"
+agent-workflow --json benchmark consolidate "$RUN_PLAN" | tee "$ROOT/consolidate.json"
+agent-workflow --json benchmark report "$RUN_PLAN" | tee "$ROOT/report-command.json"
+python scripts/collect-value-smoke-evidence.py "$ROOT" --output "$ROOT-evidence.tar.gz"
+```
+
+The one-command BM3 runner performs consolidation automatically.
 
 ### Token evidence incomplete
 
