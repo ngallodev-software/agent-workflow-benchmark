@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+AW_BIN="${AGENT_WORKFLOW_BIN:-agent-workflow}"
+AGENT_CLASS="${AGENT_CLASS:-implementation}"
+REPETITIONS="${BM3_REPETITIONS:-1}"
+
+if [[ ! "$REPETITIONS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "BM3_REPETITIONS must be a positive integer; observed: $REPETITIONS" >&2
+  exit 2
+fi
+
+if [[ "$AW_BIN" == */* ]]; then
+  AW_PATH="$(python3 - "$AW_BIN" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+else
+  AW_PATH="$(command -v "$AW_BIN" 2>/dev/null || true)"
+fi
+[[ -n "$AW_PATH" ]] || { echo "Agent-Workflow launcher not found: $AW_BIN" >&2; exit 1; }
+
+if [[ -n "${AGENT_WORKFLOW_VENV:-}" ]]; then
+  DEV_VENV="$(python3 - "$AGENT_WORKFLOW_VENV" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+elif [[ -n "${VIRTUAL_ENV:-}" ]]; then
+  DEV_VENV="$(python3 - "$VIRTUAL_ENV" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+else
+  DEV_VENV="$(dirname "$(dirname "$AW_PATH")")"
+fi
+
+[[ -x "$DEV_VENV/bin/python" || -x "$DEV_VENV/bin/python3" ]] || {
+  echo "could not resolve shared Agent-Workflow virtualenv from $AW_PATH" >&2
+  exit 1
+}
+if [[ -x "$DEV_VENV/bin/python" ]]; then PYTHON="$DEV_VENV/bin/python"; else PYTHON="$DEV_VENV/bin/python3"; fi
+
+export VIRTUAL_ENV="$DEV_VENV"
+export AGENT_WORKFLOW_VENV="$DEV_VENV"
+export AGENT_WORKFLOW_BIN="$DEV_VENV/bin/agent-workflow"
+export PATH="$DEV_VENV/bin:$PATH"
+export XDG_CONFIG_HOME="$DEV_VENV/.xdg/config"
+export XDG_STATE_HOME="$DEV_VENV/.xdg/state"
+export XDG_DATA_HOME="$DEV_VENV/.xdg/data"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME"
+
+AW_BIN="$AGENT_WORKFLOW_BIN"
+DEV_CONFIG="$XDG_CONFIG_HOME/agent-workflow/config.toml"
+[[ -f "$DEV_CONFIG" ]] || {
+  echo "venv-local Agent-Workflow config is missing: $DEV_CONFIG" >&2
+  echo "run Agent-Workflow scripts/build-install-all.sh first" >&2
+  exit 1
+}
+[[ -n "${TYPESAFE_API_KEY:-}" ]] || {
+  echo "BM3 requires TYPESAFE_API_KEY because the benchmark runtime uses comparative mode" >&2
+  exit 1
+}
+
+"$PYTHON" - <<'PY'
+from importlib import metadata
+from agent_workflow.config import load_settings
+from agent_workflow.decisions import require_decision_runtime_ready
+
+required = {
+    "agent-workflow": "0.11.6",
+    "agent-workflow-benchmark": "0.3.0",
+    "typesafe-sdk": "0.6.0",
+}
+for name, expected in required.items():
+    observed = metadata.version(name)
+    if observed != expected:
+        raise SystemExit(f"{name}={observed}; BM3 requires {expected}")
+settings = load_settings()
+if settings.decision_mode != "comparative":
+    raise SystemExit(
+        f"BM3 requires decision_policy.mode='comparative'; observed {settings.decision_mode!r}"
+    )
+status = require_decision_runtime_ready(settings)
+if status.get("ready") is not True:
+    raise SystemExit(f"semantic runtime is not ready: {status}")
+print(
+    "BM3 semantic preflight: "
+    f"mode={status['mode']}; typesafe_api_key=configured; comparative_eval=compatible"
+)
+PY
+
+ROOT="${BM3_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/agent-workflow-bm3.XXXXXX")}"
+SUITE="$ROOT/suite"
+FIXTURE="$ROOT/fixture"
+READINESS_JSON="$ROOT/readiness.json"
+PLAN_JSON="$ROOT/plan.json"
+RUN_JSON="$ROOT/run.json"
+SCORE_JSON="$ROOT/score.json"
+REPORT_JSON="$ROOT/report-command.json"
+SUMMARY_JSON="$ROOT/bm3-summary.json"
+EVIDENCE_ARCHIVE="${BM3_EVIDENCE_ARCHIVE:-${ROOT}-evidence.tar.gz}"
+
+mkdir -p "$ROOT"
+export AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG="$ROOT/typesafe-api-audit.jsonl"
+: > "$AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
+chmod 600 "$AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
+
+echo "BM3 root: $ROOT"
+echo "comparison: structured-direct/v1 vs agent-workflow-full/v1"
+echo "repetitions: $REPETITIONS"
+echo "shared venv: $DEV_VENV"
+echo "TypeSafe audit: $AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
+
+"$AW_BIN" benchmark structured-value-smoke-export "$SUITE" --agent-class "$AGENT_CLASS"
+"$AW_BIN" benchmark fixture-create "$SUITE/benchmark-spec.json" "$FIXTURE"
+
+EXECUTOR="$SUITE/executors/codex-subscription.json"
+POLICY="$SUITE/policies/development.json"
+
+"$AW_BIN" --json benchmark readiness "$SUITE/benchmark-spec.json" \
+  --executor "$EXECUTOR" \
+  --policy "$POLICY" \
+  --execution-only > "$READINESS_JSON"
+
+"$PYTHON" - "$READINESS_JSON" <<'PY'
+import json, sys
+from pathlib import Path
+value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if value.get("ready") is not True:
+    for check in value.get("checks", []):
+        if not check.get("passed"):
+            print(f"{check.get('id')}: {check.get('detail')}", file=sys.stderr)
+    raise SystemExit("BM3 readiness failed")
+print("BM3 readiness: passed")
+PY
+
+"$AW_BIN" --json benchmark plan "$SUITE/benchmark-spec.json" \
+  --repo "$FIXTURE" \
+  --base-ref HEAD \
+  --executor "$EXECUTOR" \
+  --policy "$POLICY" \
+  --repetitions "$REPETITIONS" > "$PLAN_JSON"
+
+RUN_PLAN="$("$PYTHON" - "$PLAN_JSON" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["run_plan"])
+PY
+)"
+
+echo "run plan: $RUN_PLAN"
+"$AW_BIN" --json benchmark run "$RUN_PLAN" --execution-only | tee "$RUN_JSON"
+
+# Score immediately after paired execution. Missing visual/human evidence may
+# keep the run ineligible for a winner, but observed machine scores are still
+# valuable for the development comparison.
+"$AW_BIN" --json benchmark score "$RUN_PLAN" | tee "$SCORE_JSON"
+"$AW_BIN" --json benchmark report "$RUN_PLAN" | tee "$REPORT_JSON"
+
+"$PYTHON" - "$RUN_PLAN" "$ROOT" "$SUMMARY_JSON" <<'PY'
+from __future__ import annotations
+import json, sys
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+root = Path(sys.argv[2])
+out = Path(sys.argv[3])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+run_dir = Path(plan["coordinator"]["run_dir"])
+
+summary = {
+    "schema": "agent-workflow/bm3-development-summary/v1",
+    "run_id": plan["run_id"],
+    "benchmark_id": plan["benchmark_id"],
+    "claim_level": plan["claim_level"],
+    "treatments": plan.get("treatments"),
+    "pairs": [],
+    "typesafe": {
+        "audit_path": str(root / "typesafe-api-audit.jsonl"),
+        "records": 0,
+        "duration_ms_total": 0.0,
+    },
+}
+
+audit = root / "typesafe-api-audit.jsonl"
+if audit.is_file():
+    for line in audit.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        value = json.loads(line)
+        summary["typesafe"]["records"] += 1
+        duration = value.get("duration_ms")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool):
+            summary["typesafe"]["duration_ms_total"] += float(duration)
+summary["typesafe"]["duration_ms_total"] = round(
+    summary["typesafe"]["duration_ms_total"], 3
+)
+
+for pair in plan.get("pairs", []):
+    state_path = (
+        run_dir / "pair-state" / str(pair["case_id"])
+        / f"r{int(pair['repetition']):02d}" / "pair.json"
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    attempt_no = int(state["selected_attempt"])
+    attempt = next(x for x in pair["attempts"] if int(x["attempt"]) == attempt_no)
+    item = {
+        "pair_id": pair["pair_id"],
+        "repetition": pair["repetition"],
+        "selected_attempt": attempt_no,
+        "pair_start_skew_seconds": state.get("pair_start_skew_seconds"),
+        "arms": {},
+    }
+    for arm_name, arm in attempt["arms"].items():
+        arm_value = json.loads((Path(arm["stage_dir"]) / "arm.json").read_text(encoding="utf-8"))
+        item["arms"][arm_name] = {
+            "treatment_id": plan["treatments"][arm_name]["treatment_id"],
+            "state": arm_value.get("state"),
+            "usage": arm_value.get("usage"),
+            "phase_timings": [
+                {
+                    "phase_id": phase.get("phase_id"),
+                    "phase_wall_seconds": phase.get("phase_wall_seconds"),
+                    "active_process_seconds": phase.get("active_process_seconds"),
+                    "timing_breakdown": phase.get("timing_breakdown"),
+                }
+                for phase in arm_value.get("phases", [])
+            ],
+        }
+    summary["pairs"].append(item)
+
+out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+print(f"BM3 summary: {out}")
+print(
+    "TypeSafe audit: "
+    f"{summary['typesafe']['records']} calls; "
+    f"{summary['typesafe']['duration_ms_total']} ms total"
+)
+PY
+
+python scripts/collect-value-smoke-evidence.py "$ROOT" --output "$EVIDENCE_ARCHIVE"
+
+echo
+echo "BM3 development run complete"
+echo "  root:     $ROOT"
+echo "  summary:  $SUMMARY_JSON"
+echo "  score:    $SCORE_JSON"
+echo "  report:   $REPORT_JSON"
+echo "  audit:    $AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
+echo "  evidence: $EVIDENCE_ARCHIVE"
+echo
+echo "Do not treat a development run as a generalized treatment-effect claim."
