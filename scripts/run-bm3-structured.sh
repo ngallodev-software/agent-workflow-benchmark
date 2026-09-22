@@ -25,7 +25,7 @@ Options:
 
 Prerequisites:
   Agent-Workflow 0.11.6
-  agent-workflow-benchmark 0.3.0
+  agent-workflow-benchmark 0.3.1
   typesafe-sdk 0.6.0
   comparative decision mode
   TYPESAFE_API_KEY
@@ -131,7 +131,7 @@ from agent_workflow.decisions import require_decision_runtime_ready
 
 required = {
     "agent-workflow": "0.11.6",
-    "agent-workflow-benchmark": "0.3.0",
+    "agent-workflow-benchmark": "0.3.1",
     "typesafe-sdk": "0.6.0",
 }
 for name, expected in required.items():
@@ -271,8 +271,7 @@ POLICY="$SUITE/policies/development.json"
 
 "$AW_BIN" --json benchmark readiness "$SUITE/benchmark-spec.json" \
   --executor "$EXECUTOR" \
-  --policy "$POLICY" \
-  --execution-only > "$READINESS_JSON"
+  --policy "$POLICY" > "$READINESS_JSON"
 
 "$PYTHON" - "$READINESS_JSON" <<'PY'
 import json, sys
@@ -303,9 +302,12 @@ PY
 echo "run plan: $RUN_PLAN"
 "$AW_BIN" --json benchmark run "$RUN_PLAN" --execution-only | tee "$RUN_JSON"
 
-# Score immediately after paired execution. Missing visual/human evidence may
-# keep the run ineligible for a winner, but observed machine scores are still
-# valuable for the development comparison.
+# Execution-only means paired model work is complete, not that the benchmark
+# is complete or score-eligible. Capture the frozen visual evidence before
+# scoring so completed development runs cannot become invalid only because
+# the orchestration script skipped a required evidence stage.
+"$AW_BIN" --json benchmark live-start "$RUN_PLAN" > "$ROOT/live-start.json"
+"$AW_BIN" --json benchmark visual-capture "$RUN_PLAN" > "$ROOT/visual-capture.json"
 "$AW_BIN" --json benchmark score "$RUN_PLAN" | tee "$SCORE_JSON"
 "$AW_BIN" --json benchmark consolidate "$RUN_PLAN" | tee "$CONSOLIDATE_JSON"
 "$AW_BIN" --json benchmark report "$RUN_PLAN" | tee "$REPORT_JSON"
