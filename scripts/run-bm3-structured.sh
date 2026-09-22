@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 AW_BIN="${AGENT_WORKFLOW_BIN:-agent-workflow}"
 AGENT_CLASS="${AGENT_CLASS:-implementation}"
 REPETITIONS="${BM3_REPETITIONS:-1}"
@@ -465,7 +467,7 @@ print(
 )
 PY
 
-"$PYTHON" scripts/collect-value-smoke-evidence.py "$ROOT" --output "$EVIDENCE_ARCHIVE"
+"$PYTHON" "$REPO_ROOT/scripts/collect-value-smoke-evidence.py" "$ROOT" --output "$EVIDENCE_ARCHIVE"
 
 echo
 echo "BM3 development run complete"
