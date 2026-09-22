@@ -94,14 +94,17 @@ The runner performs:
 
 1. version and semantic-runtime preflight;
 2. structured BM3 suite export;
-3. frozen fixture creation;
-4. execution-only readiness checks;
-5. paired run planning;
-6. paired execution;
-7. machine scoring;
-8. descriptive report generation;
-9. TypeSafe audit/timing summary generation;
-10. self-contained evidence collection.
+3. **pre-treatment TypeSafe/Jev semantic qualification** on the three phase prompts;
+4. frozen fixture creation;
+5. execution-only readiness checks;
+6. paired run planning;
+7. paired execution;
+8. machine scoring;
+9. descriptive report generation;
+10. timing + semantic qualification summary generation;
+11. self-contained evidence collection.
+
+The semantic qualification is intentionally outside both benchmark arms. BM3 pins the candidate executor/model/class explicitly for fair paired runtime comparison, which bypasses the scheduler routing boundary. The qualification therefore exercises the real `advise_routing_with_policy()` Choice/Noul/Score seam before execution, records the full private audit, and asserts the paired treatment adds **zero** further TypeSafe calls.
 
 ## Manual equivalent
 
@@ -187,13 +190,21 @@ These sections occur after executor exit and therefore distinguish deterministic
 
 ## TypeSafe/Jev audit
 
-The runner sets:
+BM3 separates **semantic-decision qualification** from **treatment execution**. The qualification feeds each exported phase prompt plus bounded phase metadata through Agent-Workflow's real routing policy in comparative mode. Deterministic routing remains applied; the TypeSafe result is shadow/counterfactual evidence.
+
+The qualification writes:
+
+```text
+<root>/typesafe-semantic-qualification.json
+```
+
+and the runner sets:
 
 ```text
 AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG=<BM3 root>/typesafe-api-audit.jsonl
 ```
 
-The private JSONL contains redacted `agent-workflow/typesafe-api-call/v2` records with:
+The private JSONL contains one redacted `agent-workflow/typesafe-api-call/v2` record per qualification context with:
 
 - projected state;
 - exact Choice/Noul/Score question definitions;
@@ -211,6 +222,8 @@ jq . "$ROOT/typesafe-api-audit.jsonl" | less
 ```
 
 Do not publish raw request/response bodies. Use counts, duration, primitive coverage, disagreement/calibration metrics, and hashes in public summaries.
+
+The paired BM3 arms are expected to emit no additional TypeSafe records. `bm3-summary.json` records `treatment_additional_records`, and the runner fails if it is non-zero because semantic-routing calls inside only one arm would contaminate the treatment comparison.
 
 ## Evidence archive
 
