@@ -14,11 +14,57 @@ from agent_workflow_benchmark.benchmarking.treatments import (
     treatment_runtime_checks,
     uses_agent_workflow,
 )
+import agent_workflow_benchmark.benchmarking.planning as benchmark_planning
 import agent_workflow_benchmark.benchmarking.service as benchmark_service
 from agent_workflow_benchmark.benchmarking.service import (
     export_structured_value_smoke_suite,
     export_value_smoke_suite,
 )
+
+
+def test_toolchain_identity_prefers_stack_install_provenance(tmp_path: Path, monkeypatch) -> None:
+    import json
+
+    venv = tmp_path / "venv"
+    provenance = venv / "share" / "agent-workflow" / "source-provenance.json"
+    provenance.parent.mkdir(parents=True)
+    provenance.write_text(
+        json.dumps(
+            {
+                "schema": "agent-workflow/source-provenance/v1",
+                "components": {
+                    "agent-workflow-benchmark": {
+                        "version": "0.3.1",
+                        "revision": "a" * 40,
+                        "dirty": False,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_planning.sys, "prefix", str(venv))
+    monkeypatch.setattr(
+        benchmark_planning,
+        "TOOLCHAIN_DISTRIBUTIONS",
+        ("agent-workflow-benchmark",),
+    )
+    monkeypatch.setattr(
+        benchmark_planning,
+        "_distribution_identity",
+        lambda _name, fallback_root=None: {
+            "version": "0.3.1",
+            "editable": False,
+            "source_revision": None,
+            "source_dirty": None,
+        },
+    )
+
+    identity = benchmark_planning._toolchain_identity()["agent-workflow-benchmark"]
+
+    assert identity["source_revision"] == "a" * 40
+    assert identity["source_dirty"] is False
+    assert identity["source_provenance"] == "stack-install-manifest"
 
 
 def test_value_smoke_export_uses_explicit_treatments(tmp_path: Path) -> None:
@@ -170,6 +216,8 @@ def test_execution_only_readiness_skips_visual_attestation(tmp_path: Path, monke
     by_id = {item["id"]: item for item in readiness["checks"]}
 
     assert readiness["ready"] is True
+    assert readiness["execution_ready"] is True
+    assert readiness["full_pipeline_ready"] is False
     assert readiness["runtime"]["runtime_state"] == "not-required"
     assert by_id["visual-runtime"]["passed"] is True
     assert "not required for execution-only" in by_id["visual-runtime"]["detail"]
