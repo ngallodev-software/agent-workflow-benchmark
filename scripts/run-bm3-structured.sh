@@ -159,6 +159,7 @@ READINESS_JSON="$ROOT/readiness.json"
 PLAN_JSON="$ROOT/plan.json"
 RUN_JSON="$ROOT/run.json"
 SCORE_JSON="$ROOT/score.json"
+CONSOLIDATE_JSON="$ROOT/consolidate.json"
 REPORT_JSON="$ROOT/report-command.json"
 SUMMARY_JSON="$ROOT/bm3-summary.json"
 SEMANTIC_QUALIFICATION_JSON="$ROOT/typesafe-semantic-qualification.json"
@@ -306,6 +307,7 @@ echo "run plan: $RUN_PLAN"
 # keep the run ineligible for a winner, but observed machine scores are still
 # valuable for the development comparison.
 "$AW_BIN" --json benchmark score "$RUN_PLAN" | tee "$SCORE_JSON"
+"$AW_BIN" --json benchmark consolidate "$RUN_PLAN" | tee "$CONSOLIDATE_JSON"
 "$AW_BIN" --json benchmark report "$RUN_PLAN" | tee "$REPORT_JSON"
 
 "$PYTHON" - "$RUN_PLAN" "$ROOT" "$SUMMARY_JSON" "$SEMANTIC_QUALIFICATION_JSON" <<'PY'
@@ -474,6 +476,7 @@ echo "BM3 development run complete"
 echo "  root:     $ROOT"
 echo "  summary:  $SUMMARY_JSON"
 echo "  score:    $SCORE_JSON"
+echo "  consolidate: $CONSOLIDATE_JSON"
 echo "  report:   $REPORT_JSON"
 echo "  semantic: $SEMANTIC_QUALIFICATION_JSON"
 echo "  audit:    $AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
