@@ -17,6 +17,7 @@ from agent_workflow_benchmark.benchmarking.treatments import (
 import agent_workflow_benchmark.benchmarking.planning as benchmark_planning
 import agent_workflow_benchmark.benchmarking.service as benchmark_service
 from agent_workflow_benchmark.benchmarking.service import (
+    export_bm4_optimized_suite,
     export_structured_value_smoke_suite,
     export_value_smoke_suite,
 )
@@ -135,6 +136,36 @@ def test_structured_bm3_export_is_structured_direct_vs_agent_workflow(tmp_path: 
     )
     assert executor["model"] == "gpt-5.6-luna"
     assert executor["price_catalog_id"] == "openai-gpt-5.6-standard-20260802"
+
+
+def test_bm4_export_uses_gpt6_high_and_optimized_treatment(tmp_path: Path) -> None:
+    import json
+
+    destination = tmp_path / "bm4-suite"
+    result = export_bm4_optimized_suite(destination)
+
+    spec = validate_spec(Path(result["spec"]))
+    profiles = normalized_arm_profiles(spec)
+    executor = json.loads(
+        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
+    )
+
+    assert result["study"] == "bm4-structured-direct-vs-agent-workflow-optimized"
+    assert result["model"] == "gpt-6-luna"
+    assert result["effort"] == "high"
+    assert result["optimizations"] == [f"OPT-{index:03d}" for index in range(1, 8)]
+    assert executor["model"] == "gpt-6-luna"
+    assert executor["effort"] == "high"
+    assert profiles["control_raw"]["treatment_id"] == "structured-direct/v1"
+    assert profiles["control_raw"]["runner"]["kind"] == "direct-executor"
+    assert profiles["workflow_full"]["treatment_id"] == "agent-workflow-optimized/v1"
+    assert profiles["workflow_full"]["runner"]["kind"] == "agent-workflow"
+    assert profiles["workflow_full"]["runner"]["agent_class"] == "implementation"
+    enabled = set(spec["arms"]["candidate"]["enabled_features"])
+    assert "compact executor-context projection (OPT-001/004/007)" in enabled
+    assert "implementation amplification telemetry (OPT-002/003)" in enabled
+    assert "host-owned deterministic gates (OPT-005)" in enabled
+    assert "unchanged-workspace verification reuse (OPT-006)" in enabled
 
 
 def test_value_smoke_export_accepts_agent_class_override(tmp_path: Path) -> None:
