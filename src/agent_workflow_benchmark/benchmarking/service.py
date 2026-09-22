@@ -308,6 +308,69 @@ def export_structured_value_smoke_suite(
     return result
 
 
+def export_bm4_optimized_suite(
+    destination: Path,
+    *,
+    force: bool = False,
+    agent_class: str = "implementation",
+) -> dict[str, Any]:
+    """Export BM4: GPT-6 Luna structured direct vs optimized Agent-Workflow."""
+    result = export_builtin_suite(
+        destination,
+        benchmark_id="priority-picker-v2",
+        force=force,
+    )
+    # Unlike BM3, BM4 intentionally keeps the current future-facing executor
+    # profile: gpt-6-luna/high for both paired arms.
+    claude_profile = destination / "executors" / "claude-subscription.json"
+    claude_profile.unlink(missing_ok=True)
+    result["executors"] = [
+        item for item in result.get("executors", [])
+        if not str(item).endswith("claude-subscription.json")
+    ]
+    result["default_subscription_executors"] = [
+        str(destination / "executors" / "codex-subscription.json")
+    ]
+    spec_path = Path(result["spec"])
+    spec = read_object(spec_path)
+    structured_profile = dict(spec["arms"]["workflow_full"])
+    spec["schema"] = BENCHMARK_SPEC_V3_SCHEMA
+    spec["arms"] = {
+        "control": {
+            **structured_profile,
+            "profile_id": "structured-direct/v1",
+            "treatment_id": "structured-direct/v1",
+            "runner": {"kind": "direct-executor", "agent_class": None},
+        },
+        "candidate": {
+            **structured_profile,
+            "profile_id": "agent-workflow-optimized/v1",
+            "treatment_id": "agent-workflow-optimized/v1",
+            "runner": {"kind": "agent-workflow", "agent_class": agent_class},
+            "enabled_features": [
+                *structured_profile.get("enabled_features", []),
+                "Agent-Workflow Agent Run lifecycle",
+                "compact executor-context projection (OPT-001/004/007)",
+                "implementation amplification telemetry (OPT-002/003)",
+                "host-owned deterministic gates (OPT-005)",
+                "unchanged-workspace verification reuse (OPT-006)",
+            ],
+            "disabled_features": [],
+        },
+    }
+    atomic_write_json(spec_path, spec)
+    validate_spec(spec_path)
+    result.update(
+        study="bm4-structured-direct-vs-agent-workflow-optimized",
+        schema=BENCHMARK_SPEC_V3_SCHEMA,
+        agent_class=agent_class,
+        model="gpt-6-luna",
+        effort="high",
+        optimizations=[f"OPT-{index:03d}" for index in range(1, 8)],
+    )
+    return result
+
+
 def create_fixture(spec: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
     return materialize_fixture(spec, destination, force=force)
 
