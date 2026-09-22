@@ -3,7 +3,7 @@
   "provider": "openai",
   "executor": "codex-cli",
   "executor_version": "runtime-detected",
-  "model": "gpt-5.6-luna",
+  "model": "gpt-6-luna",
   "effort": "high",
   "argv_template": [
     "codex",
@@ -51,8 +51,8 @@
     "hidden_oracle": "not present in target worktree",
     "authentication": "ChatGPT subscription session"
   },
-  "currency": "USD",
-  "price_catalog_id": "openai-gpt-5.6-standard-20260802",
+  "currency": null,
+  "price_catalog_id": null,
   "authentication": {
     "mode": "subscription-session",
     "status_argv": [
@@ -78,14 +78,5 @@
       "amount": null
     }
   },
-  "pricing": {
-    "input_tokens_include_cached": true,
-    "usd_per_million_tokens": {
-      "input": 0.2,
-      "cached_input": 0.02,
-      "cache_write_input": 0.25,
-      "output": 1.2,
-      "reasoning_output": 0
-    }
-  }
+  "pricing": null
 }
