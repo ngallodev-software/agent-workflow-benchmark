@@ -15,6 +15,7 @@ from .benchmarking import (
     create_plan as create_benchmark_plan,
     export_builtin_suite as export_benchmark_suite,
     export_value_smoke_suite,
+    export_structured_value_smoke_suite,
     prepare_or_submit_review as benchmark_review,
     prepare_target as prepare_benchmark_target,
     render_benchmark_report as render_comparative_benchmark_report,
@@ -68,6 +69,12 @@ def handle_benchmark_command(
         )
     if command == "value-smoke-export":
         return export_value_smoke_suite(
+            args.destination,
+            force=args.force,
+            agent_class=args.agent_class,
+        )
+    if command == "structured-value-smoke-export":
+        return export_structured_value_smoke_suite(
             args.destination,
             force=args.force,
             agent_class=args.agent_class,

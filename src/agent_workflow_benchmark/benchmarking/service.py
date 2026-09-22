@@ -219,6 +219,68 @@ def export_value_smoke_suite(
     return result
 
 
+def export_structured_value_smoke_suite(
+    destination: Path,
+    *,
+    force: bool = False,
+    agent_class: str = "implementation",
+) -> dict[str, Any]:
+    """Export structured-direct vs real Agent-Workflow BM3 study.
+
+    Both treatments receive the same structured workflow wrapper. The control
+    executes it directly through the provider CLI; the candidate executes the
+    same prompt through the real Agent-Workflow Agent Run lifecycle. This
+    isolates lifecycle/orchestration overhead from prompt-discipline effects.
+    """
+    result = export_builtin_suite(
+        destination,
+        benchmark_id="priority-picker-v2",
+        force=force,
+    )
+    claude_profile = destination / "executors" / "claude-subscription.json"
+    claude_profile.unlink(missing_ok=True)
+    result["executors"] = [
+        item for item in result.get("executors", [])
+        if not str(item).endswith("claude-subscription.json")
+    ]
+    result["default_subscription_executors"] = [
+        str(destination / "executors" / "codex-subscription.json")
+    ]
+    spec_path = Path(result["spec"])
+    spec = read_object(spec_path)
+    structured_profile = dict(spec["arms"]["workflow_full"])
+    spec["schema"] = BENCHMARK_SPEC_V3_SCHEMA
+    spec["arms"] = {
+        "control": {
+            **structured_profile,
+            "profile_id": "structured-direct/v1",
+            "treatment_id": "structured-direct/v1",
+            "runner": {"kind": "direct-executor", "agent_class": None},
+        },
+        "candidate": {
+            **structured_profile,
+            "profile_id": "agent-workflow-full/v1",
+            "treatment_id": "agent-workflow-full/v1",
+            "runner": {"kind": "agent-workflow", "agent_class": agent_class},
+            "enabled_features": [
+                *structured_profile.get("enabled_features", []),
+                "Agent-Workflow Agent Run lifecycle",
+                "Agent-Workflow durable execution state",
+                "Agent-Workflow completion evidence and sealing",
+            ],
+            "disabled_features": [],
+        },
+    }
+    atomic_write_json(spec_path, spec)
+    validate_spec(spec_path)
+    result.update(
+        study="structured-direct-vs-agent-workflow-full",
+        schema=BENCHMARK_SPEC_V3_SCHEMA,
+        agent_class=agent_class,
+    )
+    return result
+
+
 def create_fixture(spec: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
     return materialize_fixture(spec, destination, force=force)
 
