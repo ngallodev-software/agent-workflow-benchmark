@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.0` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.1` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -149,7 +149,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.0` requires Agent-Workflow `>=0.11.5,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.1` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -158,7 +158,7 @@ AGENT_CLASS=implementation bash scripts/run-value-smoke.sh
 VALUE_SMOKE_ROOT=/tmp/aw-value-smoke-run bash scripts/run-value-smoke.sh
 ```
 
-The helper exports the v3 smoke suite, creates the frozen fixture repository, runs execution-only readiness, creates the paired plan, and executes the paired treatments without entering visual capture or human-review finalization. Visual runtime attestation remains required for normal benchmark runs. The smoke stops before planning if runtime comparability or Codex subscription authentication is not verified.
+The helper exports the v3 smoke suite, creates the frozen fixture repository, verifies full-pipeline readiness before expensive execution, creates the paired plan, executes the paired treatments, then starts the live app and captures required visual evidence before machine scoring and consolidation. Human review remains a separate completion gate for composite/winner claims.
 
 Git evidence now records committed, uncommitted, and untracked task changes. The canonical patch includes tracked changes relative to the benchmark base revision plus synthetic patches for untracked files, and `git-evidence.json` records both `base_revision` and `head_revision` so Agent-Workflow commits remain visible even when the worktree is clean.
 
