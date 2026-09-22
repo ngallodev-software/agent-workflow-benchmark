@@ -116,6 +116,8 @@ The smoke study keeps the canonical task, fixture, hidden evaluator, scoring con
 
 The run plan and experiment manifest record the stable internal arm slot separately from `treatment_id` and `runner_kind`. This preserves historical evidence schemas while allowing future structured-direct and ablation studies to reuse the paired harness.
 
+Generic/future Codex benchmark exports now default to `gpt-6-luna`. The historical Round-2 `value-smoke-export` and BM3 `structured-value-smoke-export` helpers explicitly retain `gpt-5.6-luna` and its frozen local price catalog so rerunning those named historical studies does not silently change model cohorts. GPT-6 Luna local price estimates remain unset until a benchmark price catalog is explicitly defined.
+
 Before a v3 plan is created, readiness verifies the Agent-Workflow treatment resolves to a comparable runtime: the mapped Agent-Workflow executor exists, provider family matches, the backend executable is the same direct Codex CLI in both arms, the model is permitted, reasoning-effort semantics are compatible, and the selected Agent-Workflow agent class permits that model. These checks are persisted in the run plan/experiment manifest.
 
 The development installer and value-smoke runner use the same shared Agent-Workflow virtualenv and isolate Agent-Workflow runtime files under that venv:
