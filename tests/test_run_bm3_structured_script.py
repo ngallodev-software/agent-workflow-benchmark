@@ -28,6 +28,7 @@ def test_bm3_script_runs_structured_scored_audited_study() -> None:
     assert "benchmark live-start" in text
     assert "benchmark visual-capture" in text
     assert "benchmark score" in text
+    assert "benchmark live-stop" in text
     assert "benchmark consolidate" in text
     assert "benchmark report" in text
     assert text.index("benchmark visual-capture") < text.index("benchmark score") < text.index("benchmark consolidate") < text.index("benchmark report")
