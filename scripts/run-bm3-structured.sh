@@ -311,6 +311,7 @@ echo "run plan: $RUN_PLAN"
 "$AW_BIN" --json benchmark score "$RUN_PLAN" | tee "$SCORE_JSON"
 "$AW_BIN" --json benchmark consolidate "$RUN_PLAN" | tee "$CONSOLIDATE_JSON"
 "$AW_BIN" --json benchmark report "$RUN_PLAN" | tee "$REPORT_JSON"
+"$AW_BIN" --json benchmark live-stop "$RUN_PLAN" > "$ROOT/live-stop.json"
 
 "$PYTHON" - "$RUN_PLAN" "$ROOT" "$SUMMARY_JSON" "$SEMANTIC_QUALIFICATION_JSON" <<'PY'
 from __future__ import annotations
