@@ -32,6 +32,7 @@ def test_bm3_script_runs_structured_scored_audited_study() -> None:
     assert "typesafe-api-audit.jsonl" in text
     assert "timing_breakdown" in text
     assert "collect-value-smoke-evidence.py" in text
+    assert 'REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"' in text
     assert "0.11.6" in text
     assert "0.3.0" in text
 
