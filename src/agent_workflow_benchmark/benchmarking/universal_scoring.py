@@ -82,9 +82,13 @@ def _collect_context(root: Path, include: list[str], exclude: list[str], max_fil
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
-        if not any(fnmatch.fnmatch(relative, pattern) for pattern in include):
+        def matches(pattern: str) -> bool:
+            return fnmatch.fnmatch(relative, pattern) or (
+                pattern.startswith("**/") and fnmatch.fnmatch(relative, pattern[3:])
+            )
+        if not any(matches(pattern) for pattern in include):
             continue
-        if any(fnmatch.fnmatch(relative, pattern) for pattern in exclude):
+        if any(matches(pattern) for pattern in exclude):
             continue
         data = path.read_bytes()
         total += len(data)
@@ -230,7 +234,8 @@ def _run_typesafe_probe(manifest: Mapping[str, Any], probe_id: str, probe: Mappi
 
 def _strip_fence(text: str) -> str:
     value = text.strip()
-    if value.startswith("~~~") and value.endswith("~~~"):
+    markers = ("~~~", chr(96) * 3)
+    if any(value.startswith(marker) and value.endswith(marker) for marker in markers):
         lines = value.splitlines()
         if len(lines) >= 3:
             value = "\n".join(lines[1:-1]).strip()
