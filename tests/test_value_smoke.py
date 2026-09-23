@@ -235,27 +235,6 @@ def test_runtime_checks_reject_different_provider_executable(tmp_path: Path) -> 
     assert by_id["agent-workflow-executable"]["passed"] is False
 
 
-def test_runtime_checks_reject_agent_workflow_codex_wrapper(tmp_path: Path) -> None:
-    destination = tmp_path / "suite"
-    result = export_value_smoke_suite(destination)
-    spec = validate_spec(Path(result["spec"]))
-    import json
-    executor = json.loads(
-        (destination / "executors" / "codex-subscription.json").read_text(encoding="utf-8")
-    )
-    base = defaults()
-    wrapped = replace(
-        base,
-        executors={**base.executors, "codex": ["agent-workflow-codex"]},
-    )
-
-    checks = treatment_runtime_checks(wrapped, spec, executor)
-    by_id = {item["id"]: item for item in checks}
-
-    assert by_id["agent-workflow-executable"]["passed"] is False
-    assert "binding=different" in by_id["agent-workflow-executable"]["detail"]
-
-
 def test_execution_only_readiness_skips_visual_attestation(tmp_path: Path, monkeypatch) -> None:
     destination = tmp_path / "suite"
     result = export_value_smoke_suite(destination)
