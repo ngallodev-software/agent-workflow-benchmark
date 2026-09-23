@@ -334,12 +334,31 @@ def main() -> None:
         )
         visual_correction = True
 
+    private_receipts = {}
     for name in (
-        "run-plan.json", "machine-scores.json", "consolidation-receipt.json",
-        "report.json", "report.md", "environment.json",
-        "experiment-manifest.json", "operating-policy.json",
+        "run-plan.json",
+        "machine-scores.json",
+        "consolidation-receipt.json",
+        "report.json",
+        "report.md",
+        "environment.json",
+        "experiment-manifest.json",
+        "operating-policy.json",
     ):
-        copy_file(run_dir / name, evidence / "run" / name)
+        source = run_dir / name
+        if source.is_file():
+            private_receipts[name] = {
+                "sha256": sha256(source),
+                "published_raw": False,
+            }
+    write_json(
+        evidence / "private-receipt-hashes.json",
+        {
+            "schema": "agent-workflow/bm4-private-receipt-hashes/v1",
+            "run_id": plan.get("run_id"),
+            "receipts": private_receipts,
+        },
+    )
 
     private_archive = (
         args.private_archive.expanduser().resolve()
