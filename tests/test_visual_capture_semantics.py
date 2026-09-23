@@ -42,3 +42,13 @@ def test_visual_harness_does_not_require_priority_items_before_evidence_capture(
     text = CAPTURE.read_text(encoding="utf-8")
     assert "first.wait_for" not in text
     assert 'capture_state": "complete"' in text
+
+
+def test_visual_harness_records_structured_product_scoring_observations() -> None:
+    text = CAPTURE.read_text(encoding="utf-8")
+    assert '"observations": observations' in text
+    assert '"item_count": item_count' in text
+    assert '"console_error_count": len(console_errors)' in text
+    assert '"json_download"' in text
+    assert '"empty_ok": empty_ok' in text
+    assert '"invalid_ok": invalid_ok' in text
