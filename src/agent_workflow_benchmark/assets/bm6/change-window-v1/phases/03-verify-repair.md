@@ -1,0 +1,1 @@
+Verify the completed implementation against the canonical requirements and public tests. Repair defects you can reproduce. Re-run relevant checks and append only actual verification evidence and remaining uncertainty to `BENCHMARK_PLAN.md`.
