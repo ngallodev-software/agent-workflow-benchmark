@@ -1,8 +1,22 @@
-# Agent-Workflow Benchmark Plugin
+# Agent-Workflow Benchmark
 
-`agent-workflow-benchmark` is the optional comparative-benchmark capability extracted from Agent-Workflow core. It owns benchmark-specific execution, suites, schemas, scoring/reporting, visual capture support, target manifests, and the historical matched-cohort benchmark compatibility commands.
+![Version](https://img.shields.io/badge/version-0.3.9-blue)
+![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.9%2C%3C0.12-2ea44f)
+![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
-Agent-Workflow core continues to own generic evaluation, review/acceptance, lifecycle, and plugin authority.
+`agent-workflow-benchmark` is the optional comparative-benchmark plugin for
+Agent-Workflow. It owns benchmark-specific execution, suites, schemas,
+scoring/reporting, visual capture, sealed-run evidence, external scoring bundles,
+and historical matched-cohort compatibility commands.
+
+The design goal is reproducible comparison rather than benchmark theater:
+treatment identity, execution evidence, post-run scoring, eligibility, and known
+limitations are kept explicit enough to inspect independently. Agent-Workflow
+core continues to own generic evaluation, review/acceptance, lifecycle, and plugin
+authority.
+
+Published finished software and sanitized study evidence live in
+[agent-workflow-benchmark-results](https://github.com/ngallodev-software/agent-workflow-benchmark-results).
 
 ## Install
 
