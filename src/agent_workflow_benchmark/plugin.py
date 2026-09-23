@@ -8,7 +8,7 @@ from agent_workflow.util import atomic_write_bytes, atomic_write_json
 from .handler import handle_benchmark_command
 from .legacy import build_benchmark_report, render_benchmark_markdown, validate_benchmark_manifest
 
-__version__="0.3.8"
+__version__="0.3.9"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
@@ -25,6 +25,8 @@ def configure(parser: argparse.ArgumentParser) -> None:
     a = c.add_parser("bm4-export", help="materialize GPT-6 Luna BM4 optimized Agent-Workflow study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("bm5-export", help="materialize GPT-6 Luna BM5 steering-first Agent-Workflow study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("bm6-export", help="materialize blind Change Window BM6 execution suite"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
+    a = c.add_parser("scoring-bundle-init", help="create a universal post-seal scoring bundle template"); a.add_argument("destination", type=Path); a.add_argument("--force", action="store_true")
+    a = c.add_parser("scoring-bundle-validate", help="validate a universal post-seal scoring bundle"); a.add_argument("bundle", type=Path)
     a = c.add_parser("code-review", help="append optional TypeSafe advisory scores to a deterministic review"); a.add_argument("left", type=Path); a.add_argument("right", type=Path); a.add_argument("--requirements", type=Path); a.add_argument("--base-review", type=Path, required=True); a.add_argument("--question-set", choices=("v1", "v2"), default="v1"); a.add_argument("--context-scope", choices=("full-tree", "matched-file"), default="full-tree"); a.add_argument("--candidate-order", choices=("balanced", "reversed"), default="balanced"); a.add_argument("--output", type=Path, required=True); a.add_argument("--model")
     a = c.add_parser("fixture-create", help="create an isolated benchmark fixture from a suite spec"); a.add_argument("spec", type=Path); a.add_argument("destination", type=Path); a.add_argument("--force", action="store_true")
     a = c.add_parser("target-prepare", help="prepare and verify an external benchmark target checkout"); a.add_argument("manifest", type=Path); a.add_argument("destination", type=Path)

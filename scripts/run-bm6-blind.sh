@@ -109,7 +109,7 @@ AW_BIN="$AGENT_WORKFLOW_BIN"
 from importlib import metadata
 required = {
     "agent-workflow": "0.11.9",
-    "agent-workflow-benchmark": "0.3.8",
+    "agent-workflow-benchmark": "0.3.9",
 }
 for name, expected in required.items():
     observed = metadata.version(name)

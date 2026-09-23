@@ -36,6 +36,7 @@ from .benchmarking import (
     visual_capture_benchmark,
 )
 from .benchmarking.code_review import quality_review
+from .benchmarking.scoring_bundle_tools import initialize_scoring_bundle, validate_scoring_bundle
 from agent_workflow.config import Settings
 from agent_workflow.errors import WorkflowError
 
@@ -107,6 +108,10 @@ def handle_benchmark_command(
             force=args.force,
             agent_class=args.agent_class,
         )
+    if command == "scoring-bundle-init":
+        return initialize_scoring_bundle(args.destination, force=args.force)
+    if command == "scoring-bundle-validate":
+        return validate_scoring_bundle(args.bundle)
     if command == "code-review":
         return quality_review(
             settings,

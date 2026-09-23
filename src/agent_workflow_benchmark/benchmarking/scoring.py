@@ -21,6 +21,7 @@ from .events import append_event
 from .pairing import selected_arms
 from .product_scoring import score_end_to_end_product
 from .execution_seal import require_execution_seal
+from .universal_scoring import bundle_environment_allowlist
 
 
 def _guardrail(id_: str, state: str, detail: str, *, required: bool) -> dict[str, Any]:
@@ -258,12 +259,23 @@ def _run_scorer(
         max_stdout_bytes=4 * 1024 * 1024,
         max_stderr_bytes=4 * 1024 * 1024,
         environment=EnvironmentPolicy(
-            allowlist=tuple(plan["executor"].get("environment_allowlist", [])),
+            allowlist=tuple(dict.fromkeys(
+                [
+                    str(item)
+                    for item in plan["executor"].get("environment_allowlist", [])
+                ]
+                + (
+                    list(bundle_environment_allowlist(scoring_bundle))
+                    if scoring_bundle is not None
+                    and (scoring_bundle / "bundle.json").is_file()
+                    else []
+                )
+            )),
             values={
                 "AGENT_WORKFLOW_BENCHMARK_SCORER": str(scorer["id"]),
                 "AGENT_WORKFLOW_BENCHMARK_RESULT_FILE": str(result_path),
             },
-            unsafe_inherit=bool(plan["executor"].get("unsafe_inherit_environment", False)),
+            unsafe_inherit=False,
         ),
         digest_executable=True,
     )
@@ -331,6 +343,12 @@ def score_run(
     if summary_path.is_file():
         return read_object(summary_path)
     require_execution_seal(plan_path)
+    execution_seal = read_object(run_dir / "execution-seal.json")
+    sealed_pair_receipts = {
+        str(item["pair_id"]): Path(str(item["pair_receipt"]))
+        for item in execution_seal.get("executed_pairs", [])
+        if isinstance(item, Mapping)
+    }
     if scoring_bundle is not None:
         scoring_bundle = scoring_bundle.expanduser().resolve()
         if not scoring_bundle.is_dir():
@@ -344,9 +362,11 @@ def score_run(
     scored: list[dict[str, Any]] = []
     supplementary_scored: list[dict[str, Any]] = []
     for pair in plan["pairs"]:
-        pair_state_path = run_dir / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / "pair.json"
-        if not pair_state_path.is_file():
-            raise WorkflowError(f"pair execution evidence missing: {pair_state_path}")
+        pair_state_path = sealed_pair_receipts.get(str(pair["pair_id"]))
+        if pair_state_path is None or not pair_state_path.is_file():
+            raise WorkflowError(
+                f"sealed pair execution evidence missing for {pair['pair_id']}"
+            )
         pair_state = read_object(pair_state_path)
         arms = selected_arms(pair, pair_state)
         selected_pair = {**pair, "arms": arms}
@@ -493,6 +513,7 @@ def score_run(
             else None
         ),
     }
+    require_execution_seal(plan_path)
     atomic_write_json(run_dir / "machine-scores.json", summary)
     append_event(
         run_dir,
