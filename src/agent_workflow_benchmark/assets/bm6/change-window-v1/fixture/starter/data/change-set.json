@@ -1,0 +1,85 @@
+{
+  "window": {
+    "duration_minutes": 90,
+    "parallelism": 2
+  },
+  "services": [
+    {
+      "id": "db",
+      "name": "Primary Database",
+      "owner": "data",
+      "duration_minutes": 25,
+      "risk": "low",
+      "status": "ready",
+      "dependencies": []
+    },
+    {
+      "id": "auth",
+      "name": "Authentication",
+      "owner": "platform",
+      "duration_minutes": 20,
+      "risk": "medium",
+      "status": "ready",
+      "dependencies": [
+        "db"
+      ]
+    },
+    {
+      "id": "api",
+      "name": "Public API",
+      "owner": "platform",
+      "duration_minutes": 30,
+      "risk": "high",
+      "status": "ready",
+      "dependencies": [
+        "auth",
+        "db"
+      ]
+    },
+    {
+      "id": "worker",
+      "name": "Background Worker",
+      "owner": "platform",
+      "duration_minutes": 20,
+      "risk": "medium",
+      "status": "ready",
+      "dependencies": [
+        "db"
+      ]
+    },
+    {
+      "id": "billing",
+      "name": "Billing",
+      "owner": "payments",
+      "duration_minutes": 35,
+      "risk": "high",
+      "status": "ready",
+      "dependencies": [
+        "api"
+      ]
+    },
+    {
+      "id": "notifications",
+      "name": "Notifications",
+      "owner": "comms",
+      "duration_minutes": 15,
+      "risk": "low",
+      "status": "ready",
+      "dependencies": [
+        "worker",
+        "api"
+      ]
+    },
+    {
+      "id": "legacy-report",
+      "name": "Legacy Reporting",
+      "owner": "data",
+      "duration_minutes": 40,
+      "risk": "medium",
+      "status": "blocked",
+      "dependencies": [
+        "db"
+      ]
+    }
+  ]
+}
