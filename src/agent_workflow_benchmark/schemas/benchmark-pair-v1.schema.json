@@ -7,12 +7,12 @@
       "additionalProperties": false,
       "properties": {
         "control_raw": {
-          "maxLength": 256,
+          "maxLength": 4096,
           "minLength": 1,
           "type": "string"
         },
         "workflow_full": {
-          "maxLength": 256,
+          "maxLength": 4096,
           "minLength": 1,
           "type": "string"
         }
@@ -123,11 +123,22 @@
       "items": {
         "additionalProperties": false,
         "properties": {
-          "phase_id": {"type": "string"},
-          "path": {"type": "string"},
-          "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
+          "phase_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
         },
-        "required": ["phase_id", "path", "sha256"],
+        "required": [
+          "phase_id",
+          "path",
+          "sha256"
+        ],
         "type": "object"
       },
       "type": "array"
