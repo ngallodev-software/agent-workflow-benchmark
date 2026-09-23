@@ -370,7 +370,11 @@ def create_run_plan(
     requested_repetitions = int(effective_policy["repetitions"])
     run_id = validate_id(run_id or _run_id(str(spec["benchmark_id"])), "benchmark run ID")
     root = (worktree_root or settings.worktree_root).expanduser().resolve() / "benchmarks" / _run_fs_id(run_id)
-    coordinator = root / "coordinator"
+    coordinator = root / "c"
+    _require_path_budget(
+        coordinator / ".awb" / "suite" / "benchmark-spec.json",
+        "benchmark coordinator",
+    )
     if root.exists():
         raise WorkflowError(f"benchmark worktree root already exists: {root}")
 
