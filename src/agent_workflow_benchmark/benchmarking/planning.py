@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import hashlib
 import json
 import platform
 import secrets
@@ -41,6 +42,22 @@ other worktrees, hidden evaluator files, credentials, or unrelated host state. D
 change the canonical task requirements. Stop when the requested phase is complete.
 All benchmark-owned evidence paths are host managed and are not task deliverables.
 """
+
+MAX_GENERATED_PATH_CHARS = 240
+
+
+def _run_fs_id(run_id: str) -> str:
+    return "r-" + hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:12]
+
+
+def _require_path_budget(path: Path, label: str) -> None:
+    text = str(path)
+    if len(text) >= MAX_GENERATED_PATH_CHARS:
+        raise WorkflowError(
+            f"{label} path is {len(text)} characters; benchmark-generated paths "
+            f"must stay below {MAX_GENERATED_PATH_CHARS}: {text}"
+        )
+
 
 
 def _run_id(benchmark_id: str) -> str:
@@ -352,7 +369,7 @@ def create_run_plan(
     base_revision = str(run(["git", "-C", str(source.root), "rev-parse", "--verify", f"{base_ref}^{{commit}}" ]).stdout).strip()
     requested_repetitions = int(effective_policy["repetitions"])
     run_id = validate_id(run_id or _run_id(str(spec["benchmark_id"])), "benchmark run ID")
-    root = (worktree_root or settings.worktree_root).expanduser().resolve() / "benchmarks" / run_id
+    root = (worktree_root or settings.worktree_root).expanduser().resolve() / "benchmarks" / _run_fs_id(run_id)
     coordinator = root / "coordinator"
     if root.exists():
         raise WorkflowError(f"benchmark worktree root already exists: {root}")
@@ -479,6 +496,10 @@ def create_run_plan(
                         )
                         created_worktrees.append(info)
                         stage = destination / ".awb"
+                        _require_path_budget(
+                            stage / "ph" / "p-00000000" / "agent-workflow-execution-metrics.json",
+                            "benchmark arm evidence",
+                        )
                         prompts_dir = stage / "p"
                         prompts_dir.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(input_path, stage / "input.json")
