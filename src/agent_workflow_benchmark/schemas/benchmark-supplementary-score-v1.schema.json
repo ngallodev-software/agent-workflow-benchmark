@@ -19,9 +19,10 @@
       "const": "none"
     },
     "score": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 100
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "maximum_score": {
       "const": 100
@@ -110,6 +111,18 @@
       "items": {
         "type": "string"
       }
+    },
+    "state": {
+      "enum": [
+        "scored",
+        "unavailable"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [
@@ -117,11 +130,13 @@
     "id",
     "role",
     "winner_interaction",
+    "state",
     "score",
     "maximum_score",
     "contract_sha256",
     "scorer_version",
     "dimensions",
-    "limitations"
+    "limitations",
+    "error"
   ]
 }
