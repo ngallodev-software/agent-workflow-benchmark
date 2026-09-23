@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.5` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.6` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -91,9 +91,11 @@ agent-workflow benchmark plan /tmp/priority-picker-v2/benchmark-spec.json \
   --executor /tmp/priority-picker-v2/executors/codex-subscription.json \
   --policy /tmp/priority-picker-v2/policies/development.json
 agent-workflow benchmark run RUN_PLAN.json --execution-only
+agent-workflow benchmark seal RUN_PLAN.json
+agent-workflow benchmark seal-verify RUN_PLAN.json
 ```
 
-Other lifecycle commands include `resume`, `status`, `live-start`, `live-stop`, `visual-capture`, `score`, `review`, `consolidate`, `report`, `verify`, and `cleanup`. Use `agent-workflow benchmark --help` for the live command tree.
+Execution-only runs must be sealed before new machine scoring begins. The seal freezes the run plan, final arm worktree trees, and execution-stage evidence while allowing later visual/scoring artifacts to be added. Other lifecycle commands include `resume`, `status`, `live-start`, `live-stop`, `visual-capture`, `score`, `review`, `consolidate`, `report`, `verify`, and `cleanup`. Use `agent-workflow benchmark --help` for the live command tree.
 
 ## Advisory TypeSafe source review
 
@@ -179,7 +181,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.5` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.6` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -232,7 +234,7 @@ is `product-scoring-contract.json` with scorer ID
 
 ## BM5 steering-first Agent-Workflow study
 
-Benchmark plugin 0.3.5 adds the pre-BM5 treatment exported by:
+Benchmark plugin 0.3.6 adds the pre-BM5 treatment exported by:
 
 ```bash
 agent-workflow benchmark bm5-export /path/to/suite
