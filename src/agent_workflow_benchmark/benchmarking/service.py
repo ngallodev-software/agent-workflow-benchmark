@@ -22,6 +22,7 @@ from .contracts import BENCHMARK_SPEC_V3_SCHEMA, validate_executor_config, valid
 from .planning import create_run_plan, materialize_fixture
 from .runner import execute_run
 from .scoring import score_run
+from .execution_seal import seal_execution, verify_execution_seal
 
 
 def _resolve_plan(settings: Settings, value: str | Path) -> Path:
@@ -505,6 +506,7 @@ def _finalize_automated(settings: Settings, plan: Path) -> dict[str, Any]:
         return result
 
     timed("execution_stage_wall_seconds", lambda path: execute_run(path, settings=settings))
+    timed("execution_seal_stage_wall_seconds", seal_execution)
     live_review = timed("live_review_stage_wall_seconds", start_live_review)
     timed("visual_capture_stage_wall_seconds", capture_run)
     timed("machine_scoring_stage_wall_seconds", score_run)
@@ -592,9 +594,11 @@ def run_benchmark(
             "run_dir": str(Path(plan_value["coordinator"]["run_dir"])),
             "execution_only": True,
             "execution_complete": state.get("state") == "executed",
+            "execution_sealed": False,
             "benchmark_complete": False,
             "score_eligible": False,
             "pending_stages": [
+                "execution-seal",
                 "visual-capture",
                 "machine-scoring",
                 "consolidation",
@@ -624,6 +628,14 @@ def stop_live_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
 def visual_capture_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
     from .visual import capture_run
     return capture_run(_resolve_plan(settings, run))
+
+
+def seal_benchmark_execution(settings: Settings, run: str | Path) -> dict[str, Any]:
+    return seal_execution(_resolve_plan(settings, run))
+
+
+def verify_benchmark_execution_seal(settings: Settings, run: str | Path) -> dict[str, Any]:
+    return verify_execution_seal(_resolve_plan(settings, run))
 
 
 def score_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
@@ -908,6 +920,8 @@ def status_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
     reviews = list((run_dir / "human-review" / "reviews").glob("*.json")) if (run_dir / "human-review" / "reviews").is_dir() else []
     live = live_review_status(_resolve_plan(settings, run))
     visual_capture = (run_dir / "visual-capture-summary.json").is_file()
+    execution_seal_path = run_dir / "execution-seal.json"
+    execution_sealed = execution_seal_path.is_file()
     machine_scores = (run_dir / "machine-scores.json").is_file()
     consolidated = (run_dir / "consolidation-receipt.json").is_file()
     report_path = run_dir / "report.json"
@@ -921,6 +935,8 @@ def status_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
         "live_review": live,
         "run_plan": str(run_dir / "run-plan.json"),
         "execution_complete": execution_complete,
+        "execution_sealed": execution_sealed,
+        "execution_seal": str(execution_seal_path) if execution_sealed else None,
         "benchmark_complete": benchmark_complete,
         "visual_capture": visual_capture,
         "machine_scores": machine_scores,
