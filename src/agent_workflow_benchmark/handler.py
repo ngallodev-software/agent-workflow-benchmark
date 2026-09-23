@@ -16,6 +16,7 @@ from .benchmarking import (
     export_builtin_suite as export_benchmark_suite,
     export_bm4_optimized_suite,
     export_bm5_slimmed_suite,
+    export_bm6_blind_suite,
     export_value_smoke_suite,
     export_structured_value_smoke_suite,
     prepare_or_submit_review as benchmark_review,
@@ -24,6 +25,8 @@ from .benchmarking import (
     resume_benchmark,
     run_benchmark,
     score_benchmark,
+    seal_benchmark_execution,
+    verify_benchmark_execution_seal,
     seal_benchmark_runtime,
     status_benchmark,
     start_live_benchmark,
@@ -64,6 +67,10 @@ def handle_benchmark_command(
             args.output,
             container_image=args.container_image,
         )
+    if command == "seal":
+        return seal_benchmark_execution(settings, args.run)
+    if command == "seal-verify":
+        return verify_benchmark_execution_seal(settings, args.run)
     if command == "suite-export":
         return export_benchmark_suite(
             args.destination,
@@ -90,6 +97,12 @@ def handle_benchmark_command(
         )
     if command == "bm5-export":
         return export_bm5_slimmed_suite(
+            args.destination,
+            force=args.force,
+            agent_class=args.agent_class,
+        )
+    if command == "bm6-export":
+        return export_bm6_blind_suite(
             args.destination,
             force=args.force,
             agent_class=args.agent_class,
@@ -148,7 +161,11 @@ def handle_benchmark_command(
     if command == "visual-capture":
         return visual_capture_benchmark(settings, args.run)
     if command == "score":
-        return score_benchmark(settings, args.run)
+        return score_benchmark(
+            settings,
+            args.run,
+            scoring_bundle=getattr(args, "scoring_bundle", None),
+        )
     if command == "consolidate":
         return consolidate_benchmark(settings, args.run)
     if command == "review":

@@ -8,7 +8,7 @@ from agent_workflow.util import atomic_write_bytes, atomic_write_json
 from .handler import handle_benchmark_command
 from .legacy import build_benchmark_report, render_benchmark_markdown, validate_benchmark_manifest
 
-__version__="0.3.5"
+__version__="0.3.6"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
@@ -17,11 +17,14 @@ def configure(parser: argparse.ArgumentParser) -> None:
     r = c.add_parser("readiness", help="validate benchmark readiness"); r.add_argument("spec", type=Path); r.add_argument("--executor", type=Path, required=True); r.add_argument("--policy", type=Path); r.add_argument("--runtime-lock", type=Path); r.add_argument("--execution-only", action="store_true", help="skip visual-runtime attestation for execution smoke validation")
     a = c.add_parser("runtime-attest", help="attest a benchmark runtime lock for a claim level"); a.add_argument("runtime_lock", type=Path); a.add_argument("--claim-level", choices=("development", "internal", "publication"), default="development")
     a = c.add_parser("runtime-seal", help="seal a runtime lock to an immutable container image"); a.add_argument("base_lock", type=Path); a.add_argument("output", type=Path); a.add_argument("--container-image", required=True)
+    a = c.add_parser("seal", help="cryptographically seal completed execution before scoring"); a.add_argument("run")
+    a = c.add_parser("seal-verify", help="verify a benchmark execution seal"); a.add_argument("run")
     a = c.add_parser("suite-export", help="materialize a built-in benchmark suite"); a.add_argument("destination", type=Path); a.add_argument("--benchmark-id", default="priority-picker-v1"); a.add_argument("--force", action="store_true")
     a = c.add_parser("value-smoke-export", help="materialize the raw-direct vs Agent-Workflow value smoke suite"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("structured-value-smoke-export", help="materialize structured-direct vs Agent-Workflow BM3 study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("bm4-export", help="materialize GPT-6 Luna BM4 optimized Agent-Workflow study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("bm5-export", help="materialize GPT-6 Luna BM5 steering-first Agent-Workflow study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
+    a = c.add_parser("bm6-export", help="materialize blind Change Window BM6 execution suite"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("code-review", help="append optional TypeSafe advisory scores to a deterministic review"); a.add_argument("left", type=Path); a.add_argument("right", type=Path); a.add_argument("--requirements", type=Path); a.add_argument("--base-review", type=Path, required=True); a.add_argument("--question-set", choices=("v1", "v2"), default="v1"); a.add_argument("--context-scope", choices=("full-tree", "matched-file"), default="full-tree"); a.add_argument("--candidate-order", choices=("balanced", "reversed"), default="balanced"); a.add_argument("--output", type=Path, required=True); a.add_argument("--model")
     a = c.add_parser("fixture-create", help="create an isolated benchmark fixture from a suite spec"); a.add_argument("spec", type=Path); a.add_argument("destination", type=Path); a.add_argument("--force", action="store_true")
     a = c.add_parser("target-prepare", help="prepare and verify an external benchmark target checkout"); a.add_argument("manifest", type=Path); a.add_argument("destination", type=Path)
@@ -43,6 +46,8 @@ def configure(parser: argparse.ArgumentParser) -> None:
         a = c.add_parser(name, help=helps[name]); a.add_argument("run")
         if name == "run":
             a.add_argument("--execution-only", action="store_true", help="execute planned pairs without visual/review finalization")
+        if name == "score":
+            a.add_argument("--scoring-bundle", type=Path, help="external post-seal scorer bundle directory")
         if name == "cleanup":
             a.add_argument("--remove-worktrees", action="store_true"); a.add_argument("--stop-live-apps", action="store_true")
     a = c.add_parser("review", help="record a benchmark human review"); a.add_argument("run"); a.add_argument("--reviewer", required=True); a.add_argument("--input", type=Path)

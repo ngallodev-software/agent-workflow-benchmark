@@ -244,7 +244,7 @@ def materialize_fixture(spec_path: Path, destination: Path, *, force: bool = Fal
     run(["git", "-C", str(destination), "config", "user.name", "Benchmark Fixture"])
     run(["git", "-C", str(destination), "config", "user.email", "benchmark@example.invalid"])
     run(["git", "-C", str(destination), "add", "--all"])
-    run(["git", "-C", str(destination), "commit", "-q", "-m", "priority-picker-v1 starter fixture"])
+    run(["git", "-C", str(destination), "commit", "-q", "-m", f"{spec['benchmark_id']} starter fixture"])
     snap = snapshot(destination)
     return {
         "benchmark_id": spec["benchmark_id"],
@@ -392,14 +392,18 @@ def create_run_plan(
         scoring_identity = None
         if scoring_contract is not None:
             scoring_contract_path = suite_dir / str(spec["scoring_contract_path"])
-            evaluator_path = suite_dir / str(scoring_contract["evaluator_path"])
+            evaluator_ref = str(scoring_contract["evaluator_path"])
+            evaluator_sha256 = None
+            if not evaluator_ref.startswith("external://"):
+                evaluator_sha256 = sha256_file(suite_dir / evaluator_ref)
             scoring_identity = {
                 "contract_path": str(spec["scoring_contract_path"]),
                 "benchmark_version": str(spec["version"]),
                 "scorer_version": str(scoring_contract["scorer_version"]),
                 "evaluator_version": str(scoring_contract["evaluator_version"]),
                 "scoring_contract_sha256": sha256_file(scoring_contract_path),
-                "evaluator_sha256": sha256_file(evaluator_path),
+                "evaluator_ref": evaluator_ref,
+                "evaluator_sha256": evaluator_sha256,
             }
         executor_snapshot = run_dir / "executor-config.json"
         policy_snapshot = run_dir / "operating-policy.json"

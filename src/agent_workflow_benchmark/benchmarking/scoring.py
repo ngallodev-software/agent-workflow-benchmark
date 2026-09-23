@@ -7,7 +7,7 @@ from typing import Any, Mapping
 from agent_workflow.errors import WorkflowError
 from agent_workflow.process import EnvironmentPolicy, run
 from agent_workflow.util import atomic_write_json, sha256_file, utc_now
-from .common import format_argv, read_object
+from .common import format_argv, read_object, tree_sha256
 from .contracts import (
     BENCHMARK_MACHINE_SCORE_SCHEMA,
     BENCHMARK_MACHINE_SCORE_V2_SCHEMA,
@@ -20,6 +20,7 @@ from .contracts import (
 from .events import append_event
 from .pairing import selected_arms
 from .product_scoring import score_end_to_end_product
+from .execution_seal import require_execution_seal
 
 
 def _guardrail(id_: str, state: str, detail: str, *, required: bool) -> dict[str, Any]:
@@ -219,6 +220,7 @@ def _run_scorer(
     arm: Mapping[str, Any],
     scorer: Mapping[str, Any],
     contract: Mapping[str, Any] | None = None,
+    scoring_bundle: Path | None = None,
 ) -> dict[str, Any]:
     stage = Path(arm["stage_dir"])
     scores_dir = stage / "scores"
@@ -239,7 +241,14 @@ def _run_scorer(
         "dimension": str(scorer["dimension"]),
         "scorer_id": str(scorer["id"]),
         "scoring_contract": str(suite / str(plan.get("scoring_identity", {}).get("contract_path", "scoring-contract.json"))),
+        "scoring_bundle": str(scoring_bundle) if scoring_bundle is not None else "",
     }
+    template_text = "\n".join(str(item) for item in scorer["argv"])
+    if "{scoring_bundle}" in template_text and scoring_bundle is None:
+        raise WorkflowError(
+            f"scorer {scorer['id']} requires an external scoring bundle; "
+            "pass --scoring-bundle after the execution is sealed"
+        )
     argv = format_argv(scorer["argv"], values)
     process = run(
         argv,
@@ -310,12 +319,22 @@ def _observed_machine_score(components: list[Mapping[str, Any]]) -> float:
     return round(sum(float(item["earned_points"]) for item in components), 4)
 
 
-def score_run(plan_path: Path) -> dict[str, Any]:
-    plan = read_object(plan_path.resolve())
+def score_run(
+    plan_path: Path,
+    *,
+    scoring_bundle: Path | None = None,
+) -> dict[str, Any]:
+    plan_path = plan_path.resolve()
+    plan = read_object(plan_path)
     run_dir = Path(plan["coordinator"]["run_dir"])
     summary_path = run_dir / "machine-scores.json"
     if summary_path.is_file():
         return read_object(summary_path)
+    require_execution_seal(plan_path)
+    if scoring_bundle is not None:
+        scoring_bundle = scoring_bundle.expanduser().resolve()
+        if not scoring_bundle.is_dir():
+            raise WorkflowError(f"scoring bundle directory not found: {scoring_bundle}")
     spec_path = Path(plan["coordinator"]["spec_path"])
     spec = validate_spec(spec_path)
     contract = load_scoring_contract(spec_path, spec)
@@ -338,7 +357,17 @@ def score_run(plan_path: Path) -> dict[str, Any]:
             capture_path = stage / "visual" / "capture.json"
             capture = read_object(capture_path) if capture_path.is_file() else None
             guardrails = _core_guardrails(plan, selected_pair, pair_state, arm_value, capture, spec)
-            components = [_run_scorer(plan, pair, arm, item, contract) for item in spec["machine_scoring"]["scorers"]]
+            components = [
+                _run_scorer(
+                    plan,
+                    pair,
+                    arm,
+                    item,
+                    contract,
+                    scoring_bundle=scoring_bundle,
+                )
+                for item in spec["machine_scoring"]["scorers"]
+            ]
             required_failures = [
                 item["id"]
                 for item in guardrails
@@ -381,14 +410,28 @@ def score_run(plan_path: Path) -> dict[str, Any]:
             if contract is not None:
                 suite = Path(plan["coordinator"]["suite_dir"])
                 contract_path = suite / str(spec["scoring_contract_path"])
-                evaluator_path = suite / str(contract["evaluator_path"])
+                evaluator_ref = str(contract["evaluator_path"])
+                evaluator_sha256 = None
+                if evaluator_ref.startswith("external://"):
+                    if scoring_bundle is None:
+                        raise WorkflowError(
+                            "external scoring evaluator requires --scoring-bundle"
+                        )
+                    evaluator_path = scoring_bundle / evaluator_ref.removeprefix("external://")
+                    if not evaluator_path.is_file():
+                        raise WorkflowError(
+                            f"external scoring evaluator not found: {evaluator_path}"
+                        )
+                    evaluator_sha256 = sha256_file(evaluator_path)
+                else:
+                    evaluator_sha256 = sha256_file(suite / evaluator_ref)
                 value.update(
                     benchmark_version=spec["version"],
                     scoring_identity={
                         "scorer_version": contract["scorer_version"],
                         "evaluator_version": contract["evaluator_version"],
                         "scoring_contract_sha256": sha256_file(contract_path),
-                        "evaluator_sha256": sha256_file(evaluator_path),
+                        "evaluator_sha256": evaluator_sha256,
                     },
                 )
             validate_value(value, score_schema, f"machine score {pair['pair_id']} {arm_name}")
@@ -441,6 +484,14 @@ def score_run(plan_path: Path) -> dict[str, Any]:
         "eligible": sum(1 for item in scored if item["eligibility"]["state"] == "eligible"),
         "invalid": sum(1 for item in scored if item["eligibility"]["state"] != "eligible"),
         "supplementary_scores": supplementary_scored,
+        "scoring_bundle": (
+            {
+                "path": str(scoring_bundle),
+                "tree_sha256": tree_sha256(scoring_bundle),
+            }
+            if scoring_bundle is not None
+            else None
+        ),
     }
     atomic_write_json(run_dir / "machine-scores.json", summary)
     append_event(

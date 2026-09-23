@@ -22,6 +22,7 @@ from .contracts import BENCHMARK_SPEC_V3_SCHEMA, validate_executor_config, valid
 from .planning import create_run_plan, materialize_fixture
 from .runner import execute_run
 from .scoring import score_run
+from .execution_seal import seal_execution, verify_execution_seal
 
 
 def _resolve_plan(settings: Settings, value: str | Path) -> Path:
@@ -435,6 +436,72 @@ def export_bm5_slimmed_suite(
     return result
 
 
+
+def export_bm6_blind_suite(
+    destination: Path,
+    *,
+    force: bool = False,
+    agent_class: str = "implementation",
+) -> dict[str, Any]:
+    """Export BM6 blind Change Window execution suite.
+
+    The execution bundle intentionally contains no task-specific evaluator
+    implementation and no reference solution. Machine scoring is supplied only
+    after execution sealing through an external scoring bundle.
+    """
+    destination = destination.expanduser().resolve()
+    if destination.exists():
+        if not force:
+            raise WorkflowError(
+                f"benchmark suite destination already exists: {destination}"
+            )
+        if destination.is_dir():
+            shutil.rmtree(destination)
+        else:
+            destination.unlink()
+    copy_asset_tree("bm6/change-window-v1", destination)
+
+    spec_path = destination / "benchmark-spec.json"
+    spec = read_object(spec_path)
+    spec["arms"]["candidate"]["runner"]["agent_class"] = agent_class
+    atomic_write_json(spec_path, spec)
+    validate_spec(spec_path)
+    validate_executor_config(destination / "executors" / "codex-subscription.json")
+
+    forbidden = [
+        destination / "evaluation",
+        destination / "executors" / "solutions",
+    ]
+    leaked = [str(path) for path in forbidden if path.exists()]
+    if leaked:
+        raise WorkflowError(
+            "BM6 blind execution suite contains forbidden answer-key material: "
+            + ", ".join(leaked)
+        )
+    contract = read_object(destination / "scoring-contract.json")
+    evaluator_ref = str(contract.get("evaluator_path") or "")
+    if not evaluator_ref.startswith("external://"):
+        raise WorkflowError(
+            "BM6 scoring evaluator must be external to the execution bundle"
+        )
+
+    return {
+        "benchmark_id": "change-window-v1",
+        "study": "bm6-change-window-blind-execution",
+        "destination": str(destination),
+        "spec": str(spec_path),
+        "executor": str(destination / "executors" / "codex-subscription.json"),
+        "policy": str(destination / "policies" / "development.json"),
+        "model": "gpt-6-luna",
+        "effort": "high",
+        "agent_class": agent_class,
+        "blind_execution": True,
+        "scoring_mode": "external-post-seal",
+        "evaluator_ref": evaluator_ref,
+        "suite_tree_sha256": tree_sha256(destination),
+    }
+
+
 def create_fixture(spec: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
     return materialize_fixture(spec, destination, force=force)
 
@@ -505,6 +572,7 @@ def _finalize_automated(settings: Settings, plan: Path) -> dict[str, Any]:
         return result
 
     timed("execution_stage_wall_seconds", lambda path: execute_run(path, settings=settings))
+    timed("execution_seal_stage_wall_seconds", seal_execution)
     live_review = timed("live_review_stage_wall_seconds", start_live_review)
     timed("visual_capture_stage_wall_seconds", capture_run)
     timed("machine_scoring_stage_wall_seconds", score_run)
@@ -592,9 +660,11 @@ def run_benchmark(
             "run_dir": str(Path(plan_value["coordinator"]["run_dir"])),
             "execution_only": True,
             "execution_complete": state.get("state") == "executed",
+            "execution_sealed": False,
             "benchmark_complete": False,
             "score_eligible": False,
             "pending_stages": [
+                "execution-seal",
                 "visual-capture",
                 "machine-scoring",
                 "consolidation",
@@ -626,8 +696,24 @@ def visual_capture_benchmark(settings: Settings, run: str | Path) -> dict[str, A
     return capture_run(_resolve_plan(settings, run))
 
 
-def score_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
-    return score_run(_resolve_plan(settings, run))
+def seal_benchmark_execution(settings: Settings, run: str | Path) -> dict[str, Any]:
+    return seal_execution(_resolve_plan(settings, run))
+
+
+def verify_benchmark_execution_seal(settings: Settings, run: str | Path) -> dict[str, Any]:
+    return verify_execution_seal(_resolve_plan(settings, run))
+
+
+def score_benchmark(
+    settings: Settings,
+    run: str | Path,
+    *,
+    scoring_bundle: Path | None = None,
+) -> dict[str, Any]:
+    return score_run(
+        _resolve_plan(settings, run),
+        scoring_bundle=scoring_bundle,
+    )
 
 
 def consolidate_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
@@ -908,6 +994,8 @@ def status_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
     reviews = list((run_dir / "human-review" / "reviews").glob("*.json")) if (run_dir / "human-review" / "reviews").is_dir() else []
     live = live_review_status(_resolve_plan(settings, run))
     visual_capture = (run_dir / "visual-capture-summary.json").is_file()
+    execution_seal_path = run_dir / "execution-seal.json"
+    execution_sealed = execution_seal_path.is_file()
     machine_scores = (run_dir / "machine-scores.json").is_file()
     consolidated = (run_dir / "consolidation-receipt.json").is_file()
     report_path = run_dir / "report.json"
@@ -921,6 +1009,8 @@ def status_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
         "live_review": live,
         "run_plan": str(run_dir / "run-plan.json"),
         "execution_complete": execution_complete,
+        "execution_sealed": execution_sealed,
+        "execution_seal": str(execution_seal_path) if execution_sealed else None,
         "benchmark_complete": benchmark_complete,
         "visual_capture": visual_capture,
         "machine_scores": machine_scores,

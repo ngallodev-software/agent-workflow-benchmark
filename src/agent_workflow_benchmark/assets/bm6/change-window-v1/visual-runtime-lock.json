@@ -15,12 +15,27 @@
   "reduced_motion": "reduce",
   "device_scale_factor": 1,
   "viewports": [
-    {"id": "desktop", "width": 1440, "height": 1000},
-    {"id": "tablet", "width": 834, "height": 1112},
-    {"id": "mobile", "width": 390, "height": 844}
+    {
+      "id": "desktop",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "id": "tablet",
+      "width": 834,
+      "height": 1112
+    },
+    {
+      "id": "mobile",
+      "width": 390,
+      "height": 844
+    }
   ],
   "font_manifest": [
-    {"family": "DejaVu Sans", "resolved_file": "DejaVuSans.ttf"}
+    {
+      "family": "DejaVu Sans",
+      "resolved_file": "DejaVuSans.ttf"
+    }
   ],
   "container_image": null,
   "publication_blocker": "A content-addressed browser image and independently verified font manifest remain required before publication claims."

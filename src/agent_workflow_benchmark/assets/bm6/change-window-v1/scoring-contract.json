@@ -1,0 +1,107 @@
+{
+  "schema": "agent-workflow/benchmark-scoring-contract/v1",
+  "benchmark_id": "change-window-v1",
+  "benchmark_version": "1.0.0",
+  "scorer_version": "external-post-seal/v1",
+  "evaluator_version": "unassigned",
+  "evaluator_path": "external://score.py",
+  "total_points": 100,
+  "partial_credit_policy": "contract-defined",
+  "dimensions": [
+    {
+      "id": "hidden_functional",
+      "max_points": 45,
+      "checks": [
+        {
+          "id": "hidden-functional",
+          "max_points": 45,
+          "partial_credit": "proportional",
+          "evidence_producer": "external-post-seal-scorer",
+          "evidence_reference": "external://score.py#hidden-functional",
+          "description": "Core graph validation, dependency closure, deterministic wave planning, and window calculations."
+        }
+      ]
+    },
+    {
+      "id": "public_regression",
+      "max_points": 15,
+      "checks": [
+        {
+          "id": "public-regression",
+          "max_points": 15,
+          "partial_credit": "proportional",
+          "evidence_producer": "external-post-seal-scorer",
+          "evidence_reference": "external://score.py#public-regression",
+          "description": "Public tests and documented API remain green."
+        }
+      ]
+    },
+    {
+      "id": "robustness",
+      "max_points": 10,
+      "checks": [
+        {
+          "id": "robustness",
+          "max_points": 10,
+          "partial_credit": "proportional",
+          "evidence_producer": "external-post-seal-scorer",
+          "evidence_reference": "external://score.py#robustness",
+          "description": "Malformed data, cycles, empty selections, and boundary cases are handled predictably."
+        }
+      ]
+    },
+    {
+      "id": "accessibility_ui",
+      "max_points": 10,
+      "checks": [
+        {
+          "id": "accessibility-ui",
+          "max_points": 10,
+          "partial_credit": "proportional",
+          "evidence_producer": "external-post-seal-scorer",
+          "evidence_reference": "external://score.py#accessibility-ui",
+          "description": "Required UI hooks, keyboard semantics, responsive layout, and debug observability are present."
+        }
+      ]
+    },
+    {
+      "id": "scope_completeness",
+      "max_points": 10,
+      "checks": [
+        {
+          "id": "scope-completeness",
+          "max_points": 10,
+          "partial_credit": "proportional",
+          "evidence_producer": "external-post-seal-scorer",
+          "evidence_reference": "external://score.py#scope-completeness",
+          "description": "The delivered project covers the requested end-to-end task without out-of-scope changes."
+        }
+      ]
+    },
+    {
+      "id": "engineering_quality",
+      "max_points": 10,
+      "checks": [
+        {
+          "id": "engineering-quality",
+          "max_points": 10,
+          "partial_credit": "proportional",
+          "evidence_producer": "external-post-seal-scorer",
+          "evidence_reference": "external://score.py#engineering-quality",
+          "description": "Implementation, tests, documentation, and traceability are coherent and maintainable."
+        }
+      ]
+    }
+  ],
+  "compatibility": {
+    "legacy_benchmark_ids": [],
+    "mixed_version_comparison": "reject",
+    "historical_receipts": "immutable"
+  },
+  "efficiency_policy": {
+    "quality_points": "excluded",
+    "winner_interaction": "descriptive-only",
+    "missing_cost": "unavailable-not-zero",
+    "timing_basis": "critical-path-and-active-time-separate"
+  }
+}
