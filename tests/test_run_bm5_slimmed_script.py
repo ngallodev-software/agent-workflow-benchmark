@@ -27,8 +27,8 @@ def test_bm5_script_runs_v3_steering_first_study() -> None:
     assert "structured-direct/v1 vs agent-workflow-bm5/v1" in text
     assert "gpt-6-luna" in text
     assert "agent-workflow-bm5/v1" in text
-    assert '"agent-workflow": "0.11.8"' in text
-    assert '"agent-workflow-benchmark": "0.3.4"' in text
+    assert '"agent-workflow": "0.11.9"' in text
+    assert '"agent-workflow-benchmark": "0.3.5"' in text
     assert "benchmark visual-capture" in text
     assert "benchmark score" in text
     assert "benchmark consolidate" in text
