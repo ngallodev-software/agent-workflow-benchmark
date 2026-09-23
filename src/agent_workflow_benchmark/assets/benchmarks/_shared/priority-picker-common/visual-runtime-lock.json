@@ -3,7 +3,7 @@
   "reproducibility_state": "local-pinned-development",
   "playwright_version": "1.60.0",
   "browser_product": "Chromium",
-  "browser_version": "151.0.7922.71",
+  "browser_version": "151.0.7922.173",
   "browser_executable_candidates": [
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
