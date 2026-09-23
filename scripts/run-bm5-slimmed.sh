@@ -207,7 +207,7 @@ if executor.get("model") != "gpt-6-luna" or executor.get("effort") != "high":
     )
 candidate = spec.get("arms", {}).get("candidate", {})
 if candidate.get("treatment_id") != "agent-workflow-bm5/v1":
-    raise SystemExit(f"BM5 candidate treatment mismatch: {candidate.get('treatment_id')!r}")
+    raise SystemExit(f"BM4 candidate treatment mismatch: {candidate.get('treatment_id')!r}")
 print("BM5 treatment preflight: gpt-6-luna/high; candidate=agent-workflow-bm5/v1")
 PY
 
@@ -277,7 +277,7 @@ value = {
     "decision_profile": settings.decision_profile,
     "treatment_includes_semantic_routing": False,
     "purpose": (
-        "Exercise the real routing Choice/Noul/Score boundary on representative BM5 "
+        "Exercise the real routing Choice/Noul/Score boundary on representative BM4 "
         "phase context before paired execution; this is diagnostic evidence, not a treatment."
     ),
     "audit_path": str(audit),
@@ -596,7 +596,7 @@ for pair in plan.get("pairs", []):
     summary["pairs"].append(item)
 
 out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-print(f"BM5 summary: {out}")
+print(f"BM4 summary: {out}")
 print(
     "TypeSafe audit: "
     f"{summary['typesafe_qualification']['records']} calls; "
@@ -620,9 +620,9 @@ fi
 
 if [[ -d "$RESULTS_REPO/.git" ]]; then
   "$PYTHON" "$REPO_ROOT/scripts/prepare-bm5-publication.py"     --plan "$RUN_PLAN"     --root "$ROOT"     --destination "$RESULTS_REPO/bm5"     --private-archive "$EVIDENCE_ARCHIVE"
-  echo "BM5 sanitized publication copied to: $RESULTS_REPO/bm5"
+  echo "BM4 sanitized publication copied to: $RESULTS_REPO/bm5"
 else
-  echo "warning: benchmark results repo not found; public BM5 tree not copied: $RESULTS_REPO" >&2
+  echo "warning: benchmark results repo not found; public BM4 tree not copied: $RESULTS_REPO" >&2
 fi
 
 echo

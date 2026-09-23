@@ -248,20 +248,6 @@ changing the Agent-Workflow candidate through OPT-010 through OPT-015:
 - per-command/tool-family/cache-hit amplification telemetry;
 - conditional verify/repair model invocation.
 
-Run the full paired study from this checkout with:
-
-```bash
-bash scripts/run-bm5-slimmed.sh --root "/lump/apps/benchmark-runs/bm5-$(date +%Y%m%d-%H%M%S)"
-```
-
-Use a new, empty root for each run. The script uses the installed shared
-Agent-Workflow environment, requires its comparative TypeSafe configuration,
-`TYPESAFE_API_KEY`, and an authenticated Codex subscription session. It writes
-private evidence under the run root and publishes sanitized results to the
-sibling `agent-workflow-benchmark-results/bm5` checkout. Preview options with
-`bash scripts/run-bm5-slimmed.sh --help`; `bm5-export` alone only exports the
-suite and does not execute the study.
-
 For the Priority Picker study the candidate binds deterministic acceptance
 commands per phase. When the implementation phase completes with green
 acceptance verification, the separate candidate verify/repair model phase is
