@@ -34,8 +34,8 @@ Options:
   -h, --help
 
 Prerequisites:
-  Agent-Workflow 0.11.8
-  agent-workflow-benchmark 0.3.4
+  Agent-Workflow 0.11.9
+  agent-workflow-benchmark 0.3.5
   typesafe-sdk 0.6.0
   comparative decision mode
   TYPESAFE_API_KEY
@@ -146,8 +146,8 @@ from agent_workflow.config import load_settings
 from agent_workflow.decisions import require_decision_runtime_ready
 
 required = {
-    "agent-workflow": "0.11.8",
-    "agent-workflow-benchmark": "0.3.4",
+    "agent-workflow": "0.11.9",
+    "agent-workflow-benchmark": "0.3.5",
     "typesafe-sdk": "0.6.0",
 }
 for name, expected in required.items():
