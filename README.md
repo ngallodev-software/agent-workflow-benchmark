@@ -97,7 +97,7 @@ Other lifecycle commands include `resume`, `status`, `live-start`, `live-stop`, 
 
 ## Advisory TypeSafe source review
 
-The opt-in `code-review` command compares matched `.py`, `.js`, `.css`, and `.html` files. It sends source to TypeSafe for four independent Score judgments per file and writes a Markdown report plus a JSON receipt. It does not change machine scores, eligibility, or human acceptance.
+The opt-in `code-review` command appends TypeSafe evidence to a required deterministic review of matched `.py`, `.js`, `.css`, and `.html` files. The Markdown output includes the deterministic review first and verbatim; TypeSafe scores remain a clearly marked supplement. It does not replace or revise deterministic findings, machine scores, eligibility, or human acceptance.
 
 It runs only when Agent-Workflow has `decision_policy.mode = "typesafe"` or `"comparative"` enabled and its TypeSafe runtime is ready. The command uses Agent-Workflow's configured TypeSafe model and key unless `--model` overrides the model. If the feature is disabled or unavailable, it stops with a clear error; no API call is made.
 
@@ -116,10 +116,12 @@ agent-workflow benchmark code-review \
   /path/to/structured-direct/final-project \
   /path/to/agent-workflow-optimized/final-project \
   --requirements /path/to/bm4/task/canonical-task.md \
+  --base-review /path/to/bm4/analysis/code-quality-review-gpt6-luna.md \
+  --question-set v2 --context-scope matched-file --candidate-order balanced \
   --output /path/to/bm4/analysis/code-quality-review.md
 ```
 
-The JSON sidecar contains source and request hashes, score distributions, confidence, model, and usage totals; it does not copy source text. Inputs are bounded and paired by relative path. Run this only for source you are allowed to send to the configured TypeSafe service. The resulting percentages are advisory semantic judgments, not proof that code works.
+The JSON sidecar contains source and deterministic-review hashes, score distributions, confidence, model, request scope, and usage totals; it does not copy source text. Inputs are bounded and paired by relative path. `--question-set v2` uses explicit role-aware score anchors; `--context-scope matched-file` sends one matching file pair per request, while `full-tree` sends the complete matched source set. `--candidate-order reversed` is an evaluation option for checking position sensitivity. Run this only for source you are allowed to send to the configured TypeSafe service. The resulting percentages are advisory semantic judgments, not proof that code works.
 
 ## Agent-Workflow value smoke study
 

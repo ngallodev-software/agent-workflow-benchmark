@@ -101,6 +101,10 @@ def handle_benchmark_command(
             args.right,
             args.output,
             requirements_path=args.requirements,
+            base_review_path=args.base_review,
+            context_scope=args.context_scope,
+            candidate_order=args.candidate_order,
+            question_set=args.question_set,
             model=args.model,
         )
     if command == "fixture-create":
