@@ -395,13 +395,32 @@ def score_run(plan_path: Path) -> dict[str, Any]:
             atomic_write_json(stage / "score.json", value)
             scored.append(value)
             if supplementary_contract is not None:
-                product = score_end_to_end_product(
-                    worktree=Path(arm["worktree"]),
-                    stage=stage,
-                    machine_components=components,
-                    contract=supplementary_contract,
-                    contract_path=supplementary_contract_path,
-                )
+                try:
+                    product = score_end_to_end_product(
+                        worktree=Path(arm["worktree"]),
+                        stage=stage,
+                        machine_components=components,
+                        contract=supplementary_contract,
+                        contract_path=supplementary_contract_path,
+                    )
+                except Exception as exc:
+                    product = {
+                        "schema": BENCHMARK_SUPPLEMENTARY_SCORE_SCHEMA,
+                        "id": str(supplementary_contract["id"]),
+                        "role": "supplementary",
+                        "winner_interaction": "none",
+                        "state": "unavailable",
+                        "score": None,
+                        "maximum_score": 100,
+                        "contract_sha256": sha256_file(supplementary_contract_path),
+                        "scorer_version": str(supplementary_contract["scorer_version"]),
+                        "dimensions": [],
+                        "limitations": [
+                            *[str(item) for item in supplementary_contract.get("limitations", [])],
+                            "Supplementary score unavailable; official machine scoring remains authoritative.",
+                        ],
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
                 validate_value(
                     product,
                     BENCHMARK_SUPPLEMENTARY_SCORE_SCHEMA,
@@ -428,6 +447,15 @@ def score_run(plan_path: Path) -> dict[str, Any]:
         run_dir,
         event_type="machine_scoring_terminal",
         run_id=str(plan["run_id"]),
-        payload={"eligible": summary["eligible"], "invalid": summary["invalid"]},
+        payload={
+            "eligible": summary["eligible"],
+            "invalid": summary["invalid"],
+            "supplementary_scored": sum(
+                1 for item in supplementary_scored if item["score"].get("state") == "scored"
+            ),
+            "supplementary_unavailable": sum(
+                1 for item in supplementary_scored if item["score"].get("state") != "scored"
+            ),
+        },
     )
     return summary
