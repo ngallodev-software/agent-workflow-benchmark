@@ -1,0 +1,174 @@
+{
+  "schema": "agent-workflow/benchmark-supplementary-scoring-contract/v1",
+  "id": "end-to-end-product/v2",
+  "benchmark_id": "priority-picker-v3",
+  "benchmark_version": "3.0.0",
+  "scorer_version": "2.0.0",
+  "role": "supplementary",
+  "winner_interaction": "none",
+  "total_points": 100,
+  "dimensions": [
+    {
+      "id": "core_computation_data",
+      "label": "Core computation/data-layer correctness",
+      "max_points": 25,
+      "rules": [
+        {
+          "id": "product.core.hidden-functional-scaled",
+          "max_points": 25
+        }
+      ]
+    },
+    {
+      "id": "end_to_end_data_integration",
+      "label": "End-to-end supplied-data integration",
+      "max_points": 20,
+      "rules": [
+        {
+          "id": "product.integration.fixture-load",
+          "max_points": 4
+        },
+        {
+          "id": "product.integration.render-expected-items",
+          "max_points": 10
+        },
+        {
+          "id": "product.integration.populated-state",
+          "max_points": 6
+        }
+      ]
+    },
+    {
+      "id": "required_interactions",
+      "label": "Required interactive product behavior",
+      "max_points": 20,
+      "rules": [
+        {
+          "id": "product.interaction.search-filter-sort",
+          "max_points": 5
+        },
+        {
+          "id": "product.interaction.keyboard-detail",
+          "max_points": 4
+        },
+        {
+          "id": "product.interaction.export",
+          "max_points": 5
+        },
+        {
+          "id": "product.interaction.empty-invalid",
+          "max_points": 3
+        },
+        {
+          "id": "product.interaction.export-feedback",
+          "max_points": 3
+        }
+      ]
+    },
+    {
+      "id": "presentation_accessibility",
+      "label": "Presentation, hierarchy and accessibility",
+      "max_points": 15,
+      "rules": [
+        {
+          "id": "product.presentation.labels-landmark",
+          "max_points": 2
+        },
+        {
+          "id": "product.presentation.visible-focus",
+          "max_points": 2
+        },
+        {
+          "id": "product.presentation.responsive",
+          "max_points": 2
+        },
+        {
+          "id": "product.presentation.populated-data",
+          "max_points": 1
+        },
+        {
+          "id": "product.presentation.clean-runtime",
+          "max_points": 1
+        },
+        {
+          "id": "product.presentation.factor-descriptions",
+          "max_points": 3
+        },
+        {
+          "id": "product.presentation.visual-hierarchy",
+          "max_points": 2
+        },
+        {
+          "id": "product.presentation.status-styling",
+          "max_points": 2
+        }
+      ]
+    },
+    {
+      "id": "debug_observability",
+      "label": "Debug and runtime observability",
+      "max_points": 10,
+      "rules": [
+        {
+          "id": "product.debug.toggle-panel",
+          "max_points": 2
+        },
+        {
+          "id": "product.debug.bound-controls",
+          "max_points": 3
+        },
+        {
+          "id": "product.debug.data-request",
+          "max_points": 3
+        },
+        {
+          "id": "product.debug.state-errors",
+          "max_points": 2
+        }
+      ]
+    },
+    {
+      "id": "robustness_failure_handling",
+      "label": "Robustness/failure handling",
+      "max_points": 5,
+      "rules": [
+        {
+          "id": "product.robustness.scaled",
+          "max_points": 5
+        }
+      ]
+    },
+    {
+      "id": "engineering_completeness_traceability",
+      "label": "Engineering completeness/traceability",
+      "max_points": 5,
+      "rules": [
+        {
+          "id": "product.engineering.scope-quality-scaled",
+          "max_points": 5
+        }
+      ]
+    }
+  ],
+  "gating": {
+    "rendered_data_required_for": [
+      "product.integration.render-expected-items",
+      "product.integration.populated-state",
+      "product.interaction.search-filter-sort",
+      "product.interaction.keyboard-detail",
+      "product.interaction.export",
+      "product.presentation.populated-data",
+      "product.presentation.factor-descriptions",
+      "product.presentation.visual-hierarchy",
+      "product.presentation.status-styling",
+      "product.debug.data-request",
+      "product.debug.state-errors"
+    ],
+    "description": "Item-dependent product credit requires the expected supplied backlog to be rendered in the browser."
+  },
+  "limitations": [
+    "This score is supplementary and does not replace machine_score.",
+    "This score does not contribute to composite or winner policy.",
+    "BM5 uses end-to-end-product/v2; do not compare its absolute product score directly to the BM4 v1 product score without accounting for the stricter task/rubric."
+  ]
+}
