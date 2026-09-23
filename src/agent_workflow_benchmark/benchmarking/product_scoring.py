@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 from typing import Any, Mapping
 
 from agent_workflow.errors import WorkflowError
@@ -86,7 +87,10 @@ def score_end_to_end_product(
         raise WorkflowError(f"unsupported supplementary scoring contract: {contract.get('id')}")
     checks = _index_checks(machine_components)
     observations, visual = _observations(stage)
-    expected_items = len(read_object(worktree / "data" / "backlog.json"))
+    fixture_value = json.loads((worktree / "data" / "backlog.json").read_text(encoding="utf-8"))
+    if not isinstance(fixture_value, list):
+        raise WorkflowError("supplementary product scoring requires a list backlog fixture")
+    expected_items = len(fixture_value)
 
     live = observations.get("live") if isinstance(observations.get("live"), Mapping) else {}
     item_count = live.get("item_count")
