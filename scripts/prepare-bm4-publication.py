@@ -235,9 +235,24 @@ def main() -> None:
             "current BM4 public projection expects the development n=1 study"
         )
 
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.mkdir(parents=True)
+    destination.mkdir(parents=True, exist_ok=True)
+    generated_entries = (
+        "README.md",
+        "result.json",
+        "PUBLICATION-MANIFEST.json",
+        "task",
+        "structured-direct",
+        "agent-workflow-optimized",
+        "analysis",
+        "evidence",
+        "methodology",
+    )
+    for name in generated_entries:
+        target = destination / name
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
 
     pair = plan["pairs"][0]
     pair_state, attempt = selected_attempt(plan, run_dir, pair)
