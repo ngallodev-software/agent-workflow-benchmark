@@ -67,7 +67,7 @@ def test_visual_recovery_script_has_valid_bash_syntax() -> None:
 
 def test_visual_recovery_script_preserves_execution_and_surfaces_failures() -> None:
     text = RECOVERY_SCRIPT.read_text(encoding="utf-8")
-    assert "benchmark run" not in text
+    assert "--json benchmark run" not in text
     assert "benchmark runtime-attest" in text
     assert "benchmark live-start" in text
     assert "benchmark visual-capture" in text
