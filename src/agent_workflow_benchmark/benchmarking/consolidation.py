@@ -96,6 +96,19 @@ def consolidate_run(plan_path: Path) -> dict[str, Any]:
                 "relative_path": str((attempt_destination / "attempt.json").relative_to(run_dir)),
                 "sha256": sha256_file(evidence_path), "bytes": evidence_path.stat().st_size,
             })
+            attempt_value = read_object(evidence_path)
+            for review in attempt_value.get("phase_reviews", []):
+                source_review = Path(str(review["path"]))
+                if not source_review.is_file() or sha256_file(source_review) != review.get("sha256"):
+                    raise WorkflowError(f"phase review missing or changed: {source_review}")
+                review_destination = attempt_destination / "phase-reviews" / source_review.name
+                review_destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_review, review_destination)
+                mappings.append({
+                    "source": str(source_review), "destination": str(review_destination),
+                    "relative_path": str(review_destination.relative_to(run_dir)),
+                    "sha256": review["sha256"], "bytes": review_destination.stat().st_size,
+                })
             for arm_name in ("control_raw", "workflow_full"):
                 source = Path(attempt["arms"][arm_name]["stage_dir"])
                 if not (source / "arm.json").is_file():

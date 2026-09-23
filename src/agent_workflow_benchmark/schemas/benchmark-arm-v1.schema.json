@@ -109,6 +109,30 @@
             "minLength": 1,
             "type": "string"
           },
+          "phase_json": {"type": "string"},
+          "prompt_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+          "stdout_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+          "stderr_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+          "phase_delta": {
+            "additionalProperties": false,
+            "properties": {
+              "path": {"type": "string"},
+              "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+              "changed_file_count": {"minimum": 0, "type": "integer"},
+              "capture_seconds": {"minimum": 0, "type": "number"}
+            },
+            "required": ["path", "sha256", "changed_file_count", "capture_seconds"],
+            "type": "object"
+          },
+          "phase_review": {
+            "additionalProperties": false,
+            "properties": {
+              "path": {"type": "string"},
+              "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
+            },
+            "required": ["path", "sha256"],
+            "type": "object"
+          },
           "phase_wall_seconds": {
             "minimum": 0,
             "type": "number"

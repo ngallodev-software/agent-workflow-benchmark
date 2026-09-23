@@ -260,6 +260,13 @@ protocol command counts, steering/ack message counts, acceptance-command
 executions, verification-cache hits/misses, and `agent finish` outcomes.
 These fields are descriptive diagnostics and do not change scoring.
 
+Each phase also records prompt/output hashes and the worktree file delta from
+the phase start to its end. A paired `phase-reviews/<phase-id>.json` compares
+control and candidate states, changed paths, timing, usage, and available cost fields.
+These reviews do not gate phase completion or acceptance, and paired
+differences do not prove that a workflow phase caused an outcome. Use matched
+phase ablations to test causal value.
+
 ## BM3 structured-direct study
 
 Benchmark 0.3 adds the diagnostic BM3 comparison:

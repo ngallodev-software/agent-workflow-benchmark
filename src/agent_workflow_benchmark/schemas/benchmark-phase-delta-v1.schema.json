@@ -1,0 +1,31 @@
+{
+  "$id": "agent-workflow/benchmark-phase-delta/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow/benchmark-phase-delta/v1"},
+    "phase_id": {"type": "string"},
+    "arm": {"enum": ["control_raw", "workflow_full"]},
+    "base_revision": {"pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$", "type": "string"},
+    "before_file_count": {"minimum": 0, "type": "integer"},
+    "after_file_count": {"minimum": 0, "type": "integer"},
+    "changed_file_count": {"minimum": 0, "type": "integer"},
+    "changes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {"type": "string"},
+          "before_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "after_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+        },
+        "required": ["path", "before_sha256", "after_sha256"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "capture_seconds": {"minimum": 0, "type": "number"},
+    "interpretation": {"type": "string"}
+  },
+  "required": ["schema", "phase_id", "arm", "base_revision", "before_file_count", "after_file_count", "changed_file_count", "changes", "capture_seconds", "interpretation"],
+  "type": "object"
+}

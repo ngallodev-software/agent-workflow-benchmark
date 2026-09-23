@@ -1,0 +1,19 @@
+{
+  "$id": "agent-workflow/benchmark-phase-review/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow/benchmark-phase-review/v1"},
+    "run_id": {"type": "string"},
+    "pair_id": {"type": "string"},
+    "attempt_id": {"type": "string"},
+    "phase_id": {"type": "string"},
+    "review_kind": {"const": "observational-paired-phase-delta"},
+    "authority": {"type": "string"},
+    "arms": {"additionalProperties": true, "type": "object"},
+    "observed": {"additionalProperties": true, "type": "object"},
+    "limits": {"items": {"type": "string"}, "type": "array"}
+  },
+  "required": ["schema", "run_id", "pair_id", "attempt_id", "phase_id", "review_kind", "authority", "arms", "observed", "limits"],
+  "type": "object"
+}

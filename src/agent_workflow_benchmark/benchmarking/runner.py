@@ -21,7 +21,9 @@ from agent_workflow.agent_run_paths import AgentRunPaths
 from agent_workflow.state import TERMINAL_STATUSES, run_dir as agent_workflow_run_dir
 from agent_workflow.util import atomic_write_json, sha256_file, utc_now
 from .common import format_argv, read_object
-from .contracts import BENCHMARK_ARM_SCHEMA, BENCHMARK_PAIR_SCHEMA, validate_value
+from .contracts import (BENCHMARK_ARM_SCHEMA, BENCHMARK_PAIR_SCHEMA,
+                        BENCHMARK_PHASE_DELTA_SCHEMA, BENCHMARK_PHASE_REVIEW_SCHEMA,
+                        validate_value)
 from .events import append_event
 from .metrics import aggregate_usage, load_usage, normalize_usage
 from .pairing import attempts_for
@@ -94,6 +96,8 @@ def _run_direct_phase_arm(
     """Execute one benchmark arm headlessly with bounded process evidence."""
     run_dir = Path(plan["coordinator"]["run_dir"])
     argv, environment, phase_dir, prompt_text = _render_command(plan, pair, attempt, arm, phase)
+    before_snapshot, before_capture_seconds = _capture_tree_snapshot(
+        Path(str(arm["worktree"])), excluded=Path(str(arm["stage_dir"])))
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
     barrier.wait()
     actual_start_monotonic = time.monotonic()
@@ -150,6 +154,8 @@ def _run_direct_phase_arm(
         state = "infrastructure_failed"
     else:
         state = "task_failed"
+    phase_delta = _phase_delta(pair=pair, arm=arm, phase=phase, before=before_snapshot,
+                               before_capture_seconds=before_capture_seconds)
     record = {
         "phase_id": phase["id"], "state": state, "started_at": actual_start_utc,
         "start_offset_seconds": start_offset, "completed_at": utc_now(),
@@ -158,10 +164,14 @@ def _run_direct_phase_arm(
         "first_output_latency_seconds": usage["first_output_latency_seconds"],
         "verification_seconds": 0.0, "queue_wait_seconds": 0.0, "human_review_seconds": None,
         "process": result.as_dict(include_output=False), "usage": usage,
+        "prompt_sha256": sha256_file(_prompt_for(arm, str(phase["id"]))),
+        "stdout_sha256": sha256_file(stdout_path), "stderr_sha256": sha256_file(stderr_path),
+        "phase_delta": phase_delta,
         "timing_breakdown": {
             "runner_kind": "direct-executor",
             "executor_active_seconds": direct_active_seconds,
             "benchmark_postprocess_seconds": direct_postprocess_seconds,
+            "phase_delta_capture_seconds": phase_delta["capture_seconds"],
             "host_overhead_seconds": direct_host_overhead_seconds,
             "prompt_bytes": prompt_diagnostics["bytes"],
             "prompt_lines": prompt_diagnostics["lines"],
@@ -174,6 +184,7 @@ def _run_direct_phase_arm(
         "stdout": str(stdout_path), "stderr": str(stderr_path),
         "usage_file": str(phase_dir / "usage.json") if (phase_dir / "usage.json").is_file() else None,
     }
+    record["phase_json"] = str(phase_dir / "phase.json")
     atomic_write_json(phase_dir / "phase.json", record)
     append_event(
         run_dir, event_type="phase_terminal", run_id=str(plan["run_id"]),
@@ -217,6 +228,125 @@ def _file_diagnostics(path: Path) -> dict[str, int]:
     except OSError:
         return {"bytes": 0, "lines": 0}
     return {"bytes": len(data), "lines": len(data.splitlines())}
+
+
+def _tree_snapshot(root: Path, *, excluded: Path | None = None) -> dict[str, str]:
+    files: dict[str, str] = {}
+    for current, directories, names in os.walk(root, followlinks=False):
+        current_path = Path(current)
+        directories[:] = sorted(name for name in directories
+                                if name != ".git" and current_path / name != excluded)
+        if current_path == excluded:
+            continue
+        for name in sorted(names):
+            path = Path(current) / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            files[path.relative_to(root).as_posix()] = sha256_file(path)
+    return files
+
+
+def _capture_tree_snapshot(root: Path, *, excluded: Path | None = None) -> tuple[dict[str, str], float]:
+    started = time.monotonic()
+    snapshot = _tree_snapshot(root, excluded=excluded)
+    return snapshot, round(time.monotonic() - started, 6)
+
+
+def _phase_delta(
+    *, pair: Mapping[str, Any], arm: Mapping[str, Any], phase: Mapping[str, Any],
+    before: Mapping[str, str], before_capture_seconds: float,
+) -> dict[str, Any]:
+    started = time.monotonic()
+    root = Path(str(arm["worktree"]))
+    after = _tree_snapshot(root, excluded=Path(str(arm["stage_dir"])))
+    paths = sorted(set(before) | set(after))
+    changes = [
+        {"path": path, "before_sha256": before.get(path), "after_sha256": after.get(path)}
+        for path in paths if before.get(path) != after.get(path)
+    ]
+    value = {
+        "schema": BENCHMARK_PHASE_DELTA_SCHEMA,
+        "phase_id": str(phase["id"]),
+        "arm": str(arm["arm"]),
+        "base_revision": str(pair["base_revision"]),
+        "before_file_count": len(before),
+        "after_file_count": len(after),
+        "changed_file_count": len(changes),
+        "changes": changes,
+        "capture_seconds": round(before_capture_seconds + time.monotonic() - started, 6),
+        "interpretation": "observed filesystem delta for this phase; not a quality score or causal attribution",
+    }
+    validate_value(value, BENCHMARK_PHASE_DELTA_SCHEMA, f"phase delta {phase['id']}")
+    path = Path(str(arm["stage_dir"])) / "phases" / str(phase["id"]) / "phase-delta.json"
+    atomic_write_json(path, value)
+    return {"path": str(path), "sha256": sha256_file(path), "changed_file_count": len(changes),
+            "capture_seconds": value["capture_seconds"]}
+
+
+def _phase_review(
+    *, plan: Mapping[str, Any], pair: Mapping[str, Any], attempt: Mapping[str, Any],
+    phase: Mapping[str, Any], records: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    left, right = records["control_raw"], records["workflow_full"]
+    left_usage, right_usage = left.get("usage", {}), right.get("usage", {})
+    comparisons = {}
+    for key in ("phase_wall_seconds", "active_process_seconds", "verification_seconds"):
+        lvalue, rvalue = left.get(key), right.get(key)
+        comparisons[key] = {
+            "control": lvalue, "agent_workflow": rvalue,
+            "delta_agent_workflow_minus_control": round(float(rvalue) - float(lvalue), 6)
+            if isinstance(lvalue, (int, float)) and not isinstance(lvalue, bool)
+            and isinstance(rvalue, (int, float)) and not isinstance(rvalue, bool) else None,
+        }
+    for key in ("provider_total_tokens", "input_tokens", "output_tokens", "local_estimated_cost",
+                "provider_billed_cost", "subscription_allocated_cost"):
+        lvalue, rvalue = left_usage.get(key), right_usage.get(key)
+        comparisons.setdefault("usage", {})[key] = {
+            "control": lvalue, "agent_workflow": rvalue,
+            "delta_agent_workflow_minus_control": round(float(rvalue) - float(lvalue), 6)
+            if isinstance(lvalue, (int, float)) and not isinstance(lvalue, bool)
+            and isinstance(rvalue, (int, float)) and not isinstance(rvalue, bool) else None,
+        }
+    left_delta, right_delta = left.get("phase_delta"), right.get("phase_delta")
+    value = {
+        "schema": BENCHMARK_PHASE_REVIEW_SCHEMA,
+        "run_id": plan["run_id"], "pair_id": pair["pair_id"], "attempt_id": attempt["attempt_id"],
+        "phase_id": str(phase["id"]), "review_kind": "observational-paired-phase-delta",
+        "authority": "advisory; does not affect phase completion, benchmark scores, evaluation, review, or acceptance",
+        "arms": {
+            "control_raw": {"state": left.get("state"), "phase": left.get("phase_json"),
+                            "prompt_sha256": left.get("prompt_sha256"), "delta": left_delta},
+            "workflow_full": {"state": right.get("state"), "phase": right.get("phase_json"),
+                               "prompt_sha256": right.get("prompt_sha256"), "delta": right_delta,
+                               "executor_context": (right.get("timing_breakdown") or {}).get("executor_context")},
+        },
+        "observed": {
+            "prompt_hashes_match": left.get("prompt_sha256") == right.get("prompt_sha256"),
+            "changed_file_count": {
+                "control": left_delta.get("changed_file_count") if left_delta else None,
+                "agent_workflow": right_delta.get("changed_file_count") if right_delta else None,
+            },
+            "phase_time_seconds": comparisons,
+            "phase_delta_capture_seconds": {
+                "control": (left_delta or {}).get("capture_seconds"),
+                "agent_workflow": (right_delta or {}).get("capture_seconds"),
+            },
+            "usage": comparisons["usage"],
+            "source_path_overlap": sorted(set(item["path"] for item in (left_delta or {}).get("changes", []))
+                                           & set(item["path"] for item in (right_delta or {}).get("changes", []))),
+            "source_path_difference": sorted(set(item["path"] for item in (left_delta or {}).get("changes", []))
+                                              ^ set(item["path"] for item in (right_delta or {}).get("changes", []))),
+        },
+        "limits": [
+            "These paired runs are descriptive; differences do not isolate the causal value of a phase.",
+            "Changed paths and hashes do not judge semantic quality; use the phase artifact and required benchmark evaluation for that.",
+            "Unavailable usage and runtime fields remain null and are not estimated here.",
+        ],
+    }
+    validate_value(value, BENCHMARK_PHASE_REVIEW_SCHEMA, f"phase review {phase['id']}")
+    path = Path(str(plan["coordinator"]["run_dir"])) / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / f"attempt-{int(attempt['attempt']):02d}" / "phase-reviews" / f"{phase['id']}.json"
+    atomic_write_json(path, value)
+    return {"path": str(path), "sha256": sha256_file(path)}
 
 
 def _event_diagnostics_from_text(text: str) -> dict[str, int | None]:
@@ -501,6 +631,8 @@ def _bm5_skipped_phase(
     release: dict[str, float],
 ) -> dict[str, Any]:
     stage = Path(str(arm["stage_dir"]))
+    before_snapshot, before_capture_seconds = _capture_tree_snapshot(
+        Path(str(arm["worktree"])), excluded=Path(str(arm["stage_dir"])))
     phase_dir = stage / "phases" / str(phase["id"])
     phase_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
@@ -522,6 +654,8 @@ def _bm5_skipped_phase(
         pricing=plan["executor"].get("pricing"),
         source="bm5-conditional-verification-skip",
     )
+    phase_delta = _phase_delta(pair=pair, arm=arm, phase=phase, before=before_snapshot,
+                               before_capture_seconds=before_capture_seconds)
     record = {
         "phase_id": phase["id"],
         "state": "completed",
@@ -542,17 +676,22 @@ def _bm5_skipped_phase(
             "error_category": "none",
         },
         "usage": usage,
+        "prompt_sha256": sha256_file(_prompt_for(arm, str(phase["id"]))),
+        "stdout_sha256": sha256_file(stdout_path), "stderr_sha256": sha256_file(stderr_path),
+        "phase_delta": phase_delta,
         "timing_breakdown": {
             "runner_kind": "agent-workflow",
             "conditional_model_invocation_skipped": True,
             "skip_reason": "implementation acceptance completed successfully",
             "executor_active_seconds": 0.0,
             "host_overhead_seconds": 0.0,
+            "phase_delta_capture_seconds": phase_delta["capture_seconds"],
         },
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
         "usage_file": None,
     }
+    record["phase_json"] = str(phase_dir / "phase.json")
     atomic_write_json(phase_dir / "phase.json", record)
     return record
 
@@ -575,6 +714,8 @@ def _run_agent_workflow_phase_arm(
     phase_dir = stage / "phases" / str(phase["id"])
     phase_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
+    before_snapshot, before_capture_seconds = _capture_tree_snapshot(
+        worktree, excluded=stage)
     agent_run_id = _agent_run_id(plan, pair, attempt, arm, phase)
     evaluation_path = (
         _write_bm5_evaluation_plan(
@@ -714,6 +855,8 @@ def _run_agent_workflow_phase_arm(
     provider_diagnostics = _provider_diagnostics(aw_root)
     executor_context = _executor_context_diagnostics(aw_root)
     launch_prompt_diagnostics = _file_diagnostics(aw_root / "launch-prompt.md")
+    phase_delta = _phase_delta(pair=pair, arm=arm, phase=phase, before=before_snapshot,
+                               before_capture_seconds=before_capture_seconds)
     record = {
         "phase_id": phase["id"],
         "state": state,
@@ -738,11 +881,15 @@ def _run_agent_workflow_phase_arm(
             ),
         },
         "usage": usage,
+        "prompt_sha256": sha256_file(prompt_file),
+        "stdout_sha256": sha256_file(stdout_path), "stderr_sha256": sha256_file(stderr_path),
+        "phase_delta": phase_delta,
         "timing_breakdown": {
             "runner_kind": "agent-workflow",
             "delegate_call_seconds": delegate_call_seconds,
             "terminal_wait_seconds": terminal_wait_seconds,
             "benchmark_evidence_collection_seconds": evidence_collection_seconds,
+            "phase_delta_capture_seconds": phase_delta["capture_seconds"],
             "executor_active_seconds": float(active_seconds),
             "host_overhead_seconds": host_overhead_seconds,
             "prompt_bytes": prompt_diagnostics["bytes"],
@@ -761,6 +908,7 @@ def _run_agent_workflow_phase_arm(
         "stderr": str(stderr_path),
         "usage_file": str(copied_metrics) if metrics_path.is_file() else None,
     }
+    record["phase_json"] = str(phase_dir / "phase.json")
     atomic_write_json(phase_dir / "phase.json", record)
     atomic_write_json(
         phase_dir / "agent-workflow-run.json",
@@ -988,6 +1136,16 @@ def _execute_attempt(settings: Settings | None, plan: Mapping[str, Any], pair: M
                 infrastructure_failure = infrastructure_failure or record["state"] == "infrastructure_failed"
         if len(starts) == 2:
             start_skews.append(abs(starts["control_raw"] - starts["workflow_full"]))
+    phase_review_refs = []
+    for index, phase in enumerate(plan["phases"]):
+        paired = {name: values[index] for name, values in records.items() if len(values) > index}
+        if set(paired) != {"control_raw", "workflow_full"}:
+            continue
+        receipt = _phase_review(plan=plan, pair=pair, attempt=attempt, phase=phase, records=paired)
+        for record in paired.values():
+            record["phase_review"] = receipt
+            atomic_write_json(Path(str(record["phase_json"])), record)
+        phase_review_refs.append({"phase_id": phase["id"], **receipt})
     arm_values = {name: _finalize_arm(plan, pair, attempt, attempt["arms"][name], records[name]) for name in ("control_raw", "workflow_full")}
     arm_walls = {name: round(sum(item["phase_wall_seconds"] for item in values), 6) for name, values in records.items()}
     state = "infrastructure_failed" if infrastructure_failure else "terminal"
@@ -1000,6 +1158,7 @@ def _execute_attempt(settings: Settings | None, plan: Mapping[str, Any], pair: M
         "pair_start_skew_seconds": round(max(start_skews, default=0.0), 6),
         "pair_sum_arm_wall_seconds": round(sum(arm_walls.values()), 6),
         "pair_critical_path_seconds": round(max(arm_walls.values(), default=0.0), 6),
+        "phase_reviews": phase_review_refs,
         "arms": {name: str(Path(value["stage_dir"]) / "arm.json") for name, value in arm_values.items()},
         "completed_at": utc_now(),
     }
