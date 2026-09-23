@@ -29,7 +29,8 @@ def test_executor_context_diagnostics_surfaces_bm5_protocol_attribution(tmp_path
             "acceptance_command_executions": 2,
             "verification_cache_hits": 1,
             "verification_cache_misses": 1,
-            "finish_attempts": 1,
+            "finish_invocations": 2,
+            "finish_incomplete_invocations": 1,
             "finish_outcomes": {"completed": 1},
             "input_tokens_per_turn": 1000,
             "cached_input_tokens_per_turn": 900,
@@ -48,4 +49,6 @@ def test_executor_context_diagnostics_surfaces_bm5_protocol_attribution(tmp_path
     assert result["acceptance_command_executions"] == 2
     assert result["verification_cache_hits"] == 1
     assert result["verification_cache_misses"] == 1
+    assert result["finish_invocations"] == 2
+    assert result["finish_incomplete_invocations"] == 1
     assert result["finish_outcomes"] == {"completed": 1}
