@@ -410,14 +410,29 @@ def score_run(
             if contract is not None:
                 suite = Path(plan["coordinator"]["suite_dir"])
                 contract_path = suite / str(spec["scoring_contract_path"])
-                evaluator_path = suite / str(contract["evaluator_path"])
+                evaluator_ref = str(contract["evaluator_path"])
+                evaluator_sha256 = None
+                if evaluator_ref.startswith("external://"):
+                    if scoring_bundle is None:
+                        raise WorkflowError(
+                            "external scoring evaluator requires --scoring-bundle"
+                        )
+                    evaluator_path = scoring_bundle / evaluator_ref.removeprefix("external://")
+                    if not evaluator_path.is_file():
+                        raise WorkflowError(
+                            f"external scoring evaluator not found: {evaluator_path}"
+                        )
+                    evaluator_sha256 = sha256_file(evaluator_path)
+                else:
+                    evaluator_sha256 = sha256_file(suite / evaluator_ref)
                 value.update(
                     benchmark_version=spec["version"],
                     scoring_identity={
                         "scorer_version": contract["scorer_version"],
                         "evaluator_version": contract["evaluator_version"],
                         "scoring_contract_sha256": sha256_file(contract_path),
-                        "evaluator_sha256": sha256_file(evaluator_path),
+                        "evaluator_ref": evaluator_ref,
+                        "evaluator_sha256": evaluator_sha256,
                     },
                 )
             validate_value(value, score_schema, f"machine score {pair['pair_id']} {arm_name}")
