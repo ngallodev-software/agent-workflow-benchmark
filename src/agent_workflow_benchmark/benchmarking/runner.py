@@ -676,33 +676,53 @@ def _bm5_verify_skip_decision(
             "reason": "implementation Agent-Workflow run directory is unavailable",
             "acceptance_command_ids": ids,
         }
-    completion_path = Path(run_root) / "handoff" / "completion.json"
-    if not completion_path.is_file():
+    handoff = Path(run_root) / "handoff"
+    completion_path = handoff / "completion.json"
+    draft_path = handoff / "completion-draft.json"
+    evidence_source = None
+    evidence_value: dict[str, Any] | None = None
+
+    if completion_path.is_file():
+        try:
+            completion = read_object(completion_path)
+        except (OSError, WorkflowError, ValueError) as exc:
+            return {
+                "applicable": True,
+                "skip": False,
+                "reason": f"implementation completion handoff is unreadable: {exc}",
+                "acceptance_command_ids": ids,
+            }
+        if completion.get("result") != "completed":
+            return {
+                "applicable": True,
+                "skip": False,
+                "reason": f"implementation completion result is {completion.get('result')!r}",
+                "acceptance_command_ids": ids,
+            }
+        evidence_source = "completion"
+        evidence_value = completion
+    elif draft_path.is_file():
+        try:
+            draft = read_object(draft_path)
+        except (OSError, WorkflowError, ValueError) as exc:
+            return {
+                "applicable": True,
+                "skip": False,
+                "reason": f"implementation completion draft is unreadable: {exc}",
+                "acceptance_command_ids": ids,
+            }
+        evidence_source = "completion-draft"
+        evidence_value = draft
+    else:
         return {
             "applicable": True,
             "skip": False,
-            "reason": "implementation completion handoff is missing",
-            "acceptance_command_ids": ids,
-        }
-    try:
-        completion = read_object(completion_path)
-    except (OSError, WorkflowError, ValueError) as exc:
-        return {
-            "applicable": True,
-            "skip": False,
-            "reason": f"implementation completion handoff is unreadable: {exc}",
-            "acceptance_command_ids": ids,
-        }
-    if completion.get("result") != "completed":
-        return {
-            "applicable": True,
-            "skip": False,
-            "reason": f"implementation completion result is {completion.get('result')!r}",
+            "reason": "implementation completion/acceptance evidence is missing",
             "acceptance_command_ids": ids,
         }
 
     observed = [
-        item for item in completion.get("commands", [])
+        item for item in (evidence_value or {}).get("commands", [])
         if isinstance(item, dict)
     ]
     missing_green: list[str] = []
@@ -728,8 +748,12 @@ def _bm5_verify_skip_decision(
     return {
         "applicable": True,
         "skip": True,
-        "reason": "implementation completion contains green declared acceptance evidence",
+        "reason": (
+            "implementation " + str(evidence_source)
+            + " contains green declared acceptance evidence"
+        ),
         "acceptance_command_ids": ids,
+        "acceptance_evidence_source": evidence_source,
     }
 
 
@@ -799,6 +823,9 @@ def _bm5_skipped_phase(
             "conditional_skip_reason": skip_reason,
             "conditional_skip_acceptance_command_ids": list(
                 decision.get("acceptance_command_ids") or []
+            ),
+            "conditional_skip_evidence_source": decision.get(
+                "acceptance_evidence_source"
             ),
             "executor_active_seconds": 0.0,
             "host_overhead_seconds": 0.0,
@@ -1091,6 +1118,9 @@ def _run_phase_arm(
             breakdown["conditional_skip_reason"] = skip_decision["reason"]
             breakdown["conditional_skip_acceptance_command_ids"] = list(
                 skip_decision.get("acceptance_command_ids") or []
+            )
+            breakdown["conditional_skip_evidence_source"] = skip_decision.get(
+                "acceptance_evidence_source"
             )
             atomic_write_json(Path(str(record["phase_json"])), record)
         return record
