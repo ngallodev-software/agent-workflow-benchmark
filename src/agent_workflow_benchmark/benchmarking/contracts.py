@@ -245,6 +245,7 @@ def validate_spec(path: Path) -> dict[str, Any]:
         scorer_points = {str(item["dimension"]): float(item["max_points"]) for item in scorers}
         if contract_dimensions != scorer_points:
             raise WorkflowError("benchmark scorer dimensions/points do not match the scoring contract")
+    load_supplementary_scoring_contract(path, value)
     return value
 
 
