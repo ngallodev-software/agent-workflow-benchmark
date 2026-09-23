@@ -11,12 +11,15 @@ from .common import format_argv, read_object
 from .contracts import (
     BENCHMARK_MACHINE_SCORE_SCHEMA,
     BENCHMARK_MACHINE_SCORE_V2_SCHEMA,
+    BENCHMARK_SUPPLEMENTARY_SCORE_SCHEMA,
     load_scoring_contract,
+    load_supplementary_scoring_contract,
     validate_spec,
     validate_value,
 )
 from .events import append_event
 from .pairing import selected_arms
+from .product_scoring import score_end_to_end_product
 
 
 def _guardrail(id_: str, state: str, detail: str, *, required: bool) -> dict[str, Any]:
@@ -316,8 +319,11 @@ def score_run(plan_path: Path) -> dict[str, Any]:
     spec_path = Path(plan["coordinator"]["spec_path"])
     spec = validate_spec(spec_path)
     contract = load_scoring_contract(spec_path, spec)
+    supplementary_contract = load_supplementary_scoring_contract(spec_path, spec)
+    supplementary_contract_path = spec_path.parent / "product-scoring-contract.json"
     append_event(run_dir, event_type="machine_scoring_started", run_id=str(plan["run_id"]))
     scored: list[dict[str, Any]] = []
+    supplementary_scored: list[dict[str, Any]] = []
     for pair in plan["pairs"]:
         pair_state_path = run_dir / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / "pair.json"
         if not pair_state_path.is_file():
@@ -388,12 +394,34 @@ def score_run(plan_path: Path) -> dict[str, Any]:
             validate_value(value, score_schema, f"machine score {pair['pair_id']} {arm_name}")
             atomic_write_json(stage / "score.json", value)
             scored.append(value)
+            if supplementary_contract is not None:
+                product = score_end_to_end_product(
+                    worktree=Path(arm["worktree"]),
+                    stage=stage,
+                    machine_components=components,
+                    contract=supplementary_contract,
+                    contract_path=supplementary_contract_path,
+                )
+                validate_value(
+                    product,
+                    BENCHMARK_SUPPLEMENTARY_SCORE_SCHEMA,
+                    f"supplementary score {pair['pair_id']} {arm_name}",
+                )
+                atomic_write_json(stage / "product-score.json", product)
+                supplementary_scored.append({
+                    "pair_id": pair["pair_id"],
+                    "case_id": pair["case_id"],
+                    "repetition": pair["repetition"],
+                    "arm": arm_name,
+                    "score": product,
+                })
     summary = {
         "schema": "agent-workflow/benchmark-machine-score-set/v1",
         "run_id": plan["run_id"],
         "scores": scored,
         "eligible": sum(1 for item in scored if item["eligibility"]["state"] == "eligible"),
         "invalid": sum(1 for item in scored if item["eligibility"]["state"] != "eligible"),
+        "supplementary_scores": supplementary_scored,
     }
     atomic_write_json(run_dir / "machine-scores.json", summary)
     append_event(

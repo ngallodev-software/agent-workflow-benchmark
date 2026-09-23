@@ -10,10 +10,10 @@ from agent_workflow_benchmark.plugin import plugin
 def test_descriptor_owns_benchmark_command_and_schemas():
     descriptor = plugin()
     assert descriptor.name == "agent-workflow-benchmark"
-    assert __version__ == "0.3.1"
+    assert __version__ == "0.3.2"
     assert descriptor.version == __version__
     assert [command.name for command in descriptor.commands] == ["benchmark"]
-    assert len(descriptor.package_resources) == 21
+    assert len(descriptor.package_resources) == 23
 
 
 def test_exported_suite_validates_with_plugin_owned_contracts(tmp_path: Path):
@@ -22,3 +22,5 @@ def test_exported_suite_validates_with_plugin_owned_contracts(tmp_path: Path):
         export_builtin_suite(destination, benchmark_id=benchmark_id, force=True)
         value = validate_benchmark(destination / "benchmark-spec.json", None)
         assert value["benchmark_id"] == benchmark_id
+        if benchmark_id == "priority-picker-v2":
+            assert (destination / "product-scoring-contract.json").is_file()

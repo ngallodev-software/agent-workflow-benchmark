@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.1` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.2` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -151,7 +151,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.1` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.2` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -171,6 +171,36 @@ python scripts/collect-value-smoke-evidence.py /tmp/agent-workflow-value-smoke.X
 ```
 
 If the smoke root is omitted, the collector chooses the newest `$TMPDIR/agent-workflow-value-smoke.*` directory. It packages the complete smoke root, the referenced coordinator run directory, and every arm evidence directory referenced by the run plan so `arm.json`, provider telemetry, Git evidence, and phase receipts remain self-contained. It records package/runtime identity without secret values, writes SHA-256 checksums, and refuses to archive if the current `TYPESAFE_API_KEY` value is found in collected files.
+
+## Supplementary end-to-end product score
+
+Priority Picker v2 runs now emit a second, versioned score from the same frozen
+execution and visual evidence:
+
+```text
+score.json          official frozen machine score (unchanged)
+product-score.json  supplementary end-to-end-product/v1 score
+```
+
+The supplementary 100-point lens weights delivered product behavior more heavily:
+
+- 30 points: core computation/data-layer correctness;
+- 20 points: end-to-end supplied-data integration;
+- 20 points: required interactive behavior;
+- 15 points: presentation/accessibility;
+- 5 points: robustness/failure handling;
+- 10 points: engineering completeness/traceability.
+
+Item-dependent credit is gated on the expected supplied backlog actually rendering
+in the browser. Structured visual observations are captured in
+`visual/assessment.json` so partial product credit is deterministic rather than
+inferred from prose logs.
+
+The supplementary score is deliberately **not** part of the historical machine
+score, composite, eligibility, or winner policy. Reports aggregate and compare it
+as a parallel diagnostic/product-completeness metric only. The versioned authority
+is `product-scoring-contract.json` with scorer ID
+`end-to-end-product/v1`.
 
 ## BM3 structured-direct study
 

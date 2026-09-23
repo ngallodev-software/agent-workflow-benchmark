@@ -260,7 +260,7 @@ def main() -> None:
     task = destination / "task"
     for name in (
         "benchmark-spec.json", "canonical-task.md",
-        "scoring-contract.json", "visual-rubric.json",
+        "scoring-contract.json", "product-scoring-contract.json", "visual-rubric.json",
     ):
         copy_file(suite / name, task / name)
     for name in ("phases", "profiles"):
@@ -281,6 +281,8 @@ def main() -> None:
         worktree = Path(arm_plan["worktree"]).resolve()
         arm = load(stage / "arm.json")
         score = load(stage / "score.json")
+        product_path = stage / "product-score.json"
+        product_score = load(product_path) if product_path.is_file() else None
         usage = arm.get("usage") or {}
         timing = timing_summary(arm)
         public_name = PUBLIC_ARMS[arm_name]
@@ -288,6 +290,8 @@ def main() -> None:
 
         copy_tree(worktree, arm_root / "final-project")
         write_json(arm_root / "score.json", score)
+        if product_score is not None:
+            write_json(arm_root / "product-score.json", product_score)
         write_json(arm_root / "timing.json", timing)
         write_json(arm_root / "usage.json", usage)
         sanitize_visual(stage, arm_root / "visual")
@@ -298,6 +302,8 @@ def main() -> None:
             "treatment_id": treatment.get("treatment_id"),
             "runner_kind": treatment.get("runner_kind"),
             "machine_score": score.get("machine_score"),
+            "product_score": product_score.get("score") if product_score else None,
+            "product_score_id": product_score.get("id") if product_score else None,
             "eligibility": (score.get("eligibility") or {}).get("state"),
             "provider_total_tokens": usage.get("provider_total_tokens"),
             "input_tokens": usage.get("input_tokens"),
@@ -315,7 +321,7 @@ def main() -> None:
     control = public_arms["structured-direct"]
     candidate = public_arms["agent-workflow-optimized"]
     metric_keys = (
-        "machine_score", "provider_total_tokens", "input_tokens",
+        "machine_score", "product_score", "provider_total_tokens", "input_tokens",
         "cached_input_tokens", "output_tokens", "reasoning_output_tokens",
         "wall_seconds", "executor_active_seconds", "host_overhead_seconds",
     )
@@ -442,6 +448,7 @@ def main() -> None:
 
     rows = [
         ("Machine score", "machine_score", 1),
+        ("Supplementary product score", "product_score", 1),
         ("Task wall time (s)", "wall_seconds", 3),
         ("Executor active (s)", "executor_active_seconds", 3),
         ("Measured host overhead (s)", "host_overhead_seconds", 3),
@@ -485,7 +492,7 @@ def main() -> None:
         "BM4 measures the same structured Priority Picker task after Agent-Workflow OPT-001 through OPT-007 context/execution optimizations.",
         "", "## Result at a glance", "", *table, "",
         "## Published artifacts", "",
-        "- task/ — canonical task, prompts, scoring and visual contracts, runtime lock, and starting fixture;",
+        "- task/ — canonical task, prompts, official and supplementary scoring contracts, visual contract, runtime lock, and starting fixture;",
         "- structured-direct/ — control final project, score, timing, usage, and visual evidence;",
         "- agent-workflow-optimized/ — candidate final project, score, timing, usage, and visual evidence;",
         "- analysis/comparison.md — descriptive comparison;",

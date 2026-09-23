@@ -1,0 +1,127 @@
+{
+  "$id": "agent-workflow/benchmark-supplementary-score/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow/benchmark-supplementary-score/v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "role": {
+      "const": "supplementary"
+    },
+    "winner_interaction": {
+      "const": "none"
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "maximum_score": {
+      "const": 100
+    },
+    "contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scorer_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "earned_points": {
+            "type": "number",
+            "minimum": 0
+          },
+          "max_points": {
+            "type": "number",
+            "minimum": 0
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "passed": {
+                  "type": "boolean"
+                },
+                "earned_points": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "max_points": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "evidence_references": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "passed",
+                "earned_points",
+                "max_points",
+                "detail",
+                "evidence_references"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "earned_points",
+          "max_points",
+          "checks"
+        ]
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "role",
+    "winner_interaction",
+    "score",
+    "maximum_score",
+    "contract_sha256",
+    "scorer_version",
+    "dimensions",
+    "limitations"
+  ]
+}

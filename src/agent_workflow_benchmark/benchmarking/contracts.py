@@ -13,6 +13,8 @@ BENCHMARK_SPEC_SCHEMA = "agent-workflow/benchmark-spec/v1"
 BENCHMARK_SPEC_V3_SCHEMA = "agent-workflow/benchmark-spec/v3"
 BENCHMARK_SPEC_SCHEMAS = {BENCHMARK_SPEC_SCHEMA, "agent-workflow/benchmark-spec/v2", BENCHMARK_SPEC_V3_SCHEMA}
 BENCHMARK_SCORING_CONTRACT_SCHEMA = "agent-workflow/benchmark-scoring-contract/v1"
+BENCHMARK_SUPPLEMENTARY_SCORING_CONTRACT_SCHEMA = "agent-workflow/benchmark-supplementary-scoring-contract/v1"
+BENCHMARK_SUPPLEMENTARY_SCORE_SCHEMA = "agent-workflow/benchmark-supplementary-score/v1"
 BENCHMARK_EXECUTOR_SCHEMA = "agent-workflow/benchmark-executor-config/v1"
 BENCHMARK_RUN_SCHEMA = "agent-workflow/benchmark-run/v1"
 BENCHMARK_RUN_V2_SCHEMA = "agent-workflow/benchmark-run/v2"
@@ -120,6 +122,56 @@ def load_scoring_contract(path: Path, spec: dict[str, Any] | None = None) -> dic
     return contract
 
 
+
+def load_supplementary_scoring_contract(
+    path: Path,
+    spec: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Load an optional versioned supplementary scoring contract.
+
+    Supplementary scoring is intentionally separate from machine_score and does
+    not participate in composite or winner policy.
+    """
+    path = path.expanduser().resolve()
+    spec = spec or read_contract(path)
+    contract_path = path.parent / "product-scoring-contract.json"
+    if not contract_path.is_file():
+        return None
+    contract = read_contract(
+        contract_path,
+        BENCHMARK_SUPPLEMENTARY_SCORING_CONTRACT_SCHEMA,
+    )
+    if (
+        contract["benchmark_id"] != spec["benchmark_id"]
+        or contract["benchmark_version"] != spec["version"]
+    ):
+        raise WorkflowError(
+            "supplementary scoring contract benchmark identity does not match benchmark specification"
+        )
+    dimension_ids = [str(item["id"]) for item in contract["dimensions"]]
+    _unique(dimension_ids, "supplementary-scoring dimension IDs")
+    rule_ids: list[str] = []
+    total = 0.0
+    for dimension in contract["dimensions"]:
+        ids = [str(item["id"]) for item in dimension["rules"]]
+        _unique(ids, f"supplementary-scoring rule IDs in {dimension['id']}")
+        rule_ids.extend(ids)
+        observed = sum(float(item["max_points"]) for item in dimension["rules"])
+        maximum = float(dimension["max_points"])
+        if abs(observed - maximum) > 1e-9:
+            raise WorkflowError(
+                f"supplementary scoring dimension {dimension['id']} points "
+                f"must total {maximum:g}, observed {observed:g}"
+            )
+        total += maximum
+    _unique(rule_ids, "supplementary-scoring rule IDs")
+    if abs(total - float(contract["total_points"])) > 1e-9 or abs(total - 100.0) > 1e-9:
+        raise WorkflowError(
+            f"supplementary scoring contract points must total 100, observed {total:g}"
+        )
+    return contract
+
+
 def validate_spec(path: Path) -> dict[str, Any]:
     path = path.expanduser().resolve()
     value = read_contract(path)
@@ -193,6 +245,7 @@ def validate_spec(path: Path) -> dict[str, Any]:
         scorer_points = {str(item["dimension"]): float(item["max_points"]) for item in scorers}
         if contract_dimensions != scorer_points:
             raise WorkflowError("benchmark scorer dimensions/points do not match the scoring contract")
+    load_supplementary_scoring_contract(path, value)
     return value
 
 

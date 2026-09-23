@@ -88,6 +88,11 @@ def main() -> int:
         checks: list[dict[str, Any]] = []
         console_errors: list[str] = []
         navigation_errors: list[str] = []
+        observations: dict[str, Any] = {
+            "live": {},
+            "download": {"rows": None, "json_download": False, "filename": None},
+            "empty_invalid": {"empty_ok": False, "invalid_ok": False},
+        }
 
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(
@@ -182,6 +187,12 @@ def main() -> int:
             def live_app() -> tuple[bool, str]:
                 app_count = page.locator('[data-testid="priority-app"]').count()
                 item_count = page.locator('[data-testid="priority-item"]').count()
+                observations["live"] = {
+                    "app_count": app_count,
+                    "item_count": item_count,
+                    "console_error_count": len(console_errors),
+                    "navigation_error_count": len(navigation_errors),
+                }
                 passed = (
                     runtime_match
                     and app_count == 1
@@ -326,6 +337,12 @@ def main() -> int:
                 download_path = output / "priority-ordering.json"
                 download.save_as(str(download_path))
                 payload = json.loads(download_path.read_text(encoding="utf-8"))
+                observations["download"] = {
+                    "rows": len(payload) if isinstance(payload, list) else None,
+                    "json_download": download.suggested_filename.endswith(".json") and isinstance(payload, list),
+                    "filename": download.suggested_filename,
+                    "ranks_complete": isinstance(payload, list) and [item.get("rank") for item in payload] == list(range(1, len(payload) + 1)),
+                }
                 passed = (
                     download.suggested_filename.endswith(".json")
                     and isinstance(payload, list)
@@ -385,6 +402,10 @@ def main() -> int:
                     )
                 finally:
                     invalid_context.close()
+                observations["empty_invalid"] = {
+                    "empty_ok": empty_ok,
+                    "invalid_ok": invalid_ok,
+                }
                 return (
                     empty_ok and invalid_ok,
                     f"empty_text={empty_text[:200]!r}; invalid_state={invalid_ok}",
@@ -400,6 +421,7 @@ def main() -> int:
             "runtime_lock": lock,
             "runtime": runtime,
             "checks": checks,
+            "observations": observations,
             "screenshots": screenshots,
         }
         (output / "assessment.json").write_text(
