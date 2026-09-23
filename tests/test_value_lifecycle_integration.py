@@ -176,6 +176,21 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     plan = read_object(plan_path)
     assert all(item["passed"] for item in plan["treatment_runtime_checks"])
 
+    coordinator = Path(plan["coordinator"]["worktree"])
+    assert coordinator.name == "c"
+    assert Path(plan["coordinator"]["run_dir"]) == coordinator / ".awb" / "run"
+    pair = plan["pairs"][0]
+    attempt = pair["attempts"][0]
+    root = coordinator.parent
+    for arm_name, short_name in (("control_raw", "c"), ("workflow_full", "w")):
+        arm = attempt["arms"][arm_name]
+        worktree = Path(arm["worktree"])
+        assert worktree.relative_to(root).parts == ("p001", "a01", short_name)
+        stage = Path(arm["stage_dir"])
+        assert stage == worktree / ".awb"
+        prompt_names = [Path(item["path"]).name for item in arm["prompts"]]
+        assert prompt_names == ["01.md", "02.md", "03.md"]
+
     executed = run_benchmark(settings, plan_path, execution_only=True)
     assert executed["state"] == "executed"
     assert executed["pairs_terminal"] == 1
