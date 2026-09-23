@@ -217,7 +217,8 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
 
     candidate_stage = Path(candidate["stage_dir"])
     for phase in candidate["phases"]:
-        phase_dir = candidate_stage / "phases" / str(phase["phase_id"])
+        phase_dir = Path(phase["phase_json"]).parent
+        assert phase_dir.is_relative_to(candidate_stage / "ph")
         aw_evidence = read_object(phase_dir / "agent-workflow-run.json")
         assert aw_evidence["status"] == "completed"
         assert aw_evidence["delegate_error"] is None
