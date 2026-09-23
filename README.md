@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.6` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.6` declares `agent-workflow>=0.11.9,<0.12`; Agent-Workflow `0.11.9` is the minimum supported core for the execution-seal and BM6 blind-run workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -96,6 +96,35 @@ agent-workflow benchmark seal-verify RUN_PLAN.json
 ```
 
 Execution-only runs must be sealed before new machine scoring begins. The seal freezes the run plan, final arm worktree trees, and execution-stage evidence while allowing later visual/scoring artifacts to be added. Other lifecycle commands include `resume`, `status`, `live-start`, `live-stop`, `visual-capture`, `score`, `review`, `consolidate`, `report`, `verify`, and `cleanup`. Use `agent-workflow benchmark --help` for the live command tree.
+
+## BM6 blind execute-and-seal study
+
+BM6 uses a new **Change Window Planner** task family. The execution suite intentionally contains no reference implementation, no `evaluation/` directory, and no local hidden evaluator. The public scoring contract freezes the dimensions and evidence identities, while the evaluator executable is referenced as `external://score.py` and can be supplied only after execution is sealed.
+
+Run the blind study with:
+
+```bash
+bash scripts/run-bm6-blind.sh \
+  --root /path/to/artifacts/bm6-run \
+  --repetitions 1
+```
+
+The runner performs only:
+
+```text
+export task -> create fixture -> readiness -> plan -> paired execution -> execution seal -> seal verification
+```
+
+It deliberately does **not** run visual capture, machine scoring, consolidation, or reporting. The execution seal hashes the immutable run plan, each final arm worktree tree, and execution-stage evidence before any scorer is introduced.
+
+Later, after a scoring bundle is prepared separately:
+
+```bash
+agent-workflow benchmark score RUN_PLAN.json \
+  --scoring-bundle /path/to/scoring-bundle
+```
+
+The scorer bundle must contain the externally referenced evaluator, and its tree digest plus the evaluator SHA-256 are recorded with scoring evidence. Any post-seal mutation of an arm worktree or execution evidence invalidates the seal and blocks new scoring.
 
 ## Advisory TypeSafe source review
 
