@@ -638,8 +638,16 @@ def verify_benchmark_execution_seal(settings: Settings, run: str | Path) -> dict
     return verify_execution_seal(_resolve_plan(settings, run))
 
 
-def score_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
-    return score_run(_resolve_plan(settings, run))
+def score_benchmark(
+    settings: Settings,
+    run: str | Path,
+    *,
+    scoring_bundle: Path | None = None,
+) -> dict[str, Any]:
+    return score_run(
+        _resolve_plan(settings, run),
+        scoring_bundle=scoring_bundle,
+    )
 
 
 def consolidate_benchmark(settings: Settings, run: str | Path) -> dict[str, Any]:
