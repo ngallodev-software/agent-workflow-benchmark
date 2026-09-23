@@ -1,0 +1,1 @@
+Inspect the starter repository and canonical requirements. Produce or update `BENCHMARK_PLAN.md` with a requirements map, intended file changes, verification plan, risks, and explicit non-targets. Do not implement the solution in this phase.
