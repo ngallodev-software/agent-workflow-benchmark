@@ -136,3 +136,81 @@ def test_product_score_awards_partial_export_and_invalid_state(tmp_path: Path) -
     )
     assert score["state"] == "scored"
     assert score["score"] == 79
+
+
+def test_product_score_v2_scores_explainability_styling_and_debug(tmp_path: Path) -> None:
+    worktree = tmp_path / "worktree"
+    stage = tmp_path / "stage"
+    (worktree / "data").mkdir(parents=True)
+    (stage / "visual").mkdir(parents=True)
+    (worktree / "data" / "backlog.json").write_text(
+        json.dumps([{"id": str(i)} for i in range(6)]),
+        encoding="utf-8",
+    )
+    checks = [
+        "ui.labels-landmark",
+        "ui.search-filter-sort",
+        "ui.keyboard-detail",
+        "ui.visible-focus",
+        "ui.responsive",
+        "ui.download",
+        "ui.empty-invalid",
+        "ui.export-feedback",
+        "ui.factor-descriptions",
+        "ui.visual-hierarchy",
+        "ui.status-styling",
+        "ui.debug-observability",
+    ]
+    (stage / "visual" / "assessment.json").write_text(
+        json.dumps({
+            "observations": {
+                "live": {
+                    "item_count": 6,
+                    "console_error_count": 0,
+                    "navigation_error_count": 0,
+                },
+                "download": {"rows": 6, "json_download": True},
+                "empty_invalid": {"empty_ok": True, "invalid_ok": True},
+                "export_feedback": {"visible": True, "text": "JSON export complete"},
+                "debug": {
+                    "hidden_by_default": True,
+                    "visible_when_enabled": True,
+                    "bound_controls_ok": True,
+                    "request_ok": True,
+                    "state_updates": True,
+                    "errors_ok": True,
+                    "non_destructive": True,
+                },
+            },
+            "checks": [{"id": item, "passed": True} for item in checks],
+        }),
+        encoding="utf-8",
+    )
+    components = _machine_components()
+    next(x for x in components if x["dimension"] == "hidden_functional")["earned_points"] = 45
+    next(x for x in components if x["dimension"] == "engineering_quality")["earned_points"] = 10
+    contract_path = tmp_path / "contract.json"
+    contract = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "agent_workflow_benchmark"
+            / "assets"
+            / "benchmarks"
+            / "priority-picker-v3"
+            / "product-scoring-contract.json"
+        ).read_text(encoding="utf-8")
+    )
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    score = score_end_to_end_product(
+        worktree=worktree,
+        stage=stage,
+        machine_components=components,
+        contract=contract,
+        contract_path=contract_path,
+    )
+    assert score["state"] == "scored"
+    assert score["id"] == "end-to-end-product/v2"
+    assert score["score"] == 100
+    debug = next(x for x in score["dimensions"] if x["id"] == "debug_observability")
+    assert debug["earned_points"] == 10

@@ -1,0 +1,1 @@
+Run the public tests and relevant standard-library checks, exercise the application, inspect responsive and keyboard behavior where tooling permits, repair defects, and leave the worktree in its best final state. Do not weaken requirements or tests.

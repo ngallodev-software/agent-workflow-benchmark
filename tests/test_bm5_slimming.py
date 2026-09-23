@@ -17,6 +17,9 @@ def test_bm5_export_declares_steering_first_fast_path(tmp_path: Path) -> None:
     candidate = spec["arms"]["candidate"]
 
     assert result["study"] == "bm5-structured-direct-vs-agent-workflow-slimmed"
+    assert result["benchmark_id"] == "priority-picker-v3"
+    assert spec["benchmark_id"] == "priority-picker-v3"
+    assert spec["version"] == "3.0.0"
     assert result["model"] == "gpt-6-luna"
     assert result["effort"] == "high"
     assert candidate["treatment_id"] == "agent-workflow-bm5/v1"
@@ -81,3 +84,28 @@ def test_bm5_verify_phase_skips_only_after_completed_implementation(tmp_path: Pa
         }
     }
     assert _bm5_should_skip_verify(bm4, arm, verify) is False
+
+
+def test_bm5_v3_task_requires_explainability_styling_and_debug_observability(tmp_path: Path) -> None:
+    destination = tmp_path / "suite"
+    export_bm5_slimmed_suite(destination, agent_class="implementation")
+    task = (destination / "canonical-task.md").read_text(encoding="utf-8")
+    product = json.loads((destination / "product-scoring-contract.json").read_text(encoding="utf-8"))
+
+    for required in (
+        'data-testid="factor-help"',
+        'data-testid="factor-tooltip"',
+        'data-testid="summary-strip"',
+        'data-testid="control-panel"',
+        'data-testid="status-badge"',
+        'data-testid="export-status"',
+        'data-testid="debug-toggle"',
+        'data-testid="debug-panel"',
+        'data-testid="debug-bound-controls"',
+        'data-testid="debug-data-request"',
+        'data-testid="debug-state"',
+        'data-testid="debug-errors"',
+    ):
+        assert required in task
+    assert product["id"] == "end-to-end-product/v2"
+    assert next(item for item in product["dimensions"] if item["id"] == "debug_observability")["max_points"] == 10

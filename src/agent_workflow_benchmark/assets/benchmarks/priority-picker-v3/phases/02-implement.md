@@ -1,0 +1,1 @@
+Implement the complete canonical task within the allowed writable scope. Keep the solution dependency-free and bounded. Add focused tests and documentation while preserving the supplied backlog fixture.

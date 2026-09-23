@@ -380,7 +380,7 @@ def export_bm5_slimmed_suite(
     """Export BM5: GPT-6 Luna direct vs steering-first Agent-Workflow fast path."""
     result = export_builtin_suite(
         destination,
-        benchmark_id="priority-picker-v2",
+        benchmark_id="priority-picker-v3",
         force=force,
     )
     claude_profile = destination / "executors" / "claude-subscription.json"
