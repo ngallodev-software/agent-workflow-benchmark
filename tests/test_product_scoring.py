@@ -94,6 +94,7 @@ def test_product_score_gates_item_dependent_credit_when_browser_renders_zero(tmp
         contract=contract,
         contract_path=contract_path,
     )
+    assert score["state"] == "scored"
     assert score["score"] == 49
     integration = next(x for x in score["dimensions"] if x["id"] == "end_to_end_data_integration")
     assert integration["earned_points"] == 5
@@ -133,4 +134,5 @@ def test_product_score_awards_partial_export_and_invalid_state(tmp_path: Path) -
         contract=contract,
         contract_path=contract_path,
     )
+    assert score["state"] == "scored"
     assert score["score"] == 79
