@@ -76,6 +76,9 @@ def test_visual_recovery_script_preserves_execution_and_surfaces_failures() -> N
     assert "visual-history" in text
     assert "failure_details" in text
     assert "assessment" in text
+    assert "harness-substitution.json" in text
+    assert "model_execution_modified" in text
+    assert "capture_visual.original.py" in text
 
 
 def test_bm4_script_fails_fast_before_scoring_on_visual_failure() -> None:
