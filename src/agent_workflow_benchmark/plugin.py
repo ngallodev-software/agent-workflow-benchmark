@@ -45,6 +45,8 @@ def configure(parser: argparse.ArgumentParser) -> None:
         a = c.add_parser(name, help=helps[name]); a.add_argument("run")
         if name == "run":
             a.add_argument("--execution-only", action="store_true", help="execute planned pairs without visual/review finalization")
+        if name == "score":
+            a.add_argument("--scoring-bundle", type=Path, help="external post-seal scorer bundle directory")
         if name == "cleanup":
             a.add_argument("--remove-worktrees", action="store_true"); a.add_argument("--stop-live-apps", action="store_true")
     a = c.add_parser("review", help="record a benchmark human review"); a.add_argument("run"); a.add_argument("--reviewer", required=True); a.add_argument("--input", type=Path)
