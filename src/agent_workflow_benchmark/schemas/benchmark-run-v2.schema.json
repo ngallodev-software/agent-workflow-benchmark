@@ -833,8 +833,15 @@
           "type": "string"
         },
         "evaluator_sha256": {
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "evaluator_version": {
           "maxLength": 64,
@@ -849,6 +856,11 @@
         "scoring_contract_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "type": "string"
+        },
+        "evaluator_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
         }
       },
       "required": [
@@ -857,7 +869,8 @@
         "scorer_version",
         "evaluator_version",
         "scoring_contract_sha256",
-        "evaluator_sha256"
+        "evaluator_sha256",
+        "evaluator_ref"
       ],
       "type": "object"
     },
