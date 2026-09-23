@@ -1,0 +1,31 @@
+{
+  "schema": "agent-workflow/benchmark-operating-policy/v1",
+  "policy_id": "blind-development/v1",
+  "claim_level": "development",
+  "repetitions": 1,
+  "infrastructure_retries": 1,
+  "assistance_cohort": "unassisted",
+  "cache_policy": {
+    "mode": "provider-managed-recorded",
+    "mixing_prohibited": true,
+    "record_cached_tokens": true
+  },
+  "retry_policy": {
+    "classification": "infrastructure-only",
+    "fresh_pair_worktrees": true,
+    "retain_all_attempts": true
+  },
+  "interrupted_pair_policy": "discard-pair-and-retry-fresh",
+  "authentication_default": "subscription-session",
+  "allowed_authentication_modes": [
+    "subscription-session"
+  ],
+  "winner_policy": {
+    "enabled": false,
+    "minimum_eligible_pairs": 10,
+    "minimum_composite_delta": 5,
+    "confidence_level": 0.95,
+    "max_machine_regression": 3,
+    "max_human_regression": 3
+  }
+}
