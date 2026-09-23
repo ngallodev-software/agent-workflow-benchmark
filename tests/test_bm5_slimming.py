@@ -66,7 +66,7 @@ def test_bm5_verify_phase_uses_green_completion_evidence_even_if_phase_state_fai
     }
     verify = {"id": "verify-repair"}
 
-    phase_dir = tmp_path / "stage" / "phases" / "implement"
+    phase_dir = tmp_path / "stage" / "ph" / "p2"
     phase_dir.mkdir(parents=True)
     run_root = tmp_path / "aw-run"
     handoff = run_root / "handoff"

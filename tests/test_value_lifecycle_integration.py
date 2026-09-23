@@ -176,6 +176,24 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     plan = read_object(plan_path)
     assert all(item["passed"] for item in plan["treatment_runtime_checks"])
 
+    coordinator = Path(plan["coordinator"]["worktree"])
+    assert coordinator.name == "c"
+    assert Path(plan["coordinator"]["run_dir"]) == coordinator / ".awb" / "run"
+    pair = plan["pairs"][0]
+    attempt = pair["attempts"][0]
+    root = coordinator.parent
+    for arm_name, short_name in (("control_raw", "c"), ("workflow_full", "w")):
+        arm = attempt["arms"][arm_name]
+        worktree = Path(arm["worktree"])
+        assert worktree.relative_to(root).parts == ("p001", "a01", short_name)
+        stage = Path(arm["stage_dir"])
+        assert stage == worktree / ".awb"
+        prompt_names = [Path(item["path"]).name for item in arm["prompts"]]
+        assert prompt_names == ["01.md", "02.md", "03.md"]
+        deepest = stage / "ph" / "p-00000000" / "agent-workflow-execution-metrics.json"
+        assert len(str(deepest)) < 240
+        assert len(str(deepest)) < 256
+
     executed = run_benchmark(settings, plan_path, execution_only=True)
     assert executed["state"] == "executed"
     assert executed["pairs_terminal"] == 1
@@ -187,13 +205,9 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     assert executed["report"] is None
 
     pair = plan["pairs"][0]
-    pair_state_path = (
-        Path(plan["coordinator"]["run_dir"])
-        / "pair-state"
-        / str(pair["case_id"])
-        / f"r{int(pair['repetition']):02d}"
-        / "pair.json"
-    )
+    pair_state_paths = list((Path(plan["coordinator"]["run_dir"]) / "ps").glob("*/pair.json"))
+    assert len(pair_state_paths) == 1
+    pair_state_path = pair_state_paths[0]
     pair_state = read_object(pair_state_path)
     candidate_path = Path(pair_state["arms"]["workflow_full"])
     candidate = read_object(candidate_path)
@@ -203,7 +217,8 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
 
     candidate_stage = Path(candidate["stage_dir"])
     for phase in candidate["phases"]:
-        phase_dir = candidate_stage / "phases" / str(phase["phase_id"])
+        phase_dir = Path(phase["phase_json"]).parent
+        assert phase_dir.is_relative_to(candidate_stage / "ph")
         aw_evidence = read_object(phase_dir / "agent-workflow-run.json")
         assert aw_evidence["status"] == "completed"
         assert aw_evidence["delegate_error"] is None

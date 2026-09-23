@@ -37,7 +37,11 @@
       ]
     },
     "codebase_memory_mode": {
-      "enum": ["none", "mcp", "cli"]
+      "enum": [
+        "none",
+        "mcp",
+        "cli"
+      ]
     },
     "coordinator": {
       "additionalProperties": false,
@@ -48,27 +52,27 @@
           "type": "string"
         },
         "executor_config_path": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         },
         "run_dir": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         },
         "spec_path": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         },
         "suite_dir": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         },
         "worktree": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         }
@@ -263,7 +267,7 @@
                           "type": "string"
                         },
                         "path": {
-                          "maxLength": 4096,
+                          "maxLength": 239,
                           "minLength": 1,
                           "type": "string"
                         },
@@ -289,7 +293,7 @@
                     ]
                   },
                   "stage_dir": {
-                    "maxLength": 4096,
+                    "maxLength": 239,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -298,7 +302,7 @@
                     "type": "string"
                   },
                   "worktree": {
-                    "maxLength": 4096,
+                    "maxLength": 239,
                     "minLength": 1,
                     "type": "string"
                   }
@@ -353,7 +357,7 @@
                           "type": "string"
                         },
                         "path": {
-                          "maxLength": 4096,
+                          "maxLength": 239,
                           "minLength": 1,
                           "type": "string"
                         },
@@ -379,7 +383,7 @@
                     ]
                   },
                   "stage_dir": {
-                    "maxLength": 4096,
+                    "maxLength": 239,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -388,7 +392,7 @@
                     "type": "string"
                   },
                   "worktree": {
-                    "maxLength": 4096,
+                    "maxLength": 239,
                     "minLength": 1,
                     "type": "string"
                   }
@@ -457,7 +461,7 @@
                                 "type": "string"
                               },
                               "path": {
-                                "maxLength": 4096,
+                                "maxLength": 239,
                                 "minLength": 1,
                                 "type": "string"
                               },
@@ -483,7 +487,7 @@
                           ]
                         },
                         "stage_dir": {
-                          "maxLength": 4096,
+                          "maxLength": 239,
                           "minLength": 1,
                           "type": "string"
                         },
@@ -492,7 +496,7 @@
                           "type": "string"
                         },
                         "worktree": {
-                          "maxLength": 4096,
+                          "maxLength": 239,
                           "minLength": 1,
                           "type": "string"
                         }
@@ -547,7 +551,7 @@
                                 "type": "string"
                               },
                               "path": {
-                                "maxLength": 4096,
+                                "maxLength": 239,
                                 "minLength": 1,
                                 "type": "string"
                               },
@@ -573,7 +577,7 @@
                           ]
                         },
                         "stage_dir": {
-                          "maxLength": 4096,
+                          "maxLength": 239,
                           "minLength": 1,
                           "type": "string"
                         },
@@ -582,7 +586,7 @@
                           "type": "string"
                         },
                         "worktree": {
-                          "maxLength": 4096,
+                          "maxLength": 239,
                           "minLength": 1,
                           "type": "string"
                         }

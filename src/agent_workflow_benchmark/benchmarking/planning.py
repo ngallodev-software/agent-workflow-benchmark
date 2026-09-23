@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import hashlib
 import json
 import platform
 import secrets
@@ -41,6 +42,22 @@ other worktrees, hidden evaluator files, credentials, or unrelated host state. D
 change the canonical task requirements. Stop when the requested phase is complete.
 All benchmark-owned evidence paths are host managed and are not task deliverables.
 """
+
+MAX_GENERATED_PATH_CHARS = 240
+
+
+def _run_fs_id(run_id: str) -> str:
+    return "r-" + hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:12]
+
+
+def _require_path_budget(path: Path, label: str) -> None:
+    text = str(path)
+    if len(text) >= MAX_GENERATED_PATH_CHARS:
+        raise WorkflowError(
+            f"{label} path is {len(text)} characters; benchmark-generated paths "
+            f"must stay below {MAX_GENERATED_PATH_CHARS}: {text}"
+        )
+
 
 
 def _run_id(benchmark_id: str) -> str:
@@ -352,8 +369,12 @@ def create_run_plan(
     base_revision = str(run(["git", "-C", str(source.root), "rev-parse", "--verify", f"{base_ref}^{{commit}}" ]).stdout).strip()
     requested_repetitions = int(effective_policy["repetitions"])
     run_id = validate_id(run_id or _run_id(str(spec["benchmark_id"])), "benchmark run ID")
-    root = (worktree_root or settings.worktree_root).expanduser().resolve() / "benchmarks" / run_id
-    coordinator = root / "coordinator"
+    root = (worktree_root or settings.worktree_root).expanduser().resolve() / "benchmarks" / _run_fs_id(run_id)
+    coordinator = root / "c"
+    _require_path_budget(
+        coordinator / ".awb" / "suite" / "benchmark-spec.json",
+        "benchmark coordinator",
+    )
     if root.exists():
         raise WorkflowError(f"benchmark worktree root already exists: {root}")
 
@@ -376,11 +397,11 @@ def create_run_plan(
         fixture_input = child(coordinator, spec["fixture"]["target_input_path"], "fixture target input")
         if not fixture_input.is_file():
             raise WorkflowError(f"fixture target input not found: {fixture_input}")
-        run_dir = coordinator / "benchmarks" / "runs" / run_id
-        # The coordinator and worktree root already carry run_id.  Repeating
-        # it inside every stage made otherwise valid runs exceed filesystem
-        # path limits after agents had spent their token budget.
-        suite_dir = coordinator / ".agent-workflow-benchmark" / "suite"
+        # Keep generated filesystem identities compact. Semantic IDs remain in
+        # the plan/evidence JSON, so repeating them in every directory only
+        # increases path length without adding provenance.
+        run_dir = coordinator / ".awb" / "run"
+        suite_dir = coordinator / ".awb" / "suite"
         _copy_suite(spec_path, suite_dir)
         suite_spec = suite_dir / spec_path.name
         runtime_lock_name = "visual-runtime-lock.effective.json"
@@ -451,12 +472,15 @@ def create_run_plan(
 
         retries = int(spec["scheduling"]["infrastructure_retries"])
         pairs: list[dict[str, Any]] = []
+        pair_number = 0
         for case in spec["cases"]:
             input_path = child(spec_path.parent, case["input_path"], "case input")
             input_sha256 = sha256_file(input_path)
             if input_sha256 != sha256_file(fixture_input):
                 raise WorkflowError(f"case {case['id']} input does not match fixture target {spec['fixture']['target_input_path']}")
             for repetition in range(1, requested_repetitions + 1):
+                pair_number += 1
+                pair_fs_id = f"p{pair_number:03d}"
                 pair_id = f"{case['id']}-r{repetition:02d}"
                 attempts: list[dict[str, Any]] = []
                 for attempt_number in range(1, retries + 2):
@@ -467,19 +491,24 @@ def create_run_plan(
                         slots.reverse()
                     arms: dict[str, Any] = {}
                     for slot, arm in zip(("A", "B"), slots, strict=True):
-                        destination = root / str(case["id"]) / f"r{repetition:02d}" / f"attempt-{attempt_number:02d}" / arm
+                        arm_fs_id = "c" if arm == "control_raw" else "w"
+                        destination = root / pair_fs_id / f"a{attempt_number:02d}" / arm_fs_id
                         branch = f"benchmark/{run_id}/{case['id']}/r{repetition:02d}/a{attempt_number:02d}/{arm}"
                         info = create_worktree(
                             settings, repo=source.root, ticket_id=f"benchmark-{run_id}-{attempt_id}-{arm}",
                             base_ref=base_revision, destination=destination, branch=branch, allow_dirty=allow_dirty,
                         )
                         created_worktrees.append(info)
-                        stage = destination / ".agent-workflow-benchmark" / str(case["id"]) / f"r{repetition:02d}" / f"attempt-{attempt_number:02d}" / arm
-                        prompts_dir = stage / "prompts"
+                        stage = destination / ".awb"
+                        _require_path_budget(
+                            stage / "ph" / "p-00000000" / "agent-workflow-execution-metrics.json",
+                            "benchmark arm evidence",
+                        )
+                        prompts_dir = stage / "p"
                         prompts_dir.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(input_path, stage / "case-input.json")
+                        shutil.copy2(input_path, stage / "input.json")
                         effective_prompts: list[dict[str, Any]] = []
-                        for phase in spec["phases"]:
+                        for phase_index, phase in enumerate(spec["phases"], start=1):
                             prompt = _effective_prompt(
                                 canonical_task=canonical_task,
                                 phase_prompt=_read_text(child(spec_path.parent, phase["prompt_path"], "phase prompt")),
@@ -488,7 +517,7 @@ def create_run_plan(
                                 phase_id=str(phase["id"]), case_id=str(case["id"]),
                                 codebase_memory_mode=codebase_memory_mode,
                             )
-                            prompt_file = prompts_dir / f"{phase['id']}.md"
+                            prompt_file = prompts_dir / f"{phase_index:02d}.md"
                             prompt_file.write_text(prompt, encoding="utf-8")
                             effective_prompts.append({
                                 "phase_id": phase["id"], "path": str(prompt_file),
