@@ -24,6 +24,8 @@ from .benchmarking import (
     resume_benchmark,
     run_benchmark,
     score_benchmark,
+    seal_benchmark_execution,
+    verify_benchmark_execution_seal,
     seal_benchmark_runtime,
     status_benchmark,
     start_live_benchmark,
@@ -64,6 +66,10 @@ def handle_benchmark_command(
             args.output,
             container_image=args.container_image,
         )
+    if command == "seal":
+        return seal_benchmark_execution(settings, args.run)
+    if command == "seal-verify":
+        return verify_benchmark_execution_seal(settings, args.run)
     if command == "suite-export":
         return export_benchmark_suite(
             args.destination,
