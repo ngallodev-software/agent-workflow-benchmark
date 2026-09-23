@@ -65,8 +65,8 @@ def build_report(plan_path: Path) -> dict[str, Any]:
     minimum_reviewers = int(spec["visual"]["minimum_reviewers"][plan["claim_level"]])
     pair_reports: list[dict[str, Any]] = []
     arm_aggregates: dict[str, dict[str, list[float]]] = {
-        "control_raw": {"machine": [], "eligible_machine": [], "human": [], "composite": [], "wall": [], "measured": [], "active": [], "visual": [], "verification": [], "tokens": [], "provider_cost": [], "local_cost": [], "subscription_cost": []},
-        "workflow_full": {"machine": [], "eligible_machine": [], "human": [], "composite": [], "wall": [], "measured": [], "active": [], "visual": [], "verification": [], "tokens": [], "provider_cost": [], "local_cost": [], "subscription_cost": []},
+        "control_raw": {"machine": [], "product": [], "eligible_machine": [], "human": [], "composite": [], "wall": [], "measured": [], "active": [], "visual": [], "verification": [], "tokens": [], "provider_cost": [], "local_cost": [], "subscription_cost": []},
+        "workflow_full": {"machine": [], "product": [], "eligible_machine": [], "human": [], "composite": [], "wall": [], "measured": [], "active": [], "visual": [], "verification": [], "tokens": [], "provider_cost": [], "local_cost": [], "subscription_cost": []},
     }
     eligible_pairs = 0
     complete_human_pairs = 0
@@ -102,6 +102,9 @@ def build_report(plan_path: Path) -> dict[str, Any]:
             score = read_object(arm_dir / "score.json")
             arm_value = read_object(arm_dir / "arm.json")
             machine = score.get("machine_score")
+            product_path = arm_dir / "product-score.json"
+            product_value = read_object(product_path) if product_path.is_file() else None
+            product = product_value.get("score") if isinstance(product_value, Mapping) else None
             machine_eligible = score["eligibility"]["state"] == "eligible" and machine is not None
             pair_machine_eligible = pair_machine_eligible and machine_eligible
             human = _mean(human_by_arm[arm]) if human_complete else None
@@ -153,6 +156,8 @@ def build_report(plan_path: Path) -> dict[str, Any]:
             arm_results[arm] = {
                 "eligibility": score["eligibility"],
                 "machine_score": machine,
+                "product_score": product,
+                "product_score_detail": product_value,
                 "eligible_machine_score": machine if machine_eligible else None,
                 "human_visual_score": human,
                 "reviewers": len(pair_reviews),
@@ -178,6 +183,8 @@ def build_report(plan_path: Path) -> dict[str, Any]:
             aggregate = arm_aggregates[arm]
             if machine is not None:
                 aggregate["machine"].append(float(machine))
+            if product is not None:
+                aggregate["product"].append(float(product))
             if machine_eligible:
                 aggregate["eligible_machine"].append(float(machine))
             if human is not None:
@@ -226,7 +233,7 @@ def build_report(plan_path: Path) -> dict[str, Any]:
                         if arm_results["workflow_full"][field] is not None and arm_results["control_raw"][field] is not None
                         else None
                     )
-                    for field in ("machine_score", "human_visual_score", "composite_score", "wall_seconds", "measured_total_seconds")
+                    for field in ("machine_score", "product_score", "human_visual_score", "composite_score", "wall_seconds", "measured_total_seconds")
                 },
             }
         )
@@ -234,6 +241,7 @@ def build_report(plan_path: Path) -> dict[str, Any]:
     for arm, values in arm_aggregates.items():
         aggregates[arm] = {
             "mean_machine_score": _mean(values["machine"]),
+            "mean_product_score": _mean(values["product"]),
             "mean_eligible_machine_score": _mean(values["eligible_machine"]),
             "mean_human_visual_score": _mean(values["human"]),
             "mean_composite_score": _mean(values["composite"]),
@@ -250,14 +258,14 @@ def build_report(plan_path: Path) -> dict[str, Any]:
             "complete_composites": len(values["composite"]),
         }
     delta_fields = {
-        "machine_score": [], "human_visual_score": [], "composite_score": [],
+        "machine_score": [], "product_score": [], "human_visual_score": [], "composite_score": [],
         "wall_seconds": [], "measured_total_seconds": [], "provider_total_tokens": [],
         "provider_billed_cost": [], "local_estimated_cost": [], "qualified_pass": [],
     }
     for item in pair_reports:
         control = item["arms"]["control_raw"]
         workflow = item["arms"]["workflow_full"]
-        for field in ("machine_score", "human_visual_score", "composite_score", "wall_seconds", "measured_total_seconds"):
+        for field in ("machine_score", "product_score", "human_visual_score", "composite_score", "wall_seconds", "measured_total_seconds"):
             if control.get(field) is not None and workflow.get(field) is not None:
                 delta_fields[field].append(float(workflow[field]) - float(control[field]))
         for field in ("provider_total_tokens", "provider_billed_cost", "local_estimated_cost"):
@@ -312,6 +320,7 @@ def build_report(plan_path: Path) -> dict[str, Any]:
         result_state = "awaiting_human_review"
     limitations = [
         "Efficiency metrics are descriptive and do not add machine-quality points.",
+        "Supplementary product scores are a separate end-to-end lens and do not participate in composite or winner policy.",
         "A winner is not declared unless the frozen winner policy is enabled and its sample threshold is met.",
         "Observed machine scores remain reportable when a guardrail fails; only eligible machine scores may contribute to composites or winner claims.",
         "Publication eligibility additionally requires verified filesystem/oracle isolation and publication-verified visual runtime evidence.",
@@ -387,8 +396,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "",
         "## Arm aggregates",
         "",
-        "| Arm | Machine | Human visual | Composite | Task wall | Measured total | Tokens | Provider cost | Local estimate |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Arm | Machine | Product | Human visual | Composite | Task wall | Measured total | Tokens | Provider cost | Local estimate |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for arm in ("control_raw", "workflow_full"):
         item = report["aggregates"][arm]
@@ -399,6 +408,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
                 [
                     f"`{arm}`",
                     show(item["mean_machine_score"]),
+                    show(item.get("mean_product_score")),
                     show(item["mean_human_visual_score"]),
                     show(item["mean_composite_score"]),
                     show(item["mean_wall_seconds"]),
@@ -420,13 +430,14 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"{timing['pair_start_skew_seconds']}s."
         )
         lines.append("")
-        lines.append("| Arm | Eligible | Machine | Human | Composite | Task wall | Measured total |")
-        lines.append("|---|---|---:|---:|---:|---:|---:|")
+        lines.append("| Arm | Eligible | Machine | Product | Human | Composite | Task wall | Measured total |")
+        lines.append("|---|---|---:|---:|---:|---:|---:|---:|")
         for arm in ("control_raw", "workflow_full"):
             item = pair["arms"][arm]
             lines.append(
                 f"| `{arm}` | {item['eligibility']['state']} | "
                 f"{item['machine_score'] if item['machine_score'] is not None else '—'} | "
+                f"{item.get('product_score') if item.get('product_score') is not None else '—'} | "
                 f"{item['human_visual_score'] if item['human_visual_score'] is not None else '—'} | "
                 f"{item['composite_score'] if item['composite_score'] is not None else '—'} | "
                 f"{item['wall_seconds']} | "
