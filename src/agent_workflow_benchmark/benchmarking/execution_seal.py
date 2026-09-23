@@ -28,7 +28,7 @@ def _execution_stage_inventory(stage: Path) -> list[dict[str, Any]]:
 def _worktree_sha256(worktree: Path) -> str:
     return tree_sha256(
         worktree,
-        exclude=(".git", ".agent-workflow-benchmark"),
+        exclude=(".git", ".agent-workflow-benchmark", ".awb"),
     )
 
 
