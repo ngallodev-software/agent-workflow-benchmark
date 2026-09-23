@@ -9,7 +9,7 @@ Agent-Workflow. It owns benchmark-specific execution, suites, schemas,
 scoring/reporting, visual capture, sealed-run evidence, external scoring bundles,
 and historical matched-cohort compatibility commands.
 
-The design goal is reproducible comparison rather than benchmark theater:
+The design goal is reproducible comparison rather than headline-only metrics:
 treatment identity, execution evidence, post-run scoring, eligibility, and known
 limitations are kept explicit enough to inspect independently. Agent-Workflow
 core continues to own generic evaluation, review/acceptance, lifecycle, and plugin
