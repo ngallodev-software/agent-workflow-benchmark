@@ -72,3 +72,10 @@ def test_publication_includes_portfolio_evidence() -> None:
         "typesafe-qualification-summary.json",
     ):
         assert required in text
+
+
+def test_publication_preserves_existing_bm4_metadata() -> None:
+    text = PUBLISHER.read_text(encoding="utf-8")
+    assert "generated_entries" in text
+    assert '"optimization-ledger.md"' not in text
+    assert "shutil.rmtree(destination)" not in text
