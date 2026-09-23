@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.7` declares `agent-workflow>=0.11.9,<0.12`; Agent-Workflow `0.11.9` is the minimum supported core for the execution-seal and BM6 blind-run workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.8` declares `agent-workflow>=0.11.9,<0.12`; Agent-Workflow `0.11.9` is the minimum supported core for the execution-seal and BM6 blind-run workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -99,7 +99,7 @@ Execution-only runs must be sealed before new machine scoring begins. The seal f
 
 ## Compact benchmark paths
 
-Benchmark 0.3.7 shortens generated runtime paths without changing semantic run IDs or evidence identities. Coordinator artifacts use `c/.awb`, paired worktrees use `pNNN/aNN/{c|w}`, and per-arm stage data lives directly under `.awb`. Terminal evidence schemas accept normal filesystem-length paths up to 4096 characters.
+Benchmark 0.3.8 shortens generated runtime paths without changing semantic run IDs or evidence identities. Coordinator artifacts use `c/.awb`, paired worktrees use `pNNN/aNN/{c|w}`, and per-arm stage data lives directly under `.awb`. Generated benchmark filesystem paths are capped below 240 characters; semantic IDs remain in JSON evidence.
 
 ## BM6 blind execute-and-seal study
 
@@ -214,7 +214,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.7` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.8` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -267,7 +267,7 @@ is `product-scoring-contract.json` with scorer ID
 
 ## BM5 steering-first Agent-Workflow study
 
-Benchmark plugin 0.3.7 adds the pre-BM5 treatment exported by:
+Benchmark plugin 0.3.8 adds the pre-BM5 treatment exported by:
 
 ```bash
 agent-workflow benchmark bm5-export /path/to/suite

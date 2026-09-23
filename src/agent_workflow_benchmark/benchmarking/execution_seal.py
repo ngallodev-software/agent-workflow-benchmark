@@ -28,8 +28,123 @@ def _execution_stage_inventory(stage: Path) -> list[dict[str, Any]]:
 def _worktree_sha256(worktree: Path) -> str:
     return tree_sha256(
         worktree,
-        exclude=(".git", ".agent-workflow-benchmark"),
+        exclude=(".git", ".agent-workflow-benchmark", ".awb"),
     )
+
+
+def _pair_receipts(run_dir: Path) -> dict[str, tuple[Path, dict[str, Any]]]:
+    result: dict[str, tuple[Path, dict[str, Any]]] = {}
+    for path in sorted((run_dir / "ps").glob("*/pair.json")):
+        value = read_object(path)
+        pair_id = str(value.get("pair_id") or "")
+        if not pair_id:
+            raise WorkflowError(f"benchmark pair receipt has no pair_id: {path}")
+        if pair_id in result:
+            raise WorkflowError(f"duplicate benchmark pair receipt for {pair_id}: {path}")
+        result[pair_id] = (path, value)
+    return result
+
+
+def _seal_executed_attempt(
+    *,
+    pair: Mapping[str, Any],
+    attempt_ref: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    evidence_path = Path(str(attempt_ref.get("evidence") or ""))
+    if not evidence_path.is_file():
+        raise WorkflowError(
+            "benchmark executed-attempt evidence is missing: "
+            f"{evidence_path}"
+        )
+    attempt = read_object(evidence_path)
+    if int(attempt.get("attempt", -1)) != int(attempt_ref.get("attempt", -2)):
+        raise WorkflowError(
+            f"benchmark attempt receipt mismatch: {evidence_path}"
+        )
+    if str(attempt.get("attempt_id") or "") != str(attempt_ref.get("attempt_id") or ""):
+        raise WorkflowError(
+            f"benchmark attempt identity mismatch: {evidence_path}"
+        )
+
+    planned_attempt = next(
+        (
+            item
+            for item in pair.get("attempts", [])
+            if int(item.get("attempt", -1)) == int(attempt_ref["attempt"])
+        ),
+        None,
+    )
+    if not isinstance(planned_attempt, dict):
+        raise WorkflowError(
+            f"executed benchmark attempt is not present in run plan: {evidence_path}"
+        )
+    if str(planned_attempt.get("attempt_id") or "") != str(attempt_ref["attempt_id"]):
+        raise WorkflowError(
+            f"executed benchmark attempt ID differs from run plan: {evidence_path}"
+        )
+
+    arms: list[dict[str, Any]] = []
+    arm_refs = attempt.get("arms")
+    if not isinstance(arm_refs, dict):
+        raise WorkflowError(
+            f"benchmark attempt receipt has no arm evidence map: {evidence_path}"
+        )
+    for arm_name in ("control_raw", "workflow_full"):
+        arm_path = Path(str(arm_refs.get(arm_name) or ""))
+        if not arm_path.is_file():
+            raise WorkflowError(
+                f"benchmark executed arm evidence is incomplete: {arm_path}"
+            )
+        arm_value = read_object(arm_path)
+        if str(arm_value.get("arm") or "") != arm_name:
+            raise WorkflowError(
+                f"benchmark arm receipt identity mismatch: {arm_path}"
+            )
+        planned_arm = planned_attempt.get("arms", {}).get(arm_name)
+        if not isinstance(planned_arm, dict):
+            raise WorkflowError(
+                f"benchmark run plan is missing executed arm {arm_name}"
+            )
+        worktree = Path(str(arm_value.get("worktree") or ""))
+        stage = Path(str(arm_value.get("stage_dir") or ""))
+        if worktree != Path(str(planned_arm.get("worktree") or "")):
+            raise WorkflowError(
+                f"benchmark arm worktree differs from run plan: {arm_path}"
+            )
+        if stage != Path(str(planned_arm.get("stage_dir") or "")):
+            raise WorkflowError(
+                f"benchmark arm stage differs from run plan: {arm_path}"
+            )
+        if not worktree.is_dir():
+            raise WorkflowError(
+                f"benchmark executed arm worktree is missing before seal: {worktree}"
+            )
+        if arm_path != stage / "arm.json":
+            raise WorkflowError(
+                f"benchmark arm evidence path does not match stage: {arm_path}"
+            )
+        arms.append(
+            {
+                "pair_id": str(pair["pair_id"]),
+                "case_id": str(pair["case_id"]),
+                "repetition": int(pair["repetition"]),
+                "attempt": int(attempt_ref["attempt"]),
+                "arm": arm_name,
+                "arm_receipt": str(arm_path),
+                "arm_receipt_sha256": sha256_file(arm_path),
+                "worktree": str(worktree),
+                "worktree_tree_sha256": _worktree_sha256(worktree),
+                "execution_stage": str(stage),
+                "execution_stage_inventory": _execution_stage_inventory(stage),
+            }
+        )
+    return arms, {
+        "attempt": int(attempt_ref["attempt"]),
+        "attempt_id": str(attempt_ref["attempt_id"]),
+        "state": str(attempt_ref.get("state") or ""),
+        "evidence": str(evidence_path),
+        "evidence_sha256": sha256_file(evidence_path),
+    }
 
 
 def _seal_payload(plan_path: Path) -> dict[str, Any]:
@@ -50,33 +165,52 @@ def _seal_payload(plan_path: Path) -> dict[str, Any]:
         )
 
     arms: list[dict[str, Any]] = []
+    executed_pairs: list[dict[str, Any]] = []
+    receipts = _pair_receipts(run_dir)
+    expected_pair_ids = {str(pair["pair_id"]) for pair in plan.get("pairs", [])}
+    if set(receipts) != expected_pair_ids:
+        missing = sorted(expected_pair_ids - set(receipts))
+        extra = sorted(set(receipts) - expected_pair_ids)
+        raise WorkflowError(
+            "benchmark terminal pair receipts do not match run plan: "
+            f"missing={missing}, extra={extra}"
+        )
+
     for pair in plan.get("pairs", []):
-        for attempt in pair.get("attempts", []):
-            for arm_name in ("control_raw", "workflow_full"):
-                arm = attempt["arms"][arm_name]
-                worktree = Path(str(arm["worktree"]))
-                stage = Path(str(arm["stage_dir"]))
-                if not worktree.is_dir():
-                    raise WorkflowError(
-                        f"benchmark arm worktree is missing before seal: {worktree}"
-                    )
-                if not (stage / "arm.json").is_file():
-                    raise WorkflowError(
-                        f"benchmark arm execution evidence is incomplete: {stage / 'arm.json'}"
-                    )
-                arms.append(
-                    {
-                        "pair_id": str(pair["pair_id"]),
-                        "case_id": str(pair["case_id"]),
-                        "repetition": int(pair["repetition"]),
-                        "attempt": int(attempt["attempt"]),
-                        "arm": arm_name,
-                        "worktree": str(worktree),
-                        "worktree_tree_sha256": _worktree_sha256(worktree),
-                        "execution_stage": str(stage),
-                        "execution_stage_inventory": _execution_stage_inventory(stage),
-                    }
+        pair_id = str(pair["pair_id"])
+        pair_path, pair_receipt = receipts[pair_id]
+        if str(pair_receipt.get("case_id") or "") != str(pair["case_id"]):
+            raise WorkflowError(f"benchmark pair case mismatch: {pair_path}")
+        if int(pair_receipt.get("repetition", -1)) != int(pair["repetition"]):
+            raise WorkflowError(f"benchmark pair repetition mismatch: {pair_path}")
+
+        executed_attempts: list[dict[str, Any]] = []
+        attempt_refs = pair_receipt.get("attempts")
+        if not isinstance(attempt_refs, list) or not attempt_refs:
+            raise WorkflowError(
+                f"benchmark pair has no executed-attempt receipts: {pair_path}"
+            )
+        for attempt_ref in attempt_refs:
+            if not isinstance(attempt_ref, dict):
+                raise WorkflowError(
+                    f"benchmark pair has invalid attempt evidence: {pair_path}"
                 )
+            attempt_arms, attempt_summary = _seal_executed_attempt(
+                pair=pair,
+                attempt_ref=attempt_ref,
+            )
+            arms.extend(attempt_arms)
+            executed_attempts.append(attempt_summary)
+
+        executed_pairs.append(
+            {
+                "pair_id": pair_id,
+                "pair_receipt": str(pair_path),
+                "pair_receipt_sha256": sha256_file(pair_path),
+                "selected_attempt": int(pair_receipt["selected_attempt"]),
+                "attempts": executed_attempts,
+            }
+        )
 
     payload: dict[str, Any] = {
         "schema": EXECUTION_SEAL_SCHEMA,
@@ -86,6 +220,7 @@ def _seal_payload(plan_path: Path) -> dict[str, Any]:
         "run_plan_path": str(plan_path),
         "run_plan_sha256": sha256_file(plan_path),
         "execution_state": "executed",
+        "executed_pairs": executed_pairs,
         "arms": arms,
     }
     payload["seal_sha256"] = canonical_json_sha256(payload)
@@ -141,6 +276,26 @@ def verify_execution_seal(plan_path: Path) -> dict[str, Any]:
     if observed_seal_sha != expected_seal_sha:
         mismatches.append("execution seal receipt hash is invalid")
 
+    for pair in seal.get("executed_pairs", []):
+        pair_path = Path(str(pair.get("pair_receipt", "")))
+        if not pair_path.is_file():
+            mismatches.append(
+                f"{pair.get('pair_id')}: terminal pair receipt is missing"
+            )
+        elif sha256_file(pair_path) != pair.get("pair_receipt_sha256"):
+            mismatches.append(
+                f"{pair.get('pair_id')}: terminal pair receipt changed after seal"
+            )
+        for attempt in pair.get("attempts", []):
+            evidence = Path(str(attempt.get("evidence", "")))
+            label = (
+                f"{pair.get('pair_id')} attempt={attempt.get('attempt')}"
+            )
+            if not evidence.is_file():
+                mismatches.append(f"{label}: attempt receipt is missing")
+            elif sha256_file(evidence) != attempt.get("evidence_sha256"):
+                mismatches.append(f"{label}: attempt receipt changed after seal")
+
     for item in seal.get("arms", []):
         label = (
             f"{item.get('pair_id')} attempt={item.get('attempt')} "
@@ -153,6 +308,12 @@ def verify_execution_seal(plan_path: Path) -> dict[str, Any]:
             observed = _worktree_sha256(worktree)
             if observed != item.get("worktree_tree_sha256"):
                 mismatches.append(f"{label}: worktree changed after seal")
+
+        arm_receipt = Path(str(item.get("arm_receipt", "")))
+        if not arm_receipt.is_file():
+            mismatches.append(f"{label}: arm receipt is missing")
+        elif sha256_file(arm_receipt) != item.get("arm_receipt_sha256"):
+            mismatches.append(f"{label}: arm receipt changed after seal")
 
         stage = Path(str(item.get("execution_stage", "")))
         if not stage.is_dir():
