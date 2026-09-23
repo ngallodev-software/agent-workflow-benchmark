@@ -285,10 +285,12 @@ def score_end_to_end_product(
         "id": str(contract["id"]),
         "role": "supplementary",
         "winner_interaction": "none",
+        "state": "scored",
         "score": total,
         "maximum_score": 100,
         "contract_sha256": sha256_file(contract_path),
         "scorer_version": str(contract["scorer_version"]),
         "dimensions": result_dimensions,
         "limitations": [str(item) for item in contract.get("limitations", [])],
+        "error": None,
     }
