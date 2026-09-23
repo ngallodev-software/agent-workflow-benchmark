@@ -804,7 +804,7 @@ def _bm5_skipped_phase(
     stage = Path(str(arm["stage_dir"]))
     before_snapshot, before_capture_seconds = _capture_tree_snapshot(
         Path(str(arm["worktree"])), excluded=Path(str(arm["stage_dir"])))
-    phase_dir = stage / "phases" / str(phase["id"])
+    phase_dir = _phase_dir(arm, str(phase["id"]))
     phase_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
     skip_reason = str(decision.get("reason") or "implementation acceptance passed")
@@ -889,7 +889,7 @@ def _run_agent_workflow_phase_arm(
     worktree = Path(str(arm["worktree"]))
     stage = Path(str(arm["stage_dir"]))
     prompt_file = _prompt_for(arm, str(phase["id"]))
-    phase_dir = stage / "phases" / str(phase["id"])
+    phase_dir = _phase_dir(arm, str(phase["id"]))
     phase_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
     before_snapshot, before_capture_seconds = _capture_tree_snapshot(
