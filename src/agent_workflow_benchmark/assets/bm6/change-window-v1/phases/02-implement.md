@@ -1,0 +1,1 @@
+Implement the Change Window Planner end to end. Add focused public tests and documentation. Run the acceptance commands you can execute in the environment and append actual evidence and remaining uncertainty to `BENCHMARK_PLAN.md`.
