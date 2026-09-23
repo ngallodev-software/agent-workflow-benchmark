@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.2` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.3` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -177,7 +177,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.2` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.3` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -227,6 +227,36 @@ score, composite, eligibility, or winner policy. Reports aggregate and compare i
 as a parallel diagnostic/product-completeness metric only. The versioned authority
 is `product-scoring-contract.json` with scorer ID
 `end-to-end-product/v1`.
+
+## BM5 steering-first Agent-Workflow study
+
+Benchmark plugin 0.3.3 adds the pre-BM5 treatment exported by:
+
+```bash
+agent-workflow benchmark bm5-export /path/to/suite
+```
+
+BM5 keeps GPT-6 Luna/high and the structured-direct control from BM4 while
+changing the Agent-Workflow candidate through OPT-010 through OPT-015:
+
+- one normal `agent finish` closeout transaction;
+- host-run/reused declared acceptance commands;
+- host-derived deterministic criterion evidence;
+- steering-first worker context with exceptional protocol commands;
+- per-command/tool-family/cache-hit amplification telemetry;
+- conditional verify/repair model invocation.
+
+For the Priority Picker study the candidate binds deterministic acceptance
+commands per phase. When the implementation phase completes with green
+acceptance verification, the separate candidate verify/repair model phase is
+recorded as a deterministic conditional skip rather than launching another
+model turn. If implementation verification cannot complete cleanly, the
+verify/repair phase remains available for repair.
+
+The candidate telemetry records normalized command families, Agent-Workflow
+protocol command counts, steering/ack message counts, acceptance-command
+executions, verification-cache hits/misses, and `agent finish` outcomes.
+These fields are descriptive diagnostics and do not change scoring.
 
 ## BM3 structured-direct study
 
