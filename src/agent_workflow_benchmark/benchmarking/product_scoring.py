@@ -83,8 +83,10 @@ def score_end_to_end_product(
     contract: Mapping[str, Any],
     contract_path: Path,
 ) -> dict[str, Any]:
-    if contract.get("id") != "end-to-end-product/v1":
-        raise WorkflowError(f"unsupported supplementary scoring contract: {contract.get('id')}")
+    contract_id = str(contract.get("id"))
+    if contract_id not in {"end-to-end-product/v1", "end-to-end-product/v2"}:
+        raise WorkflowError(f"unsupported supplementary scoring contract: {contract_id}")
+    product_v2 = contract_id == "end-to-end-product/v2"
     checks = _index_checks(machine_components)
     observations, visual = _observations(stage)
     fixture_value = json.loads((worktree / "data" / "backlog.json").read_text(encoding="utf-8"))
@@ -175,7 +177,7 @@ def score_end_to_end_product(
     state_passes = int(bool(state_obs.get("empty_ok"))) + int(bool(state_obs.get("invalid_ok")))
     state_earned = state_max if state_passes == 2 else (state_max / 2 if state_passes == 1 else 0.0)
 
-    add_dimension("required_interactions", [
+    interaction_checks = [
         _check(
             "product.interaction.search-filter-sort",
             _rule_max(interactions_def, "product.interaction.search-filter-sort"),
@@ -204,10 +206,22 @@ def score_end_to_end_product(
             f"empty_ok={bool(state_obs.get('empty_ok'))}; invalid_ok={bool(state_obs.get('invalid_ok'))}",
             ["visual:ui.empty-invalid", "visual:observations.empty_invalid"],
         ),
-    ])
+    ]
+    if product_v2:
+        feedback_max = _rule_max(interactions_def, "product.interaction.export-feedback")
+        interaction_checks.append(
+            _check(
+                "product.interaction.export-feedback",
+                feedback_max,
+                feedback_max if visual_pass("ui.export-feedback") else 0,
+                "visible export feedback passed" if visual_pass("ui.export-feedback") else "visible export feedback did not pass",
+                ["visual:ui.export-feedback", "visual:observations.export_feedback"],
+            )
+        )
+    add_dimension("required_interactions", interaction_checks)
 
     presentation_def = _dimension(contract, "presentation_accessibility")
-    add_dimension("presentation_accessibility", [
+    presentation_checks = [
         _check(
             "product.presentation.labels-landmark",
             _rule_max(presentation_def, "product.presentation.labels-landmark"),
@@ -243,7 +257,64 @@ def score_end_to_end_product(
             f"console_errors={live.get('console_error_count', 0)}; navigation_errors={live.get('navigation_error_count', 0)}",
             ["visual:observations.live"],
         ),
-    ])
+    ]
+    if product_v2:
+        for rule_id, visual_id, detail in (
+            ("product.presentation.factor-descriptions", "ui.factor-descriptions", "hover/focus factor descriptions"),
+            ("product.presentation.visual-hierarchy", "ui.visual-hierarchy", "priority hierarchy and selected state"),
+            ("product.presentation.status-styling", "ui.status-styling", "distinct status styling"),
+        ):
+            maximum = _rule_max(presentation_def, rule_id)
+            passed = rendered and visual_pass(visual_id)
+            presentation_checks.append(
+                _check(
+                    rule_id,
+                    maximum,
+                    maximum if passed else 0,
+                    f"{detail} passed" if passed else f"{detail} did not pass",
+                    [f"visual:{visual_id}"],
+                )
+            )
+    add_dimension("presentation_accessibility", presentation_checks)
+
+    if product_v2:
+        debug_def = _dimension(contract, "debug_observability")
+        debug_obs = observations.get("debug") if isinstance(observations.get("debug"), Mapping) else {}
+        debug_checks: list[dict[str, Any]] = []
+        debug_conditions = (
+            (
+                "product.debug.toggle-panel",
+                bool(debug_obs.get("hidden_by_default")) and bool(debug_obs.get("visible_when_enabled")),
+                "debug panel is hidden by default and visible when enabled",
+            ),
+            (
+                "product.debug.bound-controls",
+                bool(debug_obs.get("bound_controls_ok")),
+                "debug panel enumerates required bound controls",
+            ),
+            (
+                "product.debug.data-request",
+                rendered and bool(debug_obs.get("request_ok")),
+                "debug panel exposes source/request status/count and loaded item count",
+            ),
+            (
+                "product.debug.state-errors",
+                rendered and bool(debug_obs.get("state_updates")) and bool(debug_obs.get("errors_ok")) and bool(debug_obs.get("non_destructive")),
+                "debug panel updates live state/errors without changing product results",
+            ),
+        )
+        for rule_id, passed, detail in debug_conditions:
+            maximum = _rule_max(debug_def, rule_id)
+            debug_checks.append(
+                _check(
+                    rule_id,
+                    maximum,
+                    maximum if passed else 0,
+                    detail if passed else f"{detail} did not pass",
+                    ["visual:ui.debug-observability", "visual:observations.debug"],
+                )
+            )
+        add_dimension("debug_observability", debug_checks)
 
     robust_def = _dimension(contract, "robustness_failure_handling")
     robustness = _component(machine_components, "robustness")
