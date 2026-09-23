@@ -7,12 +7,12 @@
       "additionalProperties": false,
       "properties": {
         "control_raw": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         },
         "workflow_full": {
-          "maxLength": 4096,
+          "maxLength": 239,
           "minLength": 1,
           "type": "string"
         }
