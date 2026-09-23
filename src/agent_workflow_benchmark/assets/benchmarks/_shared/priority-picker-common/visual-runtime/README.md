@@ -6,7 +6,7 @@ Build with a digest-qualified base image:
 
 ```bash
 docker build \
-  --build-arg PLAYWRIGHT_IMAGE='mcr.microsoft.com/playwright/python:v1.57.0-noble@sha256:<verified-digest>' \
+  --build-arg PLAYWRIGHT_IMAGE='mcr.microsoft.com/playwright/python:v1.60.0-noble@sha256:<verified-digest>' \
   -t priority-picker-benchmark-runtime:local \
   visual-runtime/
 ```
