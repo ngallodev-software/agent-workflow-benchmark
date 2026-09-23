@@ -51,6 +51,9 @@ def test_bm5_publication_keeps_product_and_protocol_evidence() -> None:
     assert "product-scoring-contract.json" in text
     assert "protocol_command_counts" in text
     assert "verification_cache_hits" in text
-    assert "finish_attempts" in text
+    assert "finish_invocations" in text
+    assert "finish_incomplete_invocations" in text
+    assert "finish_outcomes" in text
+    assert "OPT-015" in text
     assert '"study_id": "bm5"' in text
     assert "agent-workflow-slimmed" in text
