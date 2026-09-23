@@ -5,7 +5,7 @@ from pathlib import Path
 
 from agent_workflow_benchmark.benchmarking.runner import (
     _bm5_acceptance_commands,
-    _bm5_should_skip_verify,
+    _bm5_verify_skip_decision,
 )
 from agent_workflow_benchmark.benchmarking.service import export_bm5_slimmed_suite
 
@@ -48,7 +48,7 @@ def test_bm5_acceptance_commands_are_phase_specific() -> None:
     ]
 
 
-def test_bm5_verify_phase_skips_only_after_completed_implementation(tmp_path: Path) -> None:
+def test_bm5_verify_phase_uses_green_completion_evidence_even_if_phase_state_failed(tmp_path: Path) -> None:
     arm = {
         "arm": "workflow_full",
         "stage_dir": str(tmp_path / "stage"),
@@ -65,15 +65,70 @@ def test_bm5_verify_phase_skips_only_after_completed_implementation(tmp_path: Pa
 
     phase_dir = tmp_path / "stage" / "phases" / "implement"
     phase_dir.mkdir(parents=True)
+    run_root = tmp_path / "aw-run"
+    handoff = run_root / "handoff"
+    handoff.mkdir(parents=True)
     (phase_dir / "phase.json").write_text(
         json.dumps({"state": "task_failed"}), encoding="utf-8"
     )
-    assert _bm5_should_skip_verify(plan, arm, verify) is False
-
-    (phase_dir / "phase.json").write_text(
-        json.dumps({"state": "completed"}), encoding="utf-8"
+    (phase_dir / "evaluation-plan.json").write_text(
+        json.dumps({
+            "acceptance_commands": [{
+                "id": "public-regression",
+                "argv": ["python", "-m", "unittest"],
+            }]
+        }),
+        encoding="utf-8",
     )
-    assert _bm5_should_skip_verify(plan, arm, verify) is True
+    (phase_dir / "agent-workflow-run.json").write_text(
+        json.dumps({"run_dir": str(run_root)}), encoding="utf-8"
+    )
+    (handoff / "completion.json").write_text(
+        json.dumps({
+            "result": "completed",
+            "commands": [{
+                "argv": ["python", "-m", "unittest"],
+                "exit_code": 0,
+            }],
+        }),
+        encoding="utf-8",
+    )
+
+    decision = _bm5_verify_skip_decision(plan, arm, verify)
+    assert decision["skip"] is True
+    assert decision["acceptance_command_ids"] == ["public-regression"]
+    assert decision["acceptance_evidence_source"] == "completion"
+    assert "green declared acceptance evidence" in decision["reason"]
+
+    (handoff / "completion.json").unlink()
+    (handoff / "completion-draft.json").write_text(
+        json.dumps({
+            "state": "open",
+            "commands": [{
+                "argv": ["python", "-m", "unittest"],
+                "exit_code": 0,
+            }],
+        }),
+        encoding="utf-8",
+    )
+    decision = _bm5_verify_skip_decision(plan, arm, verify)
+    assert decision["skip"] is True
+    assert decision["acceptance_evidence_source"] == "completion-draft"
+
+    (handoff / "completion-draft.json").unlink()
+    (handoff / "completion.json").write_text(
+        json.dumps({
+            "result": "completed",
+            "commands": [{
+                "argv": ["python", "-m", "unittest"],
+                "exit_code": 1,
+            }],
+        }),
+        encoding="utf-8",
+    )
+    decision = _bm5_verify_skip_decision(plan, arm, verify)
+    assert decision["skip"] is False
+    assert "lacks green declared acceptance evidence" in decision["reason"]
 
     bm4 = {
         "treatments": {
@@ -83,7 +138,9 @@ def test_bm5_verify_phase_skips_only_after_completed_implementation(tmp_path: Pa
             }
         }
     }
-    assert _bm5_should_skip_verify(bm4, arm, verify) is False
+    decision = _bm5_verify_skip_decision(bm4, arm, verify)
+    assert decision["applicable"] is False
+    assert decision["skip"] is False
 
 
 def test_bm5_v3_task_requires_explainability_styling_and_debug_observability(tmp_path: Path) -> None:

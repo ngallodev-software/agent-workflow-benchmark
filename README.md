@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.4` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.5` declares `agent-workflow>=0.11.6,<0.12`; Agent-Workflow `0.11.6` is the minimum supported core for run-boundary semantic readiness. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -179,7 +179,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.4` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.5` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -232,7 +232,7 @@ is `product-scoring-contract.json` with scorer ID
 
 ## BM5 steering-first Agent-Workflow study
 
-Benchmark plugin 0.3.4 adds the pre-BM5 treatment exported by:
+Benchmark plugin 0.3.5 adds the pre-BM5 treatment exported by:
 
 ```bash
 agent-workflow benchmark bm5-export /path/to/suite

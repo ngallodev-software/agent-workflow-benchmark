@@ -440,7 +440,8 @@ def _executor_context_diagnostics(run_root: Path) -> dict[str, Any] | None:
         "acceptance_command_executions": runtime.get("acceptance_command_executions"),
         "verification_cache_hits": runtime.get("verification_cache_hits"),
         "verification_cache_misses": runtime.get("verification_cache_misses"),
-        "finish_attempts": runtime.get("finish_attempts"),
+        "finish_invocations": runtime.get("finish_invocations"),
+        "finish_incomplete_invocations": runtime.get("finish_incomplete_invocations"),
         "finish_outcomes": runtime.get("finish_outcomes"),
         "input_tokens_per_turn": runtime.get("input_tokens_per_turn"),
         "cached_input_tokens_per_turn": runtime.get("cached_input_tokens_per_turn"),
@@ -604,21 +605,156 @@ def _write_bm5_evaluation_plan(
     return path
 
 
-def _bm5_should_skip_verify(
+def _bm5_verify_skip_decision(
     plan: Mapping[str, Any],
     arm: Mapping[str, Any],
     phase: Mapping[str, Any],
-) -> bool:
+) -> dict[str, Any]:
+    """Decide whether BM5 can omit the verify/repair model invocation.
+
+    The decision is based on deterministic acceptance evidence produced by the
+    implementation Agent Run, not the benchmark phase's coarse terminal state.
+    A worker process can be classified task_failed after publishing a valid
+    completion handoff; that must not force a redundant model phase when every
+    declared implementation acceptance command is already green.
+    """
     if not _bm5_treatment(plan, arm) or str(phase["id"]) != "verify-repair":
-        return False
-    prior = Path(str(arm["stage_dir"])) / "phases" / "implement" / "phase.json"
-    if not prior.is_file():
-        return False
+        return {
+            "applicable": False,
+            "skip": False,
+            "reason": "not a BM5 verify/repair phase",
+            "acceptance_command_ids": [],
+        }
+
+    implement_dir = Path(str(arm["stage_dir"])) / "phases" / "implement"
+    evaluation_path = implement_dir / "evaluation-plan.json"
+    run_ref_path = implement_dir / "agent-workflow-run.json"
+    if not evaluation_path.is_file():
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": "implementation evaluation plan is missing",
+            "acceptance_command_ids": [],
+        }
+    if not run_ref_path.is_file():
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": "implementation Agent-Workflow run reference is missing",
+            "acceptance_command_ids": [],
+        }
+
     try:
-        value = read_object(prior)
-    except (OSError, WorkflowError, ValueError):
-        return False
-    return value.get("state") == "completed"
+        evaluation = read_object(evaluation_path)
+        run_ref = read_object(run_ref_path)
+    except (OSError, WorkflowError, ValueError) as exc:
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": f"implementation acceptance evidence is unreadable: {exc}",
+            "acceptance_command_ids": [],
+        }
+
+    acceptance = [
+        item for item in evaluation.get("acceptance_commands", [])
+        if isinstance(item, dict) and isinstance(item.get("argv"), list)
+    ]
+    ids = [str(item.get("id") or "unnamed") for item in acceptance]
+    if not acceptance:
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": "implementation has no declared deterministic acceptance commands",
+            "acceptance_command_ids": ids,
+        }
+
+    run_root = run_ref.get("run_dir")
+    if not isinstance(run_root, str) or not run_root:
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": "implementation Agent-Workflow run directory is unavailable",
+            "acceptance_command_ids": ids,
+        }
+    handoff = Path(run_root) / "handoff"
+    completion_path = handoff / "completion.json"
+    draft_path = handoff / "completion-draft.json"
+    evidence_source = None
+    evidence_value: dict[str, Any] | None = None
+
+    if completion_path.is_file():
+        try:
+            completion = read_object(completion_path)
+        except (OSError, WorkflowError, ValueError) as exc:
+            return {
+                "applicable": True,
+                "skip": False,
+                "reason": f"implementation completion handoff is unreadable: {exc}",
+                "acceptance_command_ids": ids,
+            }
+        if completion.get("result") != "completed":
+            return {
+                "applicable": True,
+                "skip": False,
+                "reason": f"implementation completion result is {completion.get('result')!r}",
+                "acceptance_command_ids": ids,
+            }
+        evidence_source = "completion"
+        evidence_value = completion
+    elif draft_path.is_file():
+        try:
+            draft = read_object(draft_path)
+        except (OSError, WorkflowError, ValueError) as exc:
+            return {
+                "applicable": True,
+                "skip": False,
+                "reason": f"implementation completion draft is unreadable: {exc}",
+                "acceptance_command_ids": ids,
+            }
+        evidence_source = "completion-draft"
+        evidence_value = draft
+    else:
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": "implementation completion/acceptance evidence is missing",
+            "acceptance_command_ids": ids,
+        }
+
+    observed = [
+        item for item in (evidence_value or {}).get("commands", [])
+        if isinstance(item, dict)
+    ]
+    missing_green: list[str] = []
+    for spec in acceptance:
+        expected_argv = [str(item) for item in spec["argv"]]
+        matched = any(
+            [str(item) for item in command.get("argv", [])] == expected_argv
+            and command.get("exit_code") == 0
+            for command in observed
+            if isinstance(command.get("argv"), list)
+        )
+        if not matched:
+            missing_green.append(str(spec.get("id") or "unnamed"))
+
+    if missing_green:
+        return {
+            "applicable": True,
+            "skip": False,
+            "reason": "implementation completion lacks green declared acceptance evidence: "
+            + ", ".join(missing_green),
+            "acceptance_command_ids": ids,
+        }
+    return {
+        "applicable": True,
+        "skip": True,
+        "reason": (
+            "implementation " + str(evidence_source)
+            + " contains green declared acceptance evidence"
+        ),
+        "acceptance_command_ids": ids,
+        "acceptance_evidence_source": evidence_source,
+    }
 
 
 def _bm5_skipped_phase(
@@ -629,6 +765,7 @@ def _bm5_skipped_phase(
     phase: Mapping[str, Any],
     barrier: threading.Barrier,
     release: dict[str, float],
+    decision: Mapping[str, Any],
 ) -> dict[str, Any]:
     stage = Path(str(arm["stage_dir"]))
     before_snapshot, before_capture_seconds = _capture_tree_snapshot(
@@ -636,8 +773,9 @@ def _bm5_skipped_phase(
     phase_dir = stage / "phases" / str(phase["id"])
     phase_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
+    skip_reason = str(decision.get("reason") or "implementation acceptance passed")
     stdout_path.write_text(
-        "BM5 conditional fast path: implementation acceptance passed; "
+        "BM5 conditional fast path: " + skip_reason + "; "
         "verify/repair model invocation skipped.\n",
         encoding="utf-8",
     )
@@ -682,7 +820,13 @@ def _bm5_skipped_phase(
         "timing_breakdown": {
             "runner_kind": "agent-workflow",
             "conditional_model_invocation_skipped": True,
-            "skip_reason": "implementation acceptance completed successfully",
+            "conditional_skip_reason": skip_reason,
+            "conditional_skip_acceptance_command_ids": list(
+                decision.get("acceptance_command_ids") or []
+            ),
+            "conditional_skip_evidence_source": decision.get(
+                "acceptance_evidence_source"
+            ),
             "executor_active_seconds": 0.0,
             "host_overhead_seconds": 0.0,
             "phase_delta_capture_seconds": phase_delta["capture_seconds"],
@@ -955,16 +1099,31 @@ def _run_phase_arm(
 ) -> dict[str, Any]:
     treatment = plan.get("treatments", {}).get(str(arm["arm"]), {})
     runner_kind = str(treatment.get("runner_kind") or "direct-executor")
-    if runner_kind == "agent-workflow" and _bm5_should_skip_verify(plan, arm, phase):
-        return _bm5_skipped_phase(plan, pair, attempt, arm, phase, barrier, release)
+    skip_decision = _bm5_verify_skip_decision(plan, arm, phase)
+    if runner_kind == "agent-workflow" and skip_decision["skip"]:
+        return _bm5_skipped_phase(
+            plan, pair, attempt, arm, phase, barrier, release, skip_decision
+        )
     if runner_kind == "direct-executor":
         return _run_direct_phase_arm(plan, pair, attempt, arm, phase, barrier, release)
     if runner_kind == "agent-workflow":
         if settings is None:
             raise WorkflowError("agent-workflow benchmark treatment requires host settings")
-        return _run_agent_workflow_phase_arm(
+        record = _run_agent_workflow_phase_arm(
             settings, plan, pair, attempt, arm, phase, barrier, release
         )
+        if skip_decision["applicable"]:
+            breakdown = record.setdefault("timing_breakdown", {})
+            breakdown["conditional_model_invocation_skipped"] = False
+            breakdown["conditional_skip_reason"] = skip_decision["reason"]
+            breakdown["conditional_skip_acceptance_command_ids"] = list(
+                skip_decision.get("acceptance_command_ids") or []
+            )
+            breakdown["conditional_skip_evidence_source"] = skip_decision.get(
+                "acceptance_evidence_source"
+            )
+            atomic_write_json(Path(str(record["phase_json"])), record)
+        return record
     raise WorkflowError(f"unsupported benchmark runner kind: {runner_kind}")
 
 

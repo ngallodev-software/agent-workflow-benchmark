@@ -27,8 +27,8 @@ def test_bm5_script_runs_v3_steering_first_study() -> None:
     assert "structured-direct/v1 vs agent-workflow-bm5/v1" in text
     assert "gpt-6-luna" in text
     assert "agent-workflow-bm5/v1" in text
-    assert '"agent-workflow": "0.11.8"' in text
-    assert '"agent-workflow-benchmark": "0.3.4"' in text
+    assert '"agent-workflow": "0.11.9"' in text
+    assert '"agent-workflow-benchmark": "0.3.5"' in text
     assert "benchmark visual-capture" in text
     assert "benchmark score" in text
     assert "benchmark consolidate" in text
@@ -51,6 +51,9 @@ def test_bm5_publication_keeps_product_and_protocol_evidence() -> None:
     assert "product-scoring-contract.json" in text
     assert "protocol_command_counts" in text
     assert "verification_cache_hits" in text
-    assert "finish_attempts" in text
+    assert "finish_invocations" in text
+    assert "finish_incomplete_invocations" in text
+    assert "finish_outcomes" in text
+    assert "OPT-015" in text
     assert '"study_id": "bm5"' in text
     assert "agent-workflow-slimmed" in text
