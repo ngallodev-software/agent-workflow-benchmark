@@ -95,6 +95,32 @@ agent-workflow benchmark run RUN_PLAN.json --execution-only
 
 Other lifecycle commands include `resume`, `status`, `live-start`, `live-stop`, `visual-capture`, `score`, `review`, `consolidate`, `report`, `verify`, and `cleanup`. Use `agent-workflow benchmark --help` for the live command tree.
 
+## Advisory TypeSafe source review
+
+The opt-in `code-review` command compares matched `.py`, `.js`, `.css`, and `.html` files. It sends source to TypeSafe for four independent Score judgments per file and writes a Markdown report plus a JSON receipt. It does not change machine scores, eligibility, or human acceptance.
+
+It runs only when Agent-Workflow has `decision_policy.mode = "typesafe"` or `"comparative"` enabled and its TypeSafe runtime is ready. The command uses Agent-Workflow's configured TypeSafe model and key unless `--model` overrides the model. If the feature is disabled or unavailable, it stops with a clear error; no API call is made.
+
+SDK request logging uses `[semantic.typesafe].sdk_log_level` and `[semantic.typesafe].sdk_log` from Agent-Workflow's config. For full HTTP request and response bodies, set the level to `"DEBUG"` and configure a log path; the benchmark appends SDK logs there with owner-only file permissions. These bodies include the submitted source and returned content. Keep this log private. The default level is `"WARNING"`, and SDK logs do not go to the application root logger. This is separate from `api_call_log`, which records Agent-Workflow's structured semantic audit entries.
+
+Install the optional SDK extra when needed:
+
+```bash
+python -m pip install 'agent-workflow-benchmark[semantic-review]'
+```
+
+Example for BM4 source trees:
+
+```bash
+agent-workflow benchmark code-review \
+  /path/to/structured-direct/final-project \
+  /path/to/agent-workflow-optimized/final-project \
+  --requirements /path/to/bm4/task/canonical-task.md \
+  --output /path/to/bm4/analysis/code-quality-review.md
+```
+
+The JSON sidecar contains source and request hashes, score distributions, confidence, model, and usage totals; it does not copy source text. Inputs are bounded and paired by relative path. Run this only for source you are allowed to send to the configured TypeSafe service. The resulting percentages are advisory semantic judgments, not proof that code works.
+
 ## Agent-Workflow value smoke study
 
 Version 0.2 adds benchmark-spec/v3 treatment identity and a runner boundary that can compare a direct coding-agent execution with the real Agent-Workflow Agent Run lifecycle. Historical v1/v2 suites keep their original semantics: their `workflow_full` arm is the structured direct-execution profile, not an Agent-Workflow runtime invocation.

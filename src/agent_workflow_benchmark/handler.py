@@ -31,6 +31,7 @@ from .benchmarking import (
     verify_benchmark,
     visual_capture_benchmark,
 )
+from .benchmarking.code_review import quality_review
 from agent_workflow.config import Settings
 from agent_workflow.errors import WorkflowError
 
@@ -85,6 +86,15 @@ def handle_benchmark_command(
             args.destination,
             force=args.force,
             agent_class=args.agent_class,
+        )
+    if command == "code-review":
+        return quality_review(
+            settings,
+            args.left,
+            args.right,
+            args.output,
+            requirements_path=args.requirements,
+            model=args.model,
         )
     if command == "fixture-create":
         return create_benchmark_fixture(
