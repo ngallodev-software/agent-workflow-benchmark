@@ -16,6 +16,7 @@ from .benchmarking import (
     export_builtin_suite as export_benchmark_suite,
     export_bm4_optimized_suite,
     export_bm5_slimmed_suite,
+    export_bm6_blind_suite,
     export_value_smoke_suite,
     export_structured_value_smoke_suite,
     prepare_or_submit_review as benchmark_review,
@@ -96,6 +97,12 @@ def handle_benchmark_command(
         )
     if command == "bm5-export":
         return export_bm5_slimmed_suite(
+            args.destination,
+            force=args.force,
+            agent_class=args.agent_class,
+        )
+    if command == "bm6-export":
+        return export_bm6_blind_suite(
             args.destination,
             force=args.force,
             agent_class=args.agent_class,
