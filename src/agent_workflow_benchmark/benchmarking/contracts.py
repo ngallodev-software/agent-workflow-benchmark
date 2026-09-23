@@ -118,9 +118,14 @@ def load_scoring_contract(path: Path, spec: dict[str, Any] | None = None) -> dic
     _unique(check_ids, "scoring-contract check IDs")
     if abs(total - float(contract["total_points"])) > 1e-9 or abs(total - 100.0) > 1e-9:
         raise WorkflowError(f"scoring contract points must total 100, observed {total:g}")
-    evaluator = _require_file(path.parent, str(contract["evaluator_path"]), "scoring evaluator")
-    if not evaluator.is_file():  # pragma: no cover - _require_file owns the error
-        raise WorkflowError(f"scoring evaluator not found: {evaluator}")
+    evaluator_ref = str(contract["evaluator_path"])
+    if evaluator_ref.startswith("external://"):
+        external_name = evaluator_ref.removeprefix("external://")
+        safe_relative(external_name, "external scoring evaluator")
+    else:
+        evaluator = _require_file(path.parent, evaluator_ref, "scoring evaluator")
+        if not evaluator.is_file():  # pragma: no cover - _require_file owns the error
+            raise WorkflowError(f"scoring evaluator not found: {evaluator}")
     return contract
 
 
