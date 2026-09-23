@@ -1,0 +1,128 @@
+{
+  "$id": "agent-workflow/benchmark-supplementary-scoring-contract/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow/benchmark-supplementary-scoring-contract/v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "benchmark_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "benchmark_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "scorer_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "role": {
+      "const": "supplementary"
+    },
+    "winner_interaction": {
+      "const": "none"
+    },
+    "total_points": {
+      "const": 100
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "max_points": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "rules": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_points": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "max_points"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "max_points",
+          "rules"
+        ]
+      }
+    },
+    "gating": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rendered_data_required_for": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rendered_data_required_for",
+        "description"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "benchmark_id",
+    "benchmark_version",
+    "scorer_version",
+    "role",
+    "winner_interaction",
+    "total_points",
+    "dimensions",
+    "gating",
+    "limitations"
+  ]
+}
