@@ -431,7 +431,6 @@ def score_run(
                         "scorer_version": contract["scorer_version"],
                         "evaluator_version": contract["evaluator_version"],
                         "scoring_contract_sha256": sha256_file(contract_path),
-                        "evaluator_ref": evaluator_ref,
                         "evaluator_sha256": evaluator_sha256,
                     },
                 )
