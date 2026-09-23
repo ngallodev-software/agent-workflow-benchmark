@@ -61,6 +61,7 @@ def test_publication_includes_portfolio_evidence() -> None:
     for required in (
         "final-project",
         "score.json",
+        "product-score.json",
         "timing.json",
         "usage.json",
         "desktop.png",
@@ -79,3 +80,10 @@ def test_publication_preserves_existing_bm4_metadata() -> None:
     assert "generated_entries" in text
     assert '"optimization-ledger.md"' not in text
     assert "shutil.rmtree(destination)" not in text
+
+
+def test_bm4_publication_includes_product_scoring_contract_and_metric() -> None:
+    text = PUBLISHER.read_text(encoding="utf-8")
+    assert "product-scoring-contract.json" in text
+    assert '"product_score"' in text
+    assert "Supplementary product score" in text
