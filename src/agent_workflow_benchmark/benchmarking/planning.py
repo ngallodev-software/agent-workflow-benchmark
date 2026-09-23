@@ -244,7 +244,7 @@ def materialize_fixture(spec_path: Path, destination: Path, *, force: bool = Fal
     run(["git", "-C", str(destination), "config", "user.name", "Benchmark Fixture"])
     run(["git", "-C", str(destination), "config", "user.email", "benchmark@example.invalid"])
     run(["git", "-C", str(destination), "add", "--all"])
-    run(["git", "-C", str(destination), "commit", "-q", "-m", "priority-picker-v1 starter fixture"])
+    run(["git", "-C", str(destination), "commit", "-q", "-m", f"{spec['benchmark_id']} starter fixture"])
     snap = snapshot(destination)
     return {
         "benchmark_id": spec["benchmark_id"],
