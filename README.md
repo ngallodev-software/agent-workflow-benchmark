@@ -73,7 +73,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.8` declares `agent-workflow>=0.11.9,<0.12`; Agent-Workflow `0.11.9` is the minimum supported core for the execution-seal and BM6 blind-run workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.3.9` declares `agent-workflow>=0.11.9,<0.12`; Agent-Workflow `0.11.9` is the minimum supported core for the execution-seal and BM6 blind-run workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -99,7 +99,7 @@ Execution-only runs must be sealed before new machine scoring begins. The seal f
 
 ## Compact benchmark paths
 
-Benchmark 0.3.8 shortens generated runtime paths without changing semantic run IDs or evidence identities. Coordinator artifacts use `c/.awb`, paired worktrees use `pNNN/aNN/{c|w}`, and per-arm stage data lives directly under `.awb`. Generated benchmark filesystem paths are capped below 240 characters; semantic IDs remain in JSON evidence.
+Benchmark 0.3.7 shortens generated runtime paths without changing semantic run IDs or evidence identities. Coordinator artifacts use `c/.awb`, paired worktrees use `pNNN/aNN/{c|w}`, and per-arm stage data lives directly under `.awb`. Generated benchmark filesystem paths are capped below 240 characters; semantic IDs remain in JSON evidence.
 
 ## BM6 blind execute-and-seal study
 
@@ -129,6 +129,46 @@ agent-workflow benchmark score RUN_PLAN.json \
 ```
 
 The scorer bundle must contain the externally referenced evaluator, and its tree digest plus the evaluator SHA-256 are recorded with scoring evidence. Any post-seal mutation of an arm worktree or execution evidence invalidates the seal and blocks new scoring.
+
+## Universal post-seal scoring bundles
+
+Benchmark 0.3.9 adds a task-agnostic external scorer driven by `bundle.json`.
+Create a reusable bundle shell with:
+
+```bash
+agent-workflow benchmark scoring-bundle-init /path/to/scoring-bundle
+agent-workflow benchmark scoring-bundle-validate /path/to/scoring-bundle
+```
+
+A bundle may define arbitrary JSON `parameters`, reusable `probes`, and
+dimension-to-contract mappings. Supported probes are:
+
+- **command** — hidden tests, browser checks, custom scripts, linters, or any
+  deterministic evaluator. Results can be exit-code, JSON stdout, or a JSON
+  result file.
+- **typesafe-batch** — a single TypeSafe `system_one` request containing many
+  anchored `Score` questions. One high-impact batch can feed several scoring
+  dimensions from the same cached result; additional independent batches are
+  represented by additional probe entries.
+- **llm-command** — a JSON-configured prompt plus bounded worktree/bundle/probe
+  context passed to a configured command adapter. JSON stdout and Codex JSONL
+  final-message parsing are supported.
+
+TypeSafe/LLM context selection is declarative: worktree globs, exclusions,
+bundle context files, prior deterministic probe outputs, byte/file bounds, and
+static JSON can all be supplied in the manifest. Probe dependencies are cached
+against both the scoring-bundle digest and sealed-worktree digest.
+
+Dimension components consume probe values through JSON Pointer and convert them
+to normalized credit with `boolean`, `fraction`, `linear`, `threshold`,
+or `mapping` scoring. Multiple internal components may roll up to one or more
+frozen scoring-contract checks without changing the pre-run contract.
+
+Sensitive scorer environment variables are not inherited wholesale. A bundle
+must list additional names such as `TYPESAFE_API_KEY` under
+`runtime.environment_allowlist`. After scoring probes finish, the benchmark
+re-verifies the execution seal before writing the machine-score summary; any
+task-worktree or execution-evidence mutation aborts scoring.
 
 ## Advisory TypeSafe source review
 
@@ -214,7 +254,7 @@ bash scripts/run-value-smoke.sh
 
 The value smoke is intentionally **Codex-only**. It always uses the packaged `codex-subscription.json` executor profile; alternate provider profiles are not part of this smoke path.
 
-Benchmark `0.3.8` requires Agent-Workflow `>=0.11.6,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
+Benchmark `0.3.9` requires Agent-Workflow `>=0.11.9,<0.12`. That core version automatically captures headless Codex JSONL telemetry so the Agent-Workflow arm can provide comparable input/cached/output/reasoning token evidence. After execution, the smoke validates `token_evidence_complete=true` for the selected attempt of both arms; an evidence failure preserves the run but prevents treating it as efficiency-qualified.
 
 Useful environment overrides:
 
@@ -267,7 +307,7 @@ is `product-scoring-contract.json` with scorer ID
 
 ## BM5 steering-first Agent-Workflow study
 
-Benchmark plugin 0.3.8 adds the pre-BM5 treatment exported by:
+Benchmark plugin 0.3.4 added the pre-BM5 treatment exported by:
 
 ```bash
 agent-workflow benchmark bm5-export /path/to/suite
