@@ -198,6 +198,31 @@ agent-workflow benchmark code-review \
 
 The JSON sidecar contains source and deterministic-review hashes, score distributions, confidence, model, request scope, and usage totals; it does not copy source text. Inputs are bounded and paired by relative path. `--question-set v2` uses explicit role-aware score anchors; `--context-scope matched-file` sends one matching file pair per request, while `full-tree` sends the complete matched source set. `--candidate-order reversed` is an evaluation option for checking position sensitivity. Run this only for source you are allowed to send to the configured TypeSafe service. The resulting percentages are advisory semantic judgments, not proof that code works.
 
+## Jev/TypeSafe in the benchmark system
+
+The benchmark uses the TypeSafe SDK in three distinct places, each with a different authority boundary:
+
+1. **Routing qualification:** the runner exercises the real Agent-Workflow `Choice`/`Noul`/`Score` route on the three phase contexts before paired execution. Qualification is reported separately and is excluded from both treatments.
+2. **Advisory source review:** `code-review` combines an existing deterministic review with supplementary TypeSafe judgments over matched source files. The deterministic findings remain intact and authoritative; this output does not change scores, eligibility, acceptance, or human review.
+3. **Post-seal evaluation probes:** a `typesafe-batch` scoring bundle sends anchored `Score` questions against frozen worktree context. Its output can feed configured evaluator dimensions, but it runs after execution sealing and cannot alter the sealed code or run evidence.
+
+```mermaid
+flowchart TB
+    A[Paired benchmark plan] --> B[Pre-treatment route qualification]
+    B -->|excluded from arms| C[Structured-direct arm]
+    B -->|excluded from arms| D[Agent-Workflow arm]
+    C --> E[Execution seal]
+    D --> E
+    E --> F[Deterministic evaluator]
+    E --> G[Optional typesafe-batch probe]
+    F --> H[Machine score]
+    G --> H
+    I[Deterministic code review] --> J[Published review]
+    K[Advisory TypeSafe source review] --> J
+```
+
+All semantic calls use bounded, declared questions and a configured model/key. The TypeSafe SDK's `system_one` method carries the request; [Jev/System One](https://typesafe.ai/blog/introducing-system-one-models-and-jev) provides the semantic model and typed question primitives. The benchmark owns treatment assignment, execution sealing, score contracts, and publication eligibility. See the official [System One](https://docs.typesafe.ai/concepts/system-one.md), [state](https://docs.typesafe.ai/concepts/state.md), [Choice](https://docs.typesafe.ai/primitives/choice.md), [Noul](https://docs.typesafe.ai/primitives/noul.md), [Score](https://docs.typesafe.ai/primitives/score.md), and [Python SDK](https://docs.typesafe.ai/sdk/python.md) documentation.
+
 ## Agent-Workflow value smoke study
 
 Version 0.2 adds benchmark-spec/v3 treatment identity and a runner boundary that can compare a direct coding-agent execution with the real Agent-Workflow Agent Run lifecycle. Historical v1/v2 suites keep their original semantics: their `workflow_full` arm is the structured direct-execution profile, not an Agent-Workflow runtime invocation.
