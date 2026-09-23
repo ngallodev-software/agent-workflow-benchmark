@@ -8,7 +8,7 @@ from agent_workflow.util import atomic_write_bytes, atomic_write_json
 from .handler import handle_benchmark_command
 from .legacy import build_benchmark_report, render_benchmark_markdown, validate_benchmark_manifest
 
-__version__="0.3.2"
+__version__="0.3.3"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
@@ -21,6 +21,7 @@ def configure(parser: argparse.ArgumentParser) -> None:
     a = c.add_parser("value-smoke-export", help="materialize the raw-direct vs Agent-Workflow value smoke suite"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("structured-value-smoke-export", help="materialize structured-direct vs Agent-Workflow BM3 study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("bm4-export", help="materialize GPT-6 Luna BM4 optimized Agent-Workflow study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
+    a = c.add_parser("bm5-export", help="materialize GPT-6 Luna BM5 steering-first Agent-Workflow study"); a.add_argument("destination", type=Path); a.add_argument("--agent-class", default="implementation"); a.add_argument("--force", action="store_true")
     a = c.add_parser("code-review", help="compare matched source trees with optional Agent-Workflow TypeSafe advisory scores"); a.add_argument("left", type=Path); a.add_argument("right", type=Path); a.add_argument("--requirements", type=Path); a.add_argument("--output", type=Path, required=True); a.add_argument("--model")
     a = c.add_parser("fixture-create", help="create an isolated benchmark fixture from a suite spec"); a.add_argument("spec", type=Path); a.add_argument("destination", type=Path); a.add_argument("--force", action="store_true")
     a = c.add_parser("target-prepare", help="prepare and verify an external benchmark target checkout"); a.add_argument("manifest", type=Path); a.add_argument("destination", type=Path)

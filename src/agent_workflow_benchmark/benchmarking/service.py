@@ -371,6 +371,70 @@ def export_bm4_optimized_suite(
     return result
 
 
+def export_bm5_slimmed_suite(
+    destination: Path,
+    *,
+    force: bool = False,
+    agent_class: str = "implementation",
+) -> dict[str, Any]:
+    """Export BM5: GPT-6 Luna direct vs steering-first Agent-Workflow fast path."""
+    result = export_builtin_suite(
+        destination,
+        benchmark_id="priority-picker-v2",
+        force=force,
+    )
+    claude_profile = destination / "executors" / "claude-subscription.json"
+    claude_profile.unlink(missing_ok=True)
+    result["executors"] = [
+        item for item in result.get("executors", [])
+        if not str(item).endswith("claude-subscription.json")
+    ]
+    result["default_subscription_executors"] = [
+        str(destination / "executors" / "codex-subscription.json")
+    ]
+    spec_path = Path(result["spec"])
+    spec = read_object(spec_path)
+    structured_profile = dict(spec["arms"]["workflow_full"])
+    spec["schema"] = BENCHMARK_SPEC_V3_SCHEMA
+    spec["arms"] = {
+        "control": {
+            **structured_profile,
+            "profile_id": "structured-direct/v1",
+            "treatment_id": "structured-direct/v1",
+            "runner": {"kind": "direct-executor", "agent_class": None},
+        },
+        "candidate": {
+            **structured_profile,
+            "profile_id": "agent-workflow-bm5/v1",
+            "treatment_id": "agent-workflow-bm5/v1",
+            "runner": {"kind": "agent-workflow", "agent_class": agent_class},
+            "enabled_features": [
+                *structured_profile.get("enabled_features", []),
+                "Agent-Workflow Agent Run lifecycle",
+                "compact executor-context projection (OPT-001/004/007)",
+                "host-owned deterministic gates (OPT-005)",
+                "single agent-finish closeout transaction (OPT-010/011)",
+                "host-derived acceptance criteria (OPT-012)",
+                "steering-first exceptional worker protocol (OPT-013)",
+                "per-command/cache amplification telemetry (OPT-014)",
+                "conditional verify/repair model invocation (OPT-015)",
+            ],
+            "disabled_features": [],
+        },
+    }
+    atomic_write_json(spec_path, spec)
+    validate_spec(spec_path)
+    result.update(
+        study="bm5-structured-direct-vs-agent-workflow-slimmed",
+        schema=BENCHMARK_SPEC_V3_SCHEMA,
+        agent_class=agent_class,
+        model="gpt-6-luna",
+        effort="high",
+        optimizations=[f"OPT-{index:03d}" for index in range(1, 16)],
+    )
+    return result
+
+
 def create_fixture(spec: Path, destination: Path, *, force: bool = False) -> dict[str, Any]:
     return materialize_fixture(spec, destination, force=force)
 
