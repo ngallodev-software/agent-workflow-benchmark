@@ -8,6 +8,7 @@ AGENT_CLASS="${AGENT_CLASS:-implementation}"
 REPETITIONS="${BM4_REPETITIONS:-1}"
 ROOT_ARG=""
 EVIDENCE_ARG=""
+RESULTS_REPO_ARG="${BM4_RESULTS_REPO:-}"
 
 usage() {
   cat <<'USAGE'
@@ -22,6 +23,7 @@ Options:
   --repetitions N      paired repetitions (default: BM4_REPETITIONS or 1)
   --agent-class NAME   Agent-Workflow candidate class (default: AGENT_CLASS or implementation)
   --evidence PATH      output evidence archive (default: <root>-evidence.tar.gz)
+  --results-repo PATH  sanitized results repo (default: sibling agent-workflow-benchmark-results)
   -h, --help
 
 Prerequisites:
@@ -56,6 +58,10 @@ while [[ $# -gt 0 ]]; do
     --evidence)
       shift; [[ $# -gt 0 ]] || { echo "--evidence requires a value" >&2; exit 2; }
       EVIDENCE_ARG="$1"
+      ;;
+    --results-repo)
+      shift; [[ $# -gt 0 ]] || { echo "--results-repo requires a value" >&2; exit 2; }
+      RESULTS_REPO_ARG="$1"
       ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -592,6 +598,24 @@ PY
 
 "$PYTHON" "$REPO_ROOT/scripts/collect-value-smoke-evidence.py" "$ROOT" --output "$EVIDENCE_ARCHIVE"
 
+if [[ -n "$RESULTS_REPO_ARG" ]]; then
+  RESULTS_REPO="$("$PYTHON" - "$RESULTS_REPO_ARG" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve())
+PY
+)"
+else
+  RESULTS_REPO="$(cd "$REPO_ROOT/.." && pwd)/agent-workflow-benchmark-results"
+fi
+
+if [[ -d "$RESULTS_REPO/.git" ]]; then
+  "$PYTHON" "$REPO_ROOT/scripts/prepare-bm4-publication.py"     --plan "$RUN_PLAN"     --root "$ROOT"     --destination "$RESULTS_REPO/bm4"     --private-archive "$EVIDENCE_ARCHIVE"
+  echo "BM4 sanitized publication copied to: $RESULTS_REPO/bm4"
+else
+  echo "warning: benchmark results repo not found; public BM4 tree not copied: $RESULTS_REPO" >&2
+fi
+
 echo
 echo "BM4 development run complete"
 echo "  root:     $ROOT"
@@ -602,5 +626,6 @@ echo "  report:   $REPORT_JSON"
 echo "  semantic: $SEMANTIC_QUALIFICATION_JSON"
 echo "  audit:    $AGENT_WORKFLOW_TYPESAFE_API_CALL_LOG"
 echo "  evidence: $EVIDENCE_ARCHIVE"
+echo "  public results: $RESULTS_REPO/bm4"
 echo
 echo "Do not treat a development run as a generalized treatment-effect claim."
