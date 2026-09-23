@@ -412,6 +412,151 @@ def _agent_workflow_usage(
     )
 
 
+def _bm5_treatment(plan: Mapping[str, Any], arm: Mapping[str, Any]) -> bool:
+    treatment = plan.get("treatments", {}).get(str(arm["arm"]), {})
+    return str(treatment.get("treatment_id")) == "agent-workflow-bm5/v1"
+
+
+def _bm5_acceptance_commands(phase_id: str) -> list[dict[str, Any]]:
+    if phase_id == "analyze-plan":
+        return [
+            {
+                "id": "plan-present",
+                "argv": [
+                    "python",
+                    "-c",
+                    (
+                        "from pathlib import Path; "
+                        "p=Path('BENCHMARK_PLAN.md'); "
+                        "raise SystemExit(0 if p.is_file() and p.stat().st_size > 0 else 1)"
+                    ),
+                ],
+                "cwd": ".",
+                "timeout_seconds": 30,
+                "result_format": "exit-code",
+                "junit_path": None,
+            }
+        ]
+    return [
+        {
+            "id": "public-regression",
+            "argv": ["python", "-m", "unittest", "discover", "-s", "tests/public", "-v"],
+            "cwd": ".",
+            "timeout_seconds": 180,
+            "result_format": "exit-code",
+            "junit_path": None,
+        }
+    ]
+
+
+def _write_bm5_evaluation_plan(
+    *,
+    phase_dir: Path,
+    agent_run_id: str,
+    phase: Mapping[str, Any],
+    pair: Mapping[str, Any],
+) -> Path:
+    path = phase_dir / "evaluation-plan.json"
+    atomic_write_json(
+        path,
+        {
+            "schema": "agent-workflow/evaluation-plan/v1",
+            "dataset_split": "development",
+            "task_ids": [agent_run_id],
+            "repetitions": 1,
+            "timeout_seconds": int(phase["timeout_seconds"]),
+            "scorers": ["acceptance_commands"],
+            "acceptance_commands": _bm5_acceptance_commands(str(phase["id"])),
+            "scope": dict(pair["allowed_scope"]),
+            "sandbox": "docker",
+        },
+    )
+    return path
+
+
+def _bm5_should_skip_verify(
+    plan: Mapping[str, Any],
+    arm: Mapping[str, Any],
+    phase: Mapping[str, Any],
+) -> bool:
+    if not _bm5_treatment(plan, arm) or str(phase["id"]) != "verify-repair":
+        return False
+    prior = Path(str(arm["stage_dir"])) / "phases" / "implement" / "phase.json"
+    if not prior.is_file():
+        return False
+    try:
+        value = read_object(prior)
+    except (OSError, WorkflowError, ValueError):
+        return False
+    return value.get("state") == "completed"
+
+
+def _bm5_skipped_phase(
+    plan: Mapping[str, Any],
+    pair: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+    arm: Mapping[str, Any],
+    phase: Mapping[str, Any],
+    barrier: threading.Barrier,
+    release: dict[str, float],
+) -> dict[str, Any]:
+    stage = Path(str(arm["stage_dir"]))
+    phase_dir = stage / "phases" / str(phase["id"])
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
+    stdout_path.write_text(
+        "BM5 conditional fast path: implementation acceptance passed; "
+        "verify/repair model invocation skipped.\n",
+        encoding="utf-8",
+    )
+    stderr_path.write_text("", encoding="utf-8")
+    barrier.wait()
+    started_mono = time.monotonic()
+    started_at = utc_now()
+    offset = round(started_mono - release["monotonic"], 9)
+    usage = normalize_usage(
+        {},
+        currency=plan["executor"].get("currency"),
+        price_catalog_id=plan["executor"].get("price_catalog_id"),
+        billing=plan["executor"].get("billing", {}),
+        pricing=plan["executor"].get("pricing"),
+        source="bm5-conditional-verification-skip",
+    )
+    record = {
+        "phase_id": phase["id"],
+        "state": "completed",
+        "started_at": started_at,
+        "start_offset_seconds": offset,
+        "completed_at": utc_now(),
+        "phase_wall_seconds": 0.0,
+        "active_process_seconds": 0.0,
+        "provider_elapsed_seconds": None,
+        "first_output_latency_seconds": None,
+        "verification_seconds": 0.0,
+        "queue_wait_seconds": 0.0,
+        "human_review_seconds": None,
+        "process": {
+            "argv": ["agent-workflow", "conditional-verification-skip"],
+            "returncode": 0,
+            "duration_seconds": 0.0,
+            "error_category": "none",
+        },
+        "usage": usage,
+        "timing_breakdown": {
+            "runner_kind": "agent-workflow",
+            "conditional_model_invocation_skipped": True,
+            "skip_reason": "implementation acceptance completed successfully",
+            "executor_active_seconds": 0.0,
+            "host_overhead_seconds": 0.0,
+        },
+        "stdout": str(stdout_path),
+        "stderr": str(stderr_path),
+        "usage_file": None,
+    }
+    atomic_write_json(phase_dir / "phase.json", record)
+    return record
+
+
 def _run_agent_workflow_phase_arm(
     settings: Settings,
     plan: Mapping[str, Any],
@@ -431,6 +576,16 @@ def _run_agent_workflow_phase_arm(
     phase_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = phase_dir / "stdout.log", phase_dir / "stderr.log"
     agent_run_id = _agent_run_id(plan, pair, attempt, arm, phase)
+    evaluation_path = (
+        _write_bm5_evaluation_plan(
+            phase_dir=phase_dir,
+            agent_run_id=agent_run_id,
+            phase=phase,
+            pair=pair,
+        )
+        if _bm5_treatment(plan, arm)
+        else None
+    )
     treatment = plan.get("treatments", {}).get(str(arm["arm"]), {})
     agent_class = treatment.get("agent_class")
     effort = plan["executor"].get("effort")
@@ -473,6 +628,7 @@ def _run_agent_workflow_phase_arm(
             model=str(plan["executor"]["model"]),
             reasoning_effort=reasoning_effort,
             allow_dirty=True,
+            evaluation_path=evaluation_path,
             worker_mode="headless",
         )
     except WorkflowError as exc:
@@ -651,6 +807,8 @@ def _run_phase_arm(
 ) -> dict[str, Any]:
     treatment = plan.get("treatments", {}).get(str(arm["arm"]), {})
     runner_kind = str(treatment.get("runner_kind") or "direct-executor")
+    if runner_kind == "agent-workflow" and _bm5_should_skip_verify(plan, arm, phase):
+        return _bm5_skipped_phase(plan, pair, attempt, arm, phase, barrier, release)
     if runner_kind == "direct-executor":
         return _run_direct_phase_arm(plan, pair, attempt, arm, phase, barrier, release)
     if runner_kind == "agent-workflow":
