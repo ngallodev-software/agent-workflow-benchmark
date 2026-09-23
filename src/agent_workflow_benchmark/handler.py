@@ -154,7 +154,11 @@ def handle_benchmark_command(
     if command == "visual-capture":
         return visual_capture_benchmark(settings, args.run)
     if command == "score":
-        return score_benchmark(settings, args.run)
+        return score_benchmark(
+            settings,
+            args.run,
+            scoring_bundle=getattr(args, "scoring_bundle", None),
+        )
     if command == "consolidate":
         return consolidate_benchmark(settings, args.run)
     if command == "review":
