@@ -103,6 +103,59 @@ echo "run_plan: $PLAN"
 echo "runtime_lock: $LOCK"
 echo "output_root: $OUTPUT_ROOT"
 
+# Preserve and clear only failed visual-capture cache. This is intentionally
+# implemented in the recovery script so an already-executed run can be
+# recovered with the installed benchmark version that produced it.
+"$PYTHON" - "$PLAN" <<'PY'
+from __future__ import annotations
+import json, shutil, sys
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+run_dir = Path(plan["coordinator"]["run_dir"])
+
+summary_path = run_dir / "visual-capture-summary.json"
+if summary_path.is_file():
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if int(summary.get("harness_failures", 0)) > 0:
+        history = run_dir / "visual-capture-history"
+        history.mkdir(parents=True, exist_ok=True)
+        index = 1
+        while (history / f"failed-{index:02d}.json").exists():
+            index += 1
+        shutil.copy2(summary_path, history / f"failed-{index:02d}.json")
+        summary_path.unlink()
+
+for pair in plan.get("pairs", []):
+    state_path = (
+        run_dir / "pair-state" / str(pair["case_id"])
+        / f"r{int(pair['repetition']):02d}" / "pair.json"
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    selected = int(state["selected_attempt"])
+    attempt = next(
+        item for item in pair["attempts"]
+        if int(item["attempt"]) == selected
+    )
+    for arm in attempt["arms"].values():
+        visual = Path(arm["stage_dir"]) / "visual"
+        capture = visual / "capture.json"
+        if not capture.is_file():
+            continue
+        value = json.loads(capture.read_text(encoding="utf-8"))
+        if value.get("state") == "complete":
+            continue
+        history = visual.parent / "visual-history"
+        history.mkdir(parents=True, exist_ok=True)
+        index = 1
+        while (history / f"failed-{index:02d}").exists():
+            index += 1
+        destination = history / f"failed-{index:02d}"
+        print(f"preserving failed visual capture: {visual} -> {destination}")
+        shutil.move(str(visual), str(destination))
+PY
+
 "$AW_PATH" --json benchmark runtime-attest "$LOCK" --claim-level development   > "$OUTPUT_ROOT/runtime-attestation.json"
 
 "$PYTHON" - "$OUTPUT_ROOT/runtime-attestation.json" <<'PY'
