@@ -66,6 +66,23 @@ def _seal_executed_attempt(
             f"benchmark attempt identity mismatch: {evidence_path}"
         )
 
+    planned_attempt = next(
+        (
+            item
+            for item in pair.get("attempts", [])
+            if int(item.get("attempt", -1)) == int(attempt_ref["attempt"])
+        ),
+        None,
+    )
+    if not isinstance(planned_attempt, dict):
+        raise WorkflowError(
+            f"executed benchmark attempt is not present in run plan: {evidence_path}"
+        )
+    if str(planned_attempt.get("attempt_id") or "") != str(attempt_ref["attempt_id"]):
+        raise WorkflowError(
+            f"executed benchmark attempt ID differs from run plan: {evidence_path}"
+        )
+
     arms: list[dict[str, Any]] = []
     arm_refs = attempt.get("arms")
     if not isinstance(arm_refs, dict):
@@ -83,8 +100,21 @@ def _seal_executed_attempt(
             raise WorkflowError(
                 f"benchmark arm receipt identity mismatch: {arm_path}"
             )
+        planned_arm = planned_attempt.get("arms", {}).get(arm_name)
+        if not isinstance(planned_arm, dict):
+            raise WorkflowError(
+                f"benchmark run plan is missing executed arm {arm_name}"
+            )
         worktree = Path(str(arm_value.get("worktree") or ""))
         stage = Path(str(arm_value.get("stage_dir") or ""))
+        if worktree != Path(str(planned_arm.get("worktree") or "")):
+            raise WorkflowError(
+                f"benchmark arm worktree differs from run plan: {arm_path}"
+            )
+        if stage != Path(str(planned_arm.get("stage_dir") or "")):
+            raise WorkflowError(
+                f"benchmark arm stage differs from run plan: {arm_path}"
+            )
         if not worktree.is_dir():
             raise WorkflowError(
                 f"benchmark executed arm worktree is missing before seal: {worktree}"
