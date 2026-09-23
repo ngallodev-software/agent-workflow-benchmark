@@ -8,7 +8,7 @@ from agent_workflow.util import atomic_write_bytes, atomic_write_json
 from .handler import handle_benchmark_command
 from .legacy import build_benchmark_report, render_benchmark_markdown, validate_benchmark_manifest
 
-__version__="0.3.2"
+__version__="0.3.3"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
