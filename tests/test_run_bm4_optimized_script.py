@@ -67,24 +67,7 @@ def test_visual_recovery_script_has_valid_bash_syntax() -> None:
 
 def test_visual_recovery_script_preserves_execution_and_surfaces_failures() -> None:
     text = RECOVERY_SCRIPT.read_text(encoding="utf-8")
-    assert 'benchmark run "    assert "benchmark runtime-attest" in text
-    assert "benchmark live-start" in text
-    assert "benchmark visual-capture" in text
-    assert "benchmark live-stop" in text
-    assert "visual-capture-history" in text
-    assert "visual-history" in text
-    assert "failure_details" in text
-    assert "assessment" in text
-
-
-def test_bm4_script_fails_fast_before_scoring_on_visual_failure() -> None:
-    text = SCRIPT.read_text(encoding="utf-8")
-    visual = text.index('benchmark visual-capture "$RUN_PLAN"')
-    check = text.index("BM4 visual capture failed")
-    score = text.index('benchmark score "$RUN_PLAN"')
-    assert visual < check < score
-    assert "recover-benchmark-visual.sh" in text
- not in text
+    assert 'benchmark run "$' not in text
     assert "benchmark runtime-attest" in text
     assert "benchmark live-start" in text
     assert "benchmark visual-capture" in text
