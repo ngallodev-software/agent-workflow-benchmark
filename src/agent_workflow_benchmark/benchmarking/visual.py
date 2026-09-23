@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from typing import Any, Mapping
 
 from agent_workflow.errors import WorkflowError
@@ -12,6 +13,54 @@ from .events import append_event
 from .pairing import selected_arms
 from .runtime import attest_runtime
 from .live_review import live_url_for
+
+
+def _assessment_failure_details(
+    assessment_value: Mapping[str, Any],
+    *,
+    stdout: str = "",
+    stderr: str = "",
+) -> list[str]:
+    details: list[str] = []
+    for item in assessment_value.get("checks", []):
+        if isinstance(item, Mapping) and item.get("passed") is False:
+            detail = str(item.get("detail") or item.get("id") or "visual capture check failed").strip()
+            if detail:
+                details.append(detail)
+    if not details:
+        for label, raw in (("stderr", stderr), ("stdout", stdout)):
+            text = str(raw or "").strip()
+            if text:
+                details.append(f"{label}: {text[-2000:]}")
+    if not details and assessment_value.get("capture_state") != "complete":
+        details.append(f"capture_state={assessment_value.get('capture_state', 'missing')}")
+    return details
+
+
+def _archive_failed_visual(visual_dir: Path) -> Path | None:
+    if not visual_dir.is_dir():
+        return None
+    history = visual_dir.parent / "visual-history"
+    history.mkdir(parents=True, exist_ok=True)
+    index = 1
+    while (history / f"failed-{index:02d}").exists():
+        index += 1
+    destination = history / f"failed-{index:02d}"
+    shutil.move(str(visual_dir), str(destination))
+    return destination
+
+
+def _archive_failed_summary(summary_path: Path) -> Path | None:
+    if not summary_path.is_file():
+        return None
+    history = summary_path.parent / "visual-capture-history"
+    history.mkdir(parents=True, exist_ok=True)
+    index = 1
+    while (history / f"failed-{index:02d}.json").exists():
+        index += 1
+    destination = history / f"failed-{index:02d}.json"
+    shutil.copy2(summary_path, destination)
+    return destination
 
 
 def _capture_arm(
@@ -59,12 +108,20 @@ def _capture_arm(
     attestation = attest_runtime(runtime_lock, claim_level=str(plan["claim_level"]))
     actual_browser = assessment_value.get("runtime", {}).get("browser_version")
     locked_browser = assessment_value.get("runtime_lock", {}).get("browser_version")
-    browser_version_matches = bool(actual_browser and locked_browser and actual_browser == locked_browser)
     attestation["actual_browser_version"] = actual_browser
-    attestation["checks"]["browser_version"] = browser_version_matches
-    if not browser_version_matches:
+    # A capture-harness exception intentionally writes runtime={} to assessment.json.
+    # Do not misclassify that as a runtime-lock mismatch when independent host
+    # attestation already verified the runtime. Only override the browser-version
+    # check when the capture process actually reported both versions.
+    if actual_browser and locked_browser:
+        browser_version_matches = actual_browser == locked_browser
+        attestation["checks"]["browser_version"] = browser_version_matches
+        if not browser_version_matches:
+            attestation["runtime_state"] = "not-verified"
+    elif assessment_value.get("capture_state") == "complete":
+        attestation["checks"]["browser_version"] = False
         attestation["runtime_state"] = "not-verified"
-    elif plan["claim_level"] == "publication" and attestation["runtime_state"] != "publication-verified":
+    if plan["claim_level"] == "publication" and attestation["runtime_state"] != "publication-verified":
         attestation["runtime_state"] = "not-verified"
     capture_complete = assessment_value.get("capture_state") == "complete" and result.returncode == 0
     evidence = {
@@ -90,6 +147,11 @@ def _capture_arm(
         "assessment": str(assessment) if assessment.is_file() else None,
         "live_url": live_url,
         "assessment_sha256": sha256_file(assessment) if assessment.is_file() else None,
+        "failure_details": _assessment_failure_details(
+            assessment_value,
+            stdout=str(result.stdout),
+            stderr=str(result.stderr),
+        ) if state != "complete" else [],
         "stdout": str(visual_dir / "capture.stdout.log"), "stderr": str(visual_dir / "capture.stderr.log"),
     }
     atomic_write_json(visual_dir / "capture.json", value)
@@ -101,7 +163,10 @@ def capture_run(plan_path: Path) -> dict[str, Any]:
     run_dir = Path(plan["coordinator"]["run_dir"])
     summary_path = run_dir / "visual-capture-summary.json"
     if summary_path.is_file():
-        return read_object(summary_path)
+        prior_summary = read_object(summary_path)
+        if int(prior_summary.get("harness_failures", 0)) == 0:
+            return prior_summary
+        _archive_failed_summary(summary_path)
     spec = validate_spec(Path(plan["coordinator"]["spec_path"]))
     results: list[dict[str, Any]] = []
     append_event(run_dir, event_type="visual_capture_started", run_id=str(plan["run_id"]))
@@ -111,8 +176,18 @@ def capture_run(plan_path: Path) -> dict[str, Any]:
         arms = selected_arms(pair, pair_state)
         for arm_name in ("control_raw", "workflow_full"):
             arm = arms[arm_name]
-            existing = Path(arm["stage_dir"]) / "visual" / "capture.json"
-            capture = read_object(existing) if existing.is_file() else _capture_arm(plan, pair, pair_state, arm, spec)
+            visual_dir = Path(arm["stage_dir"]) / "visual"
+            existing = visual_dir / "capture.json"
+            capture: dict[str, Any]
+            if existing.is_file():
+                prior_capture = read_object(existing)
+                if prior_capture.get("state") == "complete":
+                    capture = prior_capture
+                else:
+                    _archive_failed_visual(visual_dir)
+                    capture = _capture_arm(plan, pair, pair_state, arm, spec)
+            else:
+                capture = _capture_arm(plan, pair, pair_state, arm, spec)
             results.append({"pair_id": pair["pair_id"], "arm": arm_name, "attempt": pair_state["selected_attempt"], **capture})
     summary = {
         "run_id": plan["run_id"], "captures": results,

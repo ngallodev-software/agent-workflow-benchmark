@@ -326,6 +326,39 @@ echo "run plan: $RUN_PLAN"
 # the orchestration script skipped a required evidence stage.
 "$AW_BIN" --json benchmark live-start "$RUN_PLAN" > "$ROOT/live-start.json"
 "$AW_BIN" --json benchmark visual-capture "$RUN_PLAN" > "$ROOT/visual-capture.json"
+if ! "$PYTHON" - "$ROOT/visual-capture.json" <<'PY'
+import json, sys
+from pathlib import Path
+value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+failures = [item for item in value.get("captures", []) if item.get("state") != "complete"]
+for item in failures:
+    print(
+        f"BM4 visual failure: pair={item.get('pair_id')} arm={item.get('arm')} "
+        f"runtime={item.get('runtime_state')}",
+        file=sys.stderr,
+    )
+    details = item.get("failure_details") or []
+    if not details and item.get("assessment"):
+        path = Path(item["assessment"])
+        if path.is_file():
+            assessment = json.loads(path.read_text(encoding="utf-8"))
+            details = [
+                str(check.get("detail"))
+                for check in assessment.get("checks", [])
+                if check.get("passed") is False
+            ]
+    for detail in details:
+        print(f"  {detail}", file=sys.stderr)
+if failures:
+    raise SystemExit(f"BM4 visual capture failed for {len(failures)} arm(s)")
+print(f"BM4 visual capture: {value.get('complete', 0)} complete; 0 harness failures")
+PY
+then
+  "$AW_BIN" --json benchmark live-stop "$RUN_PLAN" > "$ROOT/live-stop.json" || true
+  echo "BM4 model execution is preserved. Fix the visual runtime/harness and run:" >&2
+  echo "  bash scripts/recover-benchmark-visual.sh $RUN_PLAN --output-root $ROOT/visual-recovery" >&2
+  exit 1
+fi
 "$AW_BIN" --json benchmark score "$RUN_PLAN" | tee "$SCORE_JSON"
 "$AW_BIN" --json benchmark consolidate "$RUN_PLAN" | tee "$CONSOLIDATE_JSON"
 "$AW_BIN" --json benchmark report "$RUN_PLAN" | tee "$REPORT_JSON"

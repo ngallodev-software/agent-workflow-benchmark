@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run-bm4-optimized.sh"
+RECOVERY_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "recover-benchmark-visual.sh"
 
 
 def test_bm4_script_has_valid_bash_syntax() -> None:
@@ -52,3 +53,35 @@ def test_bm4_script_checks_exported_model_effort_and_treatment() -> None:
     assert 'executor.get("model") != "gpt-6-luna"' in text
     assert 'executor.get("effort") != "high"' in text
     assert 'candidate.get("treatment_id") != "agent-workflow-optimized/v1"' in text
+
+
+def test_visual_recovery_script_has_valid_bash_syntax() -> None:
+    result = subprocess.run(
+        ["bash", "-n", str(RECOVERY_SCRIPT)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_visual_recovery_script_preserves_execution_and_surfaces_failures() -> None:
+    text = RECOVERY_SCRIPT.read_text(encoding="utf-8")
+    assert 'benchmark run "$' not in text
+    assert "benchmark runtime-attest" in text
+    assert "benchmark live-start" in text
+    assert "benchmark visual-capture" in text
+    assert "benchmark live-stop" in text
+    assert "visual-capture-history" in text
+    assert "visual-history" in text
+    assert "failure_details" in text
+    assert "assessment" in text
+
+
+def test_bm4_script_fails_fast_before_scoring_on_visual_failure() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    visual = text.index('benchmark visual-capture "$RUN_PLAN"')
+    check = text.index("BM4 visual capture failed")
+    score = text.index('benchmark score "$RUN_PLAN"')
+    assert visual < check < score
+    assert "recover-benchmark-visual.sh" in text
