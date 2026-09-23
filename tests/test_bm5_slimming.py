@@ -33,6 +33,9 @@ def test_bm5_export_declares_steering_first_fast_path(tmp_path: Path) -> None:
     assert "steering-first exceptional worker protocol (OPT-013)" in text
     assert "per-command/cache amplification telemetry (OPT-014)" in text
     assert "conditional verify/repair model invocation (OPT-015)" in text
+    runtime_lock = json.loads((destination / "visual-runtime-lock.json").read_text(encoding="utf-8"))
+    assert runtime_lock["browser_product"] == "Chromium"
+    assert runtime_lock["browser_version"] == "151.0.7922.173"
 
 
 def test_bm5_acceptance_commands_are_phase_specific() -> None:

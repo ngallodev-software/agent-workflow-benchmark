@@ -4,6 +4,6 @@
     "_shared/priority-picker-common",
     "_shared/priority-picker-v1-v2"
   ],
-  "materialized_tree_sha256": "20a0f1958d36bb4de3052ff570e3b24c0fd00d0555025919e3fe1b15e82db61c",
+  "materialized_tree_sha256": "c868e3dd2143f404e206c6d2a7b7cd202e12f2cc7c450a0c20cf910531629a7d",
   "schema": "agent-workflow/builtin-benchmark-layout/v1"
 }
