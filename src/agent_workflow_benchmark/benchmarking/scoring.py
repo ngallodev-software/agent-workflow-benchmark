@@ -20,6 +20,7 @@ from .contracts import (
 from .events import append_event
 from .pairing import selected_arms
 from .product_scoring import score_end_to_end_product
+from .execution_seal import require_execution_seal
 
 
 def _guardrail(id_: str, state: str, detail: str, *, required: bool) -> dict[str, Any]:
@@ -316,6 +317,7 @@ def score_run(plan_path: Path) -> dict[str, Any]:
     summary_path = run_dir / "machine-scores.json"
     if summary_path.is_file():
         return read_object(summary_path)
+    require_execution_seal(plan_path)
     spec_path = Path(plan["coordinator"]["spec_path"])
     spec = validate_spec(spec_path)
     contract = load_scoring_contract(spec_path, spec)
