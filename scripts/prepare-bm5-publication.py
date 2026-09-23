@@ -128,6 +128,9 @@ def timing_summary(arm: dict[str, Any]) -> dict[str, Any]:
             "conditional_skip_acceptance_command_ids": breakdown.get(
                 "conditional_skip_acceptance_command_ids"
             ),
+            "conditional_skip_evidence_source": breakdown.get(
+                "conditional_skip_evidence_source"
+            ),
         })
 
     return {
