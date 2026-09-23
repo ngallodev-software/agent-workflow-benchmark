@@ -190,6 +190,9 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
         assert stage == worktree / ".awb"
         prompt_names = [Path(item["path"]).name for item in arm["prompts"]]
         assert prompt_names == ["01.md", "02.md", "03.md"]
+        deepest = stage / "ph" / "p-00000000" / "agent-workflow-execution-metrics.json"
+        assert len(str(deepest)) < 240
+        assert len(str(deepest)) < 256
 
     executed = run_benchmark(settings, plan_path, execution_only=True)
     assert executed["state"] == "executed"
@@ -202,13 +205,9 @@ def test_value_smoke_executes_real_agent_workflow_lifecycle(tmp_path: Path) -> N
     assert executed["report"] is None
 
     pair = plan["pairs"][0]
-    pair_state_path = (
-        Path(plan["coordinator"]["run_dir"])
-        / "pair-state"
-        / str(pair["case_id"])
-        / f"r{int(pair['repetition']):02d}"
-        / "pair.json"
-    )
+    pair_state_paths = list((Path(plan["coordinator"]["run_dir"]) / "ps").glob("*/pair.json"))
+    assert len(pair_state_paths) == 1
+    pair_state_path = pair_state_paths[0]
     pair_state = read_object(pair_state_path)
     candidate_path = Path(pair_state["arms"]["workflow_full"])
     candidate = read_object(candidate_path)
