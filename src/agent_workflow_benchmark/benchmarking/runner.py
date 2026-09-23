@@ -31,6 +31,41 @@ from .pairing import attempts_for
 TERMINAL_PHASE_STATES = {"completed", "task_failed", "infrastructure_failed", "timed_out"}
 AGENT_WORKFLOW_EXECUTOR_ALIASES = {"codex-cli": "codex", "claude-code-cli": "claude"}
 
+_PHASE_FS_IDS = {
+    "analyze-plan": "p1",
+    "implement": "p2",
+    "verify-repair": "p3",
+}
+
+
+def _phase_fs_id(phase_id: str) -> str:
+    known = _PHASE_FS_IDS.get(phase_id)
+    if known is not None:
+        return known
+    return "p-" + hashlib.sha256(phase_id.encode("utf-8")).hexdigest()[:8]
+
+
+def _phase_dir(arm: Mapping[str, Any], phase_id: str) -> Path:
+    return Path(str(arm["stage_dir"])) / "ph" / _phase_fs_id(phase_id)
+
+
+def _pair_fs_id(pair: Mapping[str, Any]) -> str:
+    identity = f"{pair['case_id']}|{pair['repetition']}"
+    return "p-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:8]
+
+
+def _pair_state_dir(plan: Mapping[str, Any], pair: Mapping[str, Any]) -> Path:
+    return Path(str(plan["coordinator"]["run_dir"])) / "ps" / _pair_fs_id(pair)
+
+
+def _attempt_state_dir(
+    plan: Mapping[str, Any],
+    pair: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+) -> Path:
+    return _pair_state_dir(plan, pair) / f"a{int(attempt['attempt']):02d}"
+
+
 
 def _prompt_for(arm: Mapping[str, Any], phase_id: str) -> Path:
     for item in arm["prompts"]:
@@ -46,7 +81,7 @@ def _render_command(
     worktree = Path(arm["worktree"])
     stage = Path(arm["stage_dir"])
     prompt_file = _prompt_for(arm, str(phase["id"]))
-    phase_dir = stage / "phases" / str(phase["id"])
+    phase_dir = _phase_dir(arm, str(phase["id"]))
     phase_dir.mkdir(parents=True, exist_ok=True)
     usage_file = phase_dir / "usage.json"
     values = {
@@ -211,8 +246,7 @@ def _agent_run_id(
         )
     )
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
-    phase_id = "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in str(phase["id"]))[:24]
-    return f"bench-{digest}-{phase_id}"
+    return f"b-{digest[:16]}-{_phase_fs_id(str(phase['id']))}"
 
 
 def _copy_if_present(source: Path, destination: Path) -> None:
@@ -277,7 +311,7 @@ def _phase_delta(
         "interpretation": "observed filesystem delta for this phase; not a quality score or causal attribution",
     }
     validate_value(value, BENCHMARK_PHASE_DELTA_SCHEMA, f"phase delta {phase['id']}")
-    path = Path(str(arm["stage_dir"])) / "phases" / str(phase["id"]) / "phase-delta.json"
+    path = _phase_dir(arm, str(phase["id"])) / "phase-delta.json"
     atomic_write_json(path, value)
     return {"path": str(path), "sha256": sha256_file(path), "changed_file_count": len(changes),
             "capture_seconds": value["capture_seconds"]}
@@ -344,7 +378,7 @@ def _phase_review(
         ],
     }
     validate_value(value, BENCHMARK_PHASE_REVIEW_SCHEMA, f"phase review {phase['id']}")
-    path = Path(str(plan["coordinator"]["run_dir"])) / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / f"attempt-{int(attempt['attempt']):02d}" / "phase-reviews" / f"{phase['id']}.json"
+    path = _attempt_state_dir(plan, pair, attempt) / "pr" / f"{_phase_fs_id(str(phase['id']))}.json"
     atomic_write_json(path, value)
     return {"path": str(path), "sha256": sha256_file(path)}
 
@@ -626,7 +660,7 @@ def _bm5_verify_skip_decision(
             "acceptance_command_ids": [],
         }
 
-    implement_dir = Path(str(arm["stage_dir"])) / "phases" / "implement"
+    implement_dir = _phase_dir(arm, "implement")
     evaluation_path = implement_dir / "evaluation-plan.json"
     run_ref_path = implement_dir / "agent-workflow-run.json"
     if not evaluation_path.is_file():
@@ -1308,7 +1342,7 @@ def _execute_attempt(settings: Settings | None, plan: Mapping[str, Any], pair: M
     arm_values = {name: _finalize_arm(plan, pair, attempt, attempt["arms"][name], records[name]) for name in ("control_raw", "workflow_full")}
     arm_walls = {name: round(sum(item["phase_wall_seconds"] for item in values), 6) for name, values in records.items()}
     state = "infrastructure_failed" if infrastructure_failure else "terminal"
-    attempt_dir = run_dir / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / f"attempt-{int(attempt['attempt']):02d}"
+    attempt_dir = _attempt_state_dir(plan, pair, attempt)
     attempt_dir.mkdir(parents=True, exist_ok=True)
     value = {
         "attempt": attempt["attempt"], "attempt_id": attempt["attempt_id"], "state": state,
@@ -1356,7 +1390,7 @@ def execute_pair(settings: Settings | None, plan: Mapping[str, Any], pair: Mappi
         "attempts": evidence, "arms": selected["arms"], "completed_at": utc_now(),
     }
     validate_value(value, BENCHMARK_PAIR_SCHEMA, f"benchmark pair {pair['pair_id']}")
-    pair_state_dir = run_dir / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}"
+    pair_state_dir = _pair_state_dir(plan, pair)
     pair_state_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_json(pair_state_dir / "pair.json", value)
     append_event(run_dir, event_type="pair_terminal", run_id=str(plan["run_id"]), pair_id=str(pair["pair_id"]), payload={"state": pair_state, "wall_seconds": value["pair_wall_seconds"], "selected_attempt": selected["attempt"]})
@@ -1381,7 +1415,7 @@ def execute_run(plan_path: Path, *, settings: Settings | None = None) -> dict[st
     pair_results: list[dict[str, Any]] = []
     try:
         for pair in plan["pairs"]:
-            existing = run_dir / "pair-state" / str(pair["case_id"]) / f"r{int(pair['repetition']):02d}" / "pair.json"
+            existing = _pair_state_dir(plan, pair) / "pair.json"
             pair_results.append(read_object(existing) if existing.is_file() else execute_pair(settings, plan, pair))
             state["pairs_terminal"] = len(pair_results)
             state["updated_at"] = utc_now()
