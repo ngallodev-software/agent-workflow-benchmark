@@ -121,6 +121,13 @@ def timing_summary(arm: dict[str, Any]) -> dict[str, Any]:
             "active_process_seconds": phase_active,
             "host_overhead_seconds": phase_host,
             "runner_kind": breakdown.get("runner_kind"),
+            "conditional_model_invocation_skipped": breakdown.get(
+                "conditional_model_invocation_skipped"
+            ),
+            "conditional_skip_reason": breakdown.get("conditional_skip_reason"),
+            "conditional_skip_acceptance_command_ids": breakdown.get(
+                "conditional_skip_acceptance_command_ids"
+            ),
         })
 
     return {
@@ -152,10 +159,27 @@ def timing_summary(arm: dict[str, Any]) -> dict[str, Any]:
                 int((phase.get("timing_breakdown") or {}).get("executor_context", {}).get("verification_cache_misses", 0) or 0)
                 for phase in phases
             ),
-            "finish_attempts": sum(
-                int((phase.get("timing_breakdown") or {}).get("executor_context", {}).get("finish_attempts", 0) or 0)
+            "finish_invocations": sum(
+                int((phase.get("timing_breakdown") or {}).get("executor_context", {}).get("finish_invocations", 0) or 0)
                 for phase in phases
             ),
+            "finish_incomplete_invocations": sum(
+                int((phase.get("timing_breakdown") or {}).get("executor_context", {}).get("finish_incomplete_invocations", 0) or 0)
+                for phase in phases
+            ),
+            "finish_outcomes": {
+                outcome: sum(
+                    int((phase.get("timing_breakdown") or {}).get("executor_context", {}).get("finish_outcomes", {}).get(outcome, 0) or 0)
+                    for phase in phases
+                )
+                for outcome in sorted({
+                    str(outcome)
+                    for phase in phases
+                    for outcome in (
+                        (phase.get("timing_breakdown") or {}).get("executor_context", {}).get("finish_outcomes", {}) or {}
+                    )
+                })
+            },
         },
         "phases": phase_rows,
     }
@@ -468,7 +492,7 @@ def main() -> None:
         f"- Control: {control.get('treatment_id')} via {control.get('runner_kind')}.\n"
         f"- Candidate: {candidate.get('treatment_id')} via {candidate.get('runner_kind')}.\n\n"
         "The candidate adds the Agent-Workflow lifecycle plus OPT-001 through "
-        "OPT-007 context/execution optimizations. This n=1 development result "
+        "OPT-015 context/execution optimizations. This n=1 development result "
         "is descriptive rather than a generalized treatment-effect claim.\n"
     )
     (destination / "methodology").mkdir(parents=True, exist_ok=True)
