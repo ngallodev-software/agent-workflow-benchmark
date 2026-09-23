@@ -97,8 +97,25 @@ def test_bm5_verify_phase_uses_green_completion_evidence_even_if_phase_state_fai
     decision = _bm5_verify_skip_decision(plan, arm, verify)
     assert decision["skip"] is True
     assert decision["acceptance_command_ids"] == ["public-regression"]
+    assert decision["acceptance_evidence_source"] == "completion"
     assert "green declared acceptance evidence" in decision["reason"]
 
+    (handoff / "completion.json").unlink()
+    (handoff / "completion-draft.json").write_text(
+        json.dumps({
+            "state": "open",
+            "commands": [{
+                "argv": ["python", "-m", "unittest"],
+                "exit_code": 0,
+            }],
+        }),
+        encoding="utf-8",
+    )
+    decision = _bm5_verify_skip_decision(plan, arm, verify)
+    assert decision["skip"] is True
+    assert decision["acceptance_evidence_source"] == "completion-draft"
+
+    (handoff / "completion-draft.json").unlink()
     (handoff / "completion.json").write_text(
         json.dumps({
             "result": "completed",
