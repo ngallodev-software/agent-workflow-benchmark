@@ -4,6 +4,9 @@
 ![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.9%2C%3C0.12-2ea44f)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
+**Agent-Workflow case study:** https://ngallodev-software.uk/projects/agent-workflow  
+**Published results:** https://github.com/ngallodev-software/agent-workflow-benchmark-results
+
 `agent-workflow-benchmark` is the optional comparative-benchmark plugin for
 Agent-Workflow. It owns benchmark-specific execution, suites, schemas,
 scoring/reporting, visual capture, sealed-run evidence, external scoring bundles,
