@@ -35,7 +35,7 @@ Options:
 
 Prerequisites:
   Agent-Workflow 0.11.9
-  agent-workflow-benchmark 0.3.5
+  agent-workflow-benchmark 0.3.9
   typesafe-sdk 0.6.0
   comparative decision mode
   TYPESAFE_API_KEY
@@ -147,7 +147,7 @@ from agent_workflow.decisions import require_decision_runtime_ready
 
 required = {
     "agent-workflow": "0.11.9",
-    "agent-workflow-benchmark": "0.3.5",
+    "agent-workflow-benchmark": "0.3.9",
     "typesafe-sdk": "0.6.0",
 }
 for name, expected in required.items():
@@ -596,7 +596,7 @@ for pair in plan.get("pairs", []):
     summary["pairs"].append(item)
 
 out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-print(f"BM4 summary: {out}")
+print(f"BM5 summary: {out}")
 print(
     "TypeSafe audit: "
     f"{summary['typesafe_qualification']['records']} calls; "
@@ -620,9 +620,9 @@ fi
 
 if [[ -d "$RESULTS_REPO/.git" ]]; then
   "$PYTHON" "$REPO_ROOT/scripts/prepare-bm5-publication.py"     --plan "$RUN_PLAN"     --root "$ROOT"     --destination "$RESULTS_REPO/bm5"     --private-archive "$EVIDENCE_ARCHIVE"
-  echo "BM4 sanitized publication copied to: $RESULTS_REPO/bm5"
+  echo "BM5 sanitized publication copied to: $RESULTS_REPO/bm5"
 else
-  echo "warning: benchmark results repo not found; public BM4 tree not copied: $RESULTS_REPO" >&2
+  echo "warning: benchmark results repo not found; public BM5 tree not copied: $RESULTS_REPO" >&2
 fi
 
 echo
