@@ -7,6 +7,13 @@
 **Agent-Workflow case study:** https://ngallodev-software.uk/projects/agent-workflow  
 **Published results:** https://github.com/ngallodev-software/agent-workflow-benchmark-results
 
+## Quick summary
+
+- **What it is:** the reproducible benchmark harness for comparing Agent-Workflow treatment runs with structured direct baselines.
+- **What it captures:** sealed execution evidence, finished software, timing/token usage, visual evidence, scoring, eligibility, and external scoring bundles.
+- **Key boundary:** the harness measures and reports; Agent-Workflow core still owns generic lifecycle, review, and acceptance.
+- **Where results live:** sanitized studies and finished outputs are published separately in `agent-workflow-benchmark-results`.
+
 `agent-workflow-benchmark` is the optional comparative-benchmark plugin for
 Agent-Workflow. It owns benchmark-specific execution, suites, schemas,
 scoring/reporting, visual capture, sealed-run evidence, external scoring bundles,
