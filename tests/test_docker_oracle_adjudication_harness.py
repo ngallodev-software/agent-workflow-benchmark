@@ -36,10 +36,9 @@ def test_generated_model_schema_is_bound_to_all_frozen_cases_and_seams():
     assert schema["properties"]["records"]["minItems"] == 120
     assert schema["properties"]["records"]["maxItems"] == 120
 
-    variants = schema["properties"]["records"]["items"]["oneOf"]
-    assert len(variants) == 120
-    first = variants[0]
-    assert first["properties"]["labels"]["required"] == [
+    item = schema["properties"]["records"]["items"]
+    assert len(item["properties"]["case_id"]["enum"]) == 120
+    assert item["properties"]["labels"]["required"] == [
         "routing.task_class",
         "routing.interaction_required",
         "routing.semantic_risk",
