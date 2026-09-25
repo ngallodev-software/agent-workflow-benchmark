@@ -38,6 +38,8 @@ from .benchmarking import (
 from .benchmarking.code_review import quality_review
 from .benchmarking.decision_study import (
     prepare_decision_study_publication,
+    export_decision_study_corpus,
+    export_oracle_authoring_view,
     report_decision_study,
     run_decision_study,
     validate_decision_study,
@@ -53,6 +55,18 @@ def handle_benchmark_command(
 ) -> Any:
     """Dispatch one parsed comparative-benchmark command."""
     command = args.benchmark_command
+    if command == "decision-study-corpus-export":
+        return export_decision_study_corpus(
+            args.destination,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-oracle-view-export":
+        return export_oracle_authoring_view(
+            args.destination,
+            study=args.study,
+            force=args.force,
+        )
     if command == "decision-study-validate":
         return validate_decision_study(
             args.corpus,

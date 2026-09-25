@@ -28,11 +28,16 @@ The run command has no oracle argument. run-manifest.json records oracle_seen_du
 ## Commands
 
 ~~~bash
-agent-workflow benchmark decision-study-validate cases.json
-agent-workflow benchmark decision-study-run cases.json ./run
-agent-workflow benchmark decision-study-validate cases.json --oracle oracle.json
-agent-workflow benchmark decision-study-report ./run oracle.json
-agent-workflow benchmark decision-study-publish-prepare ./run oracle.json ./public
+agent-workflow benchmark decision-study-corpus-export ./routing-corpus.json
+agent-workflow benchmark decision-study-oracle-view-export ./oracle-authoring-view.json
+
+agent-workflow benchmark decision-study-validate ./routing-corpus.json
+agent-workflow benchmark decision-study-run ./routing-corpus.json ./run
+
+# The frozen oracle is created independently from oracle-authoring-view.json.
+agent-workflow benchmark decision-study-validate ./routing-corpus.json --oracle ./oracle.json
+agent-workflow benchmark decision-study-report ./run ./oracle.json
+agent-workflow benchmark decision-study-publish-prepare ./run ./oracle.json ./public
 ~~~
 
 The active Agent-Workflow configuration must use comparative decision mode and have a ready TypeSafe runtime. The production decision boundary is reused; the benchmark does not implement a second semantic-routing algorithm.
@@ -70,3 +75,31 @@ Safe to render now:
 - Publication eligibility is machine-readable and does not depend on whether Jev wins.
 
 Do not render claims that Jev improves routing correctness, quality, latency, or cost until the full independently labeled study is complete.
+
+
+## Frozen corpus and oracle handoff
+
+The packaged inference corpus is `routing-semantic-corpus-v1.0.0` with **120 public-safe cases**. Every case is oracle-eligible for the three live routing seams.
+
+The corpus intentionally includes several construction strata:
+
+- straightforward single-intent requests;
+- missing routing metadata;
+- stale or misleading declared task type;
+- missing user authorization/choice;
+- stale interaction flags where no new decision is actually required;
+- high-consequence production/security contexts;
+- mixed-intent requests;
+- terse/ambiguous requests.
+
+Construction tags are retained in the frozen corpus for later stratified analysis but **are removed from the oracle-authoring view**. The adjudicator view contains only:
+
+- case ID;
+- request text;
+- observed declared metadata;
+- the frozen task-class taxonomy and semantic-risk rubric;
+- oracle eligibility.
+
+It contains no deterministic outputs, Jev outputs, probability evidence, comparison results, or construction tags.
+
+The adjudicator must produce the frozen oracle without access to treatment results. The inference corpus and final oracle are separate versioned artifacts.
