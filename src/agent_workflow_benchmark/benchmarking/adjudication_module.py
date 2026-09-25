@@ -122,9 +122,6 @@ def validate_abc_adjudication_module(path: Path) -> dict[str, Any]:
     coordination = value["coordination"]
     if coordination["reveal_policy"] != "after-all-primary-complete":
         raise WorkflowError("A/B outputs may be revealed only after both primary runs complete")
-    if coordination["tiebreaker" if "tiebreaker" in coordination else "primary_start"] == "":
-        raise WorkflowError("invalid coordination contract")
-
     module_sha256 = _stable_sha256(value)
     return {
         "valid": True,
