@@ -48,27 +48,35 @@ Defines what the agent can see and do.
 Examples:
 
 - OCI container;
+- Inspect Docker sandbox lifecycle;
 - read-only root;
 - workspace/input mounts;
 - network policy;
 - credential scope;
 - process/resource limits.
 
+For the current adjudication runtime, each sample receives a separate Inspect Docker sandbox with direct external networking disabled; model calls are routed through Inspect's host-side sandbox-agent bridge.
+
 ### 3. Agent adapter
 
 Defines how the runtime invokes the agent.
 
-Current implementation:
+Current adjudication implementation:
 
-- Codex CLI.
+- Inspect AI owns the evaluation/sandbox execution layer;
+- Inspect SWE supplies the CLI-agent adapter;
+- `inspect_swe.codex_cli()` invokes Codex CLI through Inspect's sandbox agent bridge;
+- Codex CLI is resolved at cohort start and the exact numeric version is frozen in the runtime lock.
 
-Future adapters may include:
+Future adapter/scaffold directions may include:
 
-- Claude Code;
-- Gemini CLI;
-- Inspect SWE agents;
+- other Inspect SWE CLI integrations such as Claude Code where justified;
+- Gemini CLI or other bridged CLI agents;
+- mini-SWE-agent for future coding-agent benchmark scaffolds;
 - custom model loops;
 - human/manual adapters.
+
+Inspect SWE and mini-SWE-agent are not interchangeable: Inspect SWE is the current Inspect integration/adapter layer, while mini-SWE-agent is a candidate agent scaffold for future software-engineering benchmark arms.
 
 ### 4. Output contract
 
@@ -110,7 +118,8 @@ For benchmark arms:
 ### Blinded adjudication
 
 - no repository mount;
-- provider network only;
+- no direct external network from the sandbox;
+- model-provider access only through Inspect's host-side sandbox-agent bridge;
 - task files read-only;
 - narrow structured result.
 

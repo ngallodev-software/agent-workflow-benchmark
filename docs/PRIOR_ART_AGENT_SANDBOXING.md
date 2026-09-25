@@ -10,8 +10,10 @@ Most infrastructure layers already have mature standards or libraries. We should
 | --- | --- | --- |
 | Container format/runtime | OCI | Adopt as portability baseline |
 | Local multi-container topology | Docker Compose Specification | Prefer for declarative local topology |
-| Evaluation framework | Inspect AI | Strong candidate for future benchmark orchestration |
-| Sandbox execution abstraction | SWE-ReX | Strong candidate for runtime portability/parallelism |
+| Evaluation framework | Inspect AI | Current adjudication execution framework; evaluate broader benchmark use after this study |
+| CLI-agent adapter layer | Inspect SWE | Current Codex CLI adapter package under Inspect AI |
+| Future coding-agent scaffold | mini-SWE-agent | Prefer as the default SWE-agent-family direction for future coding-agent experiments |
+| Sandbox execution abstraction | SWE-ReX | Possible lower-level portability/parallelism layer where a full evaluation framework is unnecessary |
 | Exact A/B/C blinded adjudication | No broadly adopted formal standard identified | Keep as versioned module |
 
 ## OCI
@@ -50,11 +52,11 @@ Inspect AI provides:
 - evaluation logs and analysis;
 - integrations for coding agents including Codex CLI and Claude Code via Inspect SWE.
 
-This overlaps heavily with future Agent-Workflow Benchmark infrastructure.
+This overlaps heavily with Agent-Workflow Benchmark infrastructure.
 
-Inspect is therefore the leading candidate when we need a full evaluation orchestration framework rather than only a sandbox abstraction.
+For `routing-semantic-v1`, Inspect is no longer only a candidate: the current adjudication runtime is implemented as `Inspect AI -> Inspect SWE -> inspect_swe.codex_cli() -> Codex CLI`. Inspect owns execution infrastructure while Agent-Workflow Benchmark retains the frozen module, adjudication, oracle, and evidence contracts.
 
-Migration must preserve Agent-Workflow's frozen study/evidence contracts rather than replacing them implicitly with Inspect-native scoring semantics.
+For later generalized benchmark execution, Inspect remains the leading framework to evaluate when a full orchestration layer is warranted. Any migration must preserve Agent-Workflow's frozen study/evidence contracts rather than replacing them implicitly with Inspect-native scoring semantics.
 
 ## SWE-ReX
 
@@ -71,13 +73,19 @@ SWE-ReX is a strong candidate when we want:
 
 It does not replace Agent-Workflow Benchmark's study contracts, scoring, sealing, publication, or A/B/C coordination.
 
-## OpenHands and SWE-agent
+## Inspect SWE, mini-SWE-agent, legacy SWE-agent, and OpenHands
 
-Both are useful architecture references.
+These occupy different architectural roles and should not be conflated.
 
-SWE-agent uses SWE-ReX for its runtime isolation. That reinforces the separation between agent logic and execution infrastructure.
+**Inspect SWE** is the package used by the current adjudication implementation. It supplies software-engineering/CLI-agent integrations for Inspect AI, including the Codex CLI adapter used here. In this study it is an adapter layer, not a replacement for Agent-Workflow Benchmark's A/B/C contracts.
 
-OpenHands includes a mature sandbox/runtime system but is a broader agent platform; adopting its control plane would introduce more coupling than is needed here.
+**mini-SWE-agent** is the preferred SWE-agent-family direction to evaluate for future coding-agent scaffolds. Its current documentation positions it as the simpler research/evaluation-oriented agent from the team behind SWE-agent, with multiple execution backends including direct container environments and SWE-ReX-backed environments.
+
+**Legacy SWE-agent** remains useful prior art when studying tool-rich agent scaffolds and runtime separation, but it is no longer the default future scaffold for this project. Do not replace the current Inspect SWE Codex adapter with mini-SWE-agent merely because mini-SWE-agent is the newer SWE-agent-family direction; they solve different layers of the architecture.
+
+**SWE-ReX** remains relevant as a lower-level portable execution abstraction when Agent-Workflow Benchmark needs runtime portability or parallelism without adopting a broader evaluation framework.
+
+**OpenHands** includes a mature sandbox/runtime system but is a broader agent platform; adopting its control plane would introduce more coupling than is needed here.
 
 ## Is there a standard for A/B/C adjudication?
 
@@ -100,14 +108,14 @@ This should remain a versioned module contract.
 For `routing-semantic-v1`, the decision was amended on 2026-09-25 **before any real A/B labels or live comparative inference existed**:
 
 1. keep the merged direct-Docker runner as the rollback/reference implementation;
-2. integrate Inspect AI before real adjudication;
-3. qualify Inspect against synthetic fixtures and the reference backend;
-4. preserve the frozen corpus/view/oracle protocol unchanged;
-5. begin real A/B adjudication only after Inspect passes the pre-adjudication parity gates;
-6. roll back to fresh direct-Docker A/B sessions if Inspect cannot qualify.
+2. use the implemented `Inspect AI + Inspect SWE + Codex CLI` adjudication runtime from benchmark commit `7c3cef0ca3572005cb1266629b62dcbf65608440`;
+3. complete authenticated Debian-host qualification against the actual model/load-balancer path using synthetic fixtures only;
+4. require the frozen qualification manifest to report `qualified: true` with IA-1 through IA-8 all passing;
+5. preserve the frozen corpus/view/oracle protocol unchanged;
+6. keep P0B real A/B adjudication blocked until the qualification gate passes.
 
 See `docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
 
-For later generalized benchmark execution, evaluate the same Inspect backend after the routing study is complete. SWE-ReX remains a candidate if runtime portability becomes more important than Inspect's broader evaluation orchestration.
+For later generalized benchmark execution, evaluate the same Inspect backend after the routing study is complete. For future software-engineering agent scaffolds, evaluate mini-SWE-agent before legacy SWE-agent. SWE-ReX remains a candidate when a lower-level portable runtime abstraction is preferable to Inspect's broader evaluation orchestration.
 
 The goal is to reuse mature infrastructure while retaining the evidence model that makes Agent-Workflow Benchmark valuable.
