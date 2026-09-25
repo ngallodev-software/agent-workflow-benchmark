@@ -25,7 +25,7 @@
     }
   },
   "prompt": {
-    "template": "docker/adjudication/START_PROMPT.inspect.template.md",
+    "template": "docker/adjudication/START_PROMPT.template.md",
     "target": "oracle-prompt",
     "variables": [
       "ADJUDICATOR_ID"
