@@ -184,3 +184,25 @@ def test_validate_accepts_separate_complete_frozen_oracle(tmp_path: Path):
     assert result["valid"] is True
     assert result["oracle"]["frozen"] is True
     assert result["oracle"]["records"] == 1
+
+
+def test_exports_packaged_corpus_and_blinded_oracle_view(tmp_path: Path):
+    corpus_path = tmp_path / "corpus.json"
+    view_path = tmp_path / "oracle-view.json"
+
+    corpus_result = decision_study.export_decision_study_corpus(corpus_path)
+    assert corpus_result["cases"] == 120
+    corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+    assert corpus["schema"] == "agent-workflow-comparative-eval/decision-study-corpus/v1"
+
+    view_result = decision_study.export_oracle_authoring_view(view_path)
+    assert view_result["cases"] == 120
+    assert view_result["construction_tags_included"] is False
+    view = json.loads(view_path.read_text(encoding="utf-8"))
+    assert view["schema"] == "agent-workflow-comparative-eval/oracle-authoring-view/v1"
+    assert all("tags" not in case for case in view["cases"])
+    assert view["blinding"] == {
+        "construction_tags_included": False,
+        "control_outputs_included": False,
+        "candidate_outputs_included": False,
+    }
