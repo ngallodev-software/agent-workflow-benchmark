@@ -90,7 +90,7 @@ bash scripts/run-docker-oracle-adjudication.sh start-ab
 2. copies the same blinded view and protocol into two separate runtime directories;
 3. generates an output schema bound to all expected cases/seams;
 4. generates a starting prompt for `codex-a` and `codex-b`;
-5. builds one adjudicator image using `@openai/codex@latest`;
+5. builds one adjudicator image using the pinned current Codex CLI release (`@openai/codex@0.156.1`);
 6. records the exact installed `codex --version` and Docker image ID;
 7. starts A and B concurrently as separate containers;
 8. waits for both to finish before exposing either result to the coordinator;
@@ -294,12 +294,12 @@ bash scripts/run-docker-oracle-adjudication.sh freeze
 
 ## Reproducibility and reruns
 
-The image defaults to `CODEX_VERSION=latest` because this harness is intended to build the current CLI at adjudication start. The exact resolved version is recorded in `coordinator/codex-version.txt`, and A/B use the same built image.
+The image defaults to `CODEX_VERSION=0.156.1`, the current Codex CLI release when this harness was frozen. The exact installed version is recorded in `coordinator/codex-version.txt`, and A/B use the same built image. Override `CODEX_VERSION` only deliberately; changing it after A/B begin would invalidate the matched adjudicator runtime.
 
 For a pinned rebuild:
 
 ~~~bash
-export CODEX_VERSION=<exact npm package version>
+export CODEX_VERSION=<deliberately selected exact npm package version>
 bash scripts/run-docker-oracle-adjudication.sh build
 ~~~
 
