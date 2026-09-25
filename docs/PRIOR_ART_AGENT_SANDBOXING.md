@@ -97,18 +97,17 @@ This should remain a versioned module contract.
 
 ## Recommendation
 
-For `routing-semantic-v1`:
+For `routing-semantic-v1`, the decision was amended on 2026-09-25 **before any real A/B labels or live comparative inference existed**:
 
-- use the merged Docker reference runner;
-- do not swap execution framework mid-study.
+1. keep the merged direct-Docker runner as the rollback/reference implementation;
+2. integrate Inspect AI before real adjudication;
+3. qualify Inspect against synthetic fixtures and the reference backend;
+4. preserve the frozen corpus/view/oracle protocol unchanged;
+5. begin real A/B adjudication only after Inspect passes the pre-adjudication parity gates;
+6. roll back to fresh direct-Docker A/B sessions if Inspect cannot qualify.
 
-For the next generalized benchmark runner:
+See `docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
 
-1. start from the declarative isolated-agent/module contract;
-2. prototype the same task in Inspect AI with Docker sandbox;
-3. prototype the runtime layer with SWE-ReX if backend portability matters;
-4. run a parity cohort against the existing runner;
-5. compare input hashes, output contracts, isolation, failure semantics, timing, token evidence, and final manifests;
-6. adopt the external framework only if evidence parity is demonstrated.
+For later generalized benchmark execution, evaluate the same Inspect backend after the routing study is complete. SWE-ReX remains a candidate if runtime portability becomes more important than Inspect's broader evaluation orchestration.
 
 The goal is to reuse mature infrastructure while retaining the evidence model that makes Agent-Workflow Benchmark valuable.
