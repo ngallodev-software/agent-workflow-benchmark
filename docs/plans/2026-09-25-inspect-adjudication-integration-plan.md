@@ -77,11 +77,11 @@ Initial implementation should pin exact versions rather than resolve moving rele
 
 - `inspect-ai==0.3.268`;
 - `inspect-swe==0.2.70`;
-- Codex CLI `0.156.1` inside the adjudicator sandbox;
+- Codex CLI `latest` resolved once at cohort start, with the exact resolved version frozen in the runtime lock;
 - existing Agent-Workflow Benchmark `0.4.0` contracts;
 - existing comparative-eval `0.2.0` study contracts.
 
-Version pins are infrastructure identity and must be persisted in the adjudication run manifest.
+Inspect/Inspect-SWE pins and the **resolved** Codex CLI version are infrastructure identity and must be persisted in the adjudication run manifest.
 
 A later dependency upgrade requires a new runtime qualification, not silent resolution.
 
@@ -202,7 +202,7 @@ Required settings:
 - no provider-side code execution;
 - no client MCP forwarding;
 - `attempts=1` for oracle independence unless the protocol is versioned to allow retries;
-- explicit Codex CLI version `0.156.1`;
+- Codex CLI version from the frozen cohort runtime lock (resolved from `latest` exactly once);
 - explicit working directory containing only the permitted task files.
 
 ### Fallback provider path
@@ -231,7 +231,7 @@ Add a versioned runtime backend block or a new compatible schema version that ca
     },
     "agent": {
       "kind": "inspect-swe/codex-cli",
-      "version": "0.156.1"
+      "version_policy": "latest-at-cohort-start"
     }
   }
 }
@@ -315,7 +315,7 @@ Verify on the Debian host:
 - pinned Inspect AI imports;
 - pinned Inspect SWE imports;
 - Docker meets Inspect's supported minimum;
-- Codex 0.156.1 launches through `inspect_swe.codex_cli()`;
+- `inspect_swe` resolves the current stable Codex CLI and the resolved version launches through `inspect_swe.codex_cli()`;
 - current Agent-Workflow benchmark package still installs/tests with optional Inspect dependencies.
 
 Result: machine-readable runtime qualification artifact.
@@ -431,7 +431,7 @@ It is now expanded without changing downstream study semantics:
 
 ### P0A — Inspect integration and parity qualification
 
-1. Pin Inspect/Inspect-SWE versions.
+1. Pin Inspect/Inspect-SWE versions and define Codex as `latest-at-cohort-start`.
 2. Add optional benchmark dependency group.
 3. Add `InspectBackend`.
 4. Add load-balancer provider configuration.
@@ -617,7 +617,7 @@ Before real A/B execution:
 - commit all integration code;
 - merge to main;
 - record exact benchmark commit;
-- record Inspect/Inspect-SWE/Codex versions;
+- record Inspect/Inspect-SWE versions and the exact Codex version resolved into the cohort runtime lock;
 - save qualification manifest;
 - verify canonical corpus/view hashes;
 - update comparative-study checkpoint.
