@@ -172,6 +172,7 @@ def handle_benchmark_command(
             runtime_lock_path=args.runtime_lock,
             output_root=args.output,
             model=args.model,
+            qualification_path=args.qualification,
             model_args=model_args,
             log_model_api=bool(args.log_model_api),
         )
