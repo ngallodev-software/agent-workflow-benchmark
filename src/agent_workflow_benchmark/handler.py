@@ -36,6 +36,12 @@ from .benchmarking import (
     visual_capture_benchmark,
 )
 from .benchmarking.code_review import quality_review
+from .benchmarking.decision_study import (
+    prepare_decision_study_publication,
+    report_decision_study,
+    run_decision_study,
+    validate_decision_study,
+)
 from .benchmarking.scoring_bundle_tools import initialize_scoring_bundle, validate_scoring_bundle
 from agent_workflow.config import Settings
 from agent_workflow.errors import WorkflowError
@@ -47,6 +53,29 @@ def handle_benchmark_command(
 ) -> Any:
     """Dispatch one parsed comparative-benchmark command."""
     command = args.benchmark_command
+    if command == "decision-study-validate":
+        return validate_decision_study(
+            args.corpus,
+            study=args.study,
+            oracle_path=args.oracle,
+        )
+    if command == "decision-study-run":
+        return run_decision_study(
+            settings,
+            args.corpus,
+            args.output,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-report":
+        return report_decision_study(args.run, args.oracle)
+    if command == "decision-study-publish-prepare":
+        return prepare_decision_study_publication(
+            args.run,
+            args.oracle,
+            args.destination,
+            force=args.force,
+        )
     if command == "validate":
         return validate_comparative_benchmark(args.spec, args.executor)
     if command == "auth-check":
