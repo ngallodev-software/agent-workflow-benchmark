@@ -10,6 +10,7 @@ import pytest
 from agent_workflow.errors import WorkflowError
 from agent_workflow_benchmark.benchmarking.oracle_adjudication import (
     ADJUDICATION_PASS_SCHEMA,
+    FREEZE_MANIFEST_SCHEMA,
     RESOLUTIONS_SCHEMA,
     export_oracle_dispute_view,
     freeze_oracle_bundle,
@@ -140,6 +141,15 @@ def test_freeze_oracle_direct_agreement_needs_no_c(tmp_path: Path):
     assert result["labels"] == 360
     assert result["direct_agreements"] == 360
     assert result["unresolved"] == 0
+    manifest_path = oracle_path.with_name(oracle_path.name + ".manifest.json")
+    assert result["manifest"] == str(manifest_path)
+    freeze_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert freeze_manifest["schema"] == FREEZE_MANIFEST_SCHEMA
+    assert freeze_manifest["oracle_sha256"] == result["sha256"]
+    assert freeze_manifest["authoring_view_sha256"] == _sha(view_path)
+    assert freeze_manifest["adjudication"]["a"]["input_view_sha256"] == _sha(view_path)
+    assert freeze_manifest["adjudication"]["b"]["input_view_sha256"] == _sha(view_path)
+    assert freeze_manifest["counts"]["direct_agreements"] == 360
     oracle = json.loads(oracle_path.read_text(encoding="utf-8"))
     assert oracle["frozen"] is True
     comparative.validate_decision_study_oracle_bundle(
@@ -198,6 +208,12 @@ def test_freeze_requires_c_for_a_b_disagreement_and_accepts_majority(tmp_path: P
     record = next(item for item in oracle["records"] if item["case_id"] == first)
     assert record["labels"]["routing.task_class"] == "review"
     assert record["adjudication"]["routing.task_class"]["method"] == "two_of_three_majority"
+    assert record["provenance"]["c_dispute_view_sha256"] == _sha(c_view_path)
+    assert set(record["provenance"]["pass_completed_at"]) == {"a", "b", "c"}
+    freeze_manifest = json.loads(
+        (tmp_path / "oracle.json.manifest.json").read_text(encoding="utf-8")
+    )
+    assert freeze_manifest["adjudication"]["c"]["input_view_sha256"] == _sha(c_view_path)
 
 
 def test_three_way_conflict_requires_recorded_resolution_and_can_remain_unresolved(
@@ -282,3 +298,10 @@ def test_three_way_conflict_requires_recorded_resolution_and_can_remain_unresolv
         record["adjudication"]["routing.semantic_risk"]["status"]
         == "oracle_conflict_unresolved"
     )
+    freeze_manifest = json.loads(
+        (tmp_path / "oracle.json.manifest.json").read_text(encoding="utf-8")
+    )
+    assert freeze_manifest["adjudication"]["resolutions_sha256"] == _sha(
+        resolutions_path
+    )
+    assert freeze_manifest["counts"]["unresolved"] == 1
