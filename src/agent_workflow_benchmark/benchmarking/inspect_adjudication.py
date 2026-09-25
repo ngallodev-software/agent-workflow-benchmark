@@ -7,6 +7,8 @@ import os
 import platform
 import re
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib import metadata
@@ -103,28 +105,62 @@ def _version_key(value: str) -> tuple[int, ...]:
     return tuple(int(item) for item in match.group(1).split("."))
 
 
+CODEX_NPM_LATEST_URL = "https://registry.npmjs.org/@openai%2Fcodex/latest"
+
+
+def _resolve_codex_npm_latest() -> str:
+    url = os.environ.get("CODEX_NPM_LATEST_URL", CODEX_NPM_LATEST_URL)
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "agent-workflow-benchmark/0.4.1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise WorkflowError(
+            f"failed to resolve @openai/codex latest version from {url}: {exc}"
+        ) from exc
+    version = str(payload.get("version") or "").strip()
+    if not _version_key(version):
+        raise WorkflowError(
+            f"npm latest metadata returned an invalid Codex CLI version: {version!r}"
+        )
+    return version
+
+
 def resolve_latest_codex_cli() -> dict[str, str]:
     _, inspect_swe = _require_inspect_dependencies()
     target = _sandbox_platform()
+    resolved = _resolve_codex_npm_latest()
     try:
-        inspect_swe.download_agent_binary("codex_cli", "latest", target)
+        inspect_swe.download_agent_binary("codex_cli", resolved, target)
         cached = inspect_swe.cached_agent_binaries("codex_cli", quiet=True)
     except Exception as exc:
-        raise WorkflowError(f"failed to resolve latest Codex CLI via Inspect SWE: {exc}") from exc
+        raise WorkflowError(
+            f"failed to cache Codex CLI {resolved} via Inspect SWE: {exc}"
+        ) from exc
 
-    binaries = [
-        item
-        for item in cached
-        if getattr(item, "agent", None) == "codex_cli"
-        and _version_key(str(getattr(item, "version", "")))
-    ]
-    if not binaries:
-        raise WorkflowError("Inspect SWE did not expose a cached Codex CLI after download")
-    selected = max(binaries, key=lambda item: _version_key(str(item.version)))
+    selected = next(
+        (
+            item
+            for item in cached
+            if getattr(item, "agent", None) == "codex_cli"
+            and str(getattr(item, "version", "")) == resolved
+        ),
+        None,
+    )
+    if selected is None:
+        raise WorkflowError(
+            f"Inspect SWE did not expose cached Codex CLI {resolved} after download"
+        )
     return {
         "policy": CODEX_VERSION_POLICY,
         "requested": "latest",
-        "resolved": str(selected.version),
+        "resolved": resolved,
         "platform": target,
         "cached_path": str(selected.path),
     }
