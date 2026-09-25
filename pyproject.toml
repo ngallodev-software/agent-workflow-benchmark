@@ -4,7 +4,7 @@ build-backend="setuptools.build_meta"
 
 [project]
 name="agent-workflow-benchmark"
-version="0.4.0"
+version="0.4.1"
 description="Optional comparative benchmark plugin for Agent-Workflow"
 readme="README.md"
 authors=[{name="ngallodev-software"}]
