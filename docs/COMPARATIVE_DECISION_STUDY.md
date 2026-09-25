@@ -31,16 +31,68 @@ The run command has no oracle argument. run-manifest.json records oracle_seen_du
 agent-workflow benchmark decision-study-corpus-export ./routing-corpus.json
 agent-workflow benchmark decision-study-oracle-view-export ./oracle-authoring-view.json
 
-agent-workflow benchmark decision-study-validate ./routing-corpus.json
-agent-workflow benchmark decision-study-run ./routing-corpus.json ./run
+# A and B independently label the exact same authoring-view artifact.
+agent-workflow benchmark decision-study-adjudication-validate \
+  ./oracle-authoring-view.json ./adjudication-a.json
+agent-workflow benchmark decision-study-adjudication-validate \
+  ./oracle-authoring-view.json ./adjudication-b.json
 
-# The frozen oracle is created independently from oracle-authoring-view.json.
+# Export only A/B-disputed cases/seams for independent C adjudication.
+agent-workflow benchmark decision-study-oracle-disputes \
+  ./oracle-authoring-view.json ./adjudication-a.json ./adjudication-b.json \
+  ./oracle-disputes-for-c.json
+
+# If disputes exist, C labels the dispute view without seeing A/B labels.
+agent-workflow benchmark decision-study-adjudication-validate \
+  ./oracle-disputes-for-c.json ./adjudication-c.json
+
+# Freeze after majority resolution; optional --resolutions records genuine
+# three-way discussion outcomes or oracle_conflict_unresolved seams.
+agent-workflow benchmark decision-study-oracle-freeze \
+  ./oracle-authoring-view.json ./adjudication-a.json ./adjudication-b.json \
+  ./oracle.json \
+  --oracle-version routing-semantic-oracle-v1.0.0 \
+  --c-view ./oracle-disputes-for-c.json \
+  --c-pass ./adjudication-c.json
+
 agent-workflow benchmark decision-study-validate ./routing-corpus.json --oracle ./oracle.json
+
+# Inference still receives no oracle.
+agent-workflow benchmark decision-study-run ./routing-corpus.json ./run
 agent-workflow benchmark decision-study-report ./run ./oracle.json
 agent-workflow benchmark decision-study-publish-prepare ./run ./oracle.json ./public
 ~~~
 
 The active Agent-Workflow configuration must use comparative decision mode and have a ready TypeSafe runtime. The production decision boundary is reused; the benchmark does not implement a second semantic-routing algorithm.
+
+## Independent oracle adjudication contracts
+
+The benchmark now operationalizes the already-frozen A/B/C oracle protocol without changing study semantics.
+
+Each completed adjudication pass uses schema `agent-workflow-benchmark/decision-study-adjudication-pass/v1` and records:
+
+- the study and dataset identity;
+- the frozen oracle protocol version;
+- the SHA-256 of the exact blinded view the adjudicator received;
+- a distinct adjudicator identifier;
+- an attestation that the pass was independent, treatment outputs were not seen, and other adjudicator labels were not seen;
+- one label object per case containing exactly the seams present in that adjudicator's view.
+
+A and B must validate against the exact same `oracle-authoring-view.json`. The dispute command compares their completed passes only after both exist, then emits `decision-study-oracle-dispute-view/v1`. That C view includes only disputed cases and disputed seam identities. It excludes A/B labels, corpus construction tags, deterministic outputs, semantic outputs, and comparison results.
+
+The freeze command enforces the frozen protocol mechanically:
+
+1. A/B exact agreement becomes the oracle label.
+2. A/B disagreement requires a distinct C adjudicator and the exact blinded C dispute view.
+3. Two-of-three agreement becomes the oracle label.
+4. A genuine three-way categorical conflict or 0/1/2 risk split requires a recorded discussion artifact using `decision-study-adjudication-resolutions/v1`.
+5. A discussion may resolve to a valid frozen label or remain explicitly `oracle_conflict_unresolved`.
+6. The final comparative-eval oracle bundle is marked frozen and the command returns the SHA-256 of the exact file written.
+
+An explicitly unresolved conflict is valid study evidence. It is excluded with reason `oracle_conflict_unresolved`; it is not silently rewritten as `oracle_missing` and no label is invented to preserve sample size.
+
+The tooling can validate artifact identity and recorded attestations, but it cannot itself prove that two people or agents were genuinely independent. Independence remains a procedural requirement of the study.
+
 
 ## Frozen study contract
 
