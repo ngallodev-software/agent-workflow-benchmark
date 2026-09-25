@@ -1,0 +1,84 @@
+{
+  "$id": "agent-workflow-benchmark/decision-study-oracle-freeze-manifest/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/decision-study-oracle-freeze-manifest/v1"},
+    "study_id": {"type": "string", "minLength": 1},
+    "dataset_version": {"type": "string", "minLength": 1},
+    "oracle_version": {"type": "string", "minLength": 1},
+    "oracle_file": {"type": "string", "minLength": 1},
+    "oracle_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authoring_view_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "frozen_at": {"type": "string", "minLength": 1},
+    "frozen": {"const": true},
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "a": {"$ref": "#/$defs/adjudicator"},
+        "b": {"$ref": "#/$defs/adjudicator"},
+        "c": {"$ref": "#/$defs/adjudicator"},
+        "resolutions_sha256": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        }
+      },
+      "required": ["a", "b", "resolutions_sha256"]
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "records": {"type": "integer", "minimum": 0},
+        "labels": {"type": "integer", "minimum": 0},
+        "direct_agreements": {"type": "integer", "minimum": 0},
+        "majority_resolved": {"type": "integer", "minimum": 0},
+        "discussion_resolved": {"type": "integer", "minimum": 0},
+        "unresolved": {"type": "integer", "minimum": 0}
+      },
+      "required": [
+        "records",
+        "labels",
+        "direct_agreements",
+        "majority_resolved",
+        "discussion_resolved",
+        "unresolved"
+      ]
+    }
+  },
+  "$defs": {
+    "adjudicator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adjudicator_id": {"type": "string", "minLength": 1},
+        "completed_at": {"type": "string", "minLength": 1},
+        "pass_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "input_view_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": [
+        "adjudicator_id",
+        "completed_at",
+        "pass_sha256",
+        "input_view_sha256"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "study_id",
+    "dataset_version",
+    "oracle_version",
+    "oracle_file",
+    "oracle_sha256",
+    "authoring_view_sha256",
+    "frozen_at",
+    "frozen",
+    "adjudication",
+    "counts"
+  ]
+}
