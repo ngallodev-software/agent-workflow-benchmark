@@ -6,7 +6,7 @@ HELPER="${REPO_ROOT}/scripts/prepare-docker-oracle-adjudication.py"
 ROOT="${ADJUDICATION_ROOT:-${REPO_ROOT}/.adjudication/routing-semantic-v1}"
 COMPARATIVE_EVAL_REPO="${COMPARATIVE_EVAL_REPO:-${REPO_ROOT}/../agent-workflow-comparative-eval}"
 IMAGE="${ADJUDICATION_IMAGE:-agent-workflow-oracle-adjudicator:local}"
-CODEX_VERSION="${CODEX_VERSION:-0.156.1}"
+CODEX_VERSION="${CODEX_VERSION:-latest}"
 DOCKER_NETWORK="${ADJUDICATION_DOCKER_NETWORK:-bridge}"
 PYTHON="${PYTHON:-python3}"
 ORACLE_VERSION="${ORACLE_VERSION:-routing-semantic-oracle-v1.0.0}"
@@ -38,7 +38,7 @@ Environment:
   AGENT_WORKFLOW_BIN=/path/to/agent-workflow     # optional
   COMPARATIVE_EVAL_REPO=/path/to/agent-workflow-comparative-eval
   ADJUDICATION_ROOT=/private/runtime/path
-  CODEX_VERSION=0.156.1                         # pinned current CLI; override explicitly if needed
+  CODEX_VERSION=latest                          # resolve current CLI when the cohort image is built
   ADJUDICATION_IMAGE=agent-workflow-oracle-adjudicator:local
   ADJUDICATION_DOCKER_NETWORK=bridge
   RESOLUTIONS_FILE=/path/to/resolutions.json     # only for true three-way conflicts
@@ -98,6 +98,7 @@ build_image() {
         printf '%s\n' "${codex_version}" > "${ROOT}/coordinator/codex-version.txt"
     fi
     echo "built ${IMAGE}: ${codex_version}"
+    echo "cohort rule: do not rebuild this image between real A/B and any required C adjudication"
 }
 
 ensure_image() {
