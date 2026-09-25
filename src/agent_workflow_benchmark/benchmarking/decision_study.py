@@ -240,12 +240,31 @@ def validate_decision_study(
             cases=cases,
         )
         missing: dict[str, list[str]] = {}
+        unresolved: dict[str, list[str]] = {}
         for case_id, case in cases.items():
             eligible = case["oracle_eligible"]
             record = oracle["records_by_case"].get(case_id)
             labels = record.get("labels", {}) if isinstance(record, Mapping) else {}
+            adjudication = (
+                record.get("adjudication", {})
+                if isinstance(record, Mapping)
+                else {}
+            )
             for decision_id in _required_decisions(spec):
-                if eligible[decision_id] is True and decision_id not in labels:
+                if eligible[decision_id] is not True or decision_id in labels:
+                    continue
+                seam_adjudication = (
+                    adjudication.get(decision_id, {})
+                    if isinstance(adjudication, Mapping)
+                    else {}
+                )
+                if (
+                    isinstance(seam_adjudication, Mapping)
+                    and seam_adjudication.get("status")
+                    == "oracle_conflict_unresolved"
+                ):
+                    unresolved.setdefault(case_id, []).append(decision_id)
+                else:
                     missing.setdefault(case_id, []).append(decision_id)
         if missing:
             detail = "; ".join(
@@ -258,6 +277,7 @@ def validate_decision_study(
             "oracle_version": oracle["oracle_version"],
             "sha256": sha256_file(Path(oracle_path)),
             "frozen": oracle["frozen"],
+            "unresolved_conflicts": sum(len(items) for items in unresolved.values()),
         }
     return result
 
@@ -547,13 +567,37 @@ def report_decision_study(
             else {}
         )
         if decision_id not in labels:
+            adjudication = (
+                oracle_record.get("adjudication", {})
+                if isinstance(oracle_record, Mapping)
+                else {}
+            )
+            seam_adjudication = (
+                adjudication.get(decision_id, {})
+                if isinstance(adjudication, Mapping)
+                else {}
+            )
+            conflict_unresolved = (
+                isinstance(seam_adjudication, Mapping)
+                and seam_adjudication.get("status")
+                == "oracle_conflict_unresolved"
+            )
             exclusions.append(
                 comparative.make_exclusion(
                     study_id=str(manifest["study_id"]),
                     case_id=case_id,
                     decision_id=decision_id,
-                    reason_code="oracle_missing",
+                    reason_code=(
+                        "oracle_conflict_unresolved"
+                        if conflict_unresolved
+                        else "oracle_missing"
+                    ),
                     stage="oracle-join",
+                    detail=(
+                        "explicitly unresolved under frozen oracle adjudication protocol"
+                        if conflict_unresolved
+                        else None
+                    ),
                 )
             )
             continue
