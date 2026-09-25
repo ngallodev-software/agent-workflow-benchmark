@@ -1,0 +1,198 @@
+{
+  "$id": "agent-workflow-benchmark/inspect-adjudication-qualification/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow-benchmark/inspect-adjudication-qualification/v1"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "runtime_lock_sha256": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "qualified": {
+      "type": "boolean"
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "IA-1": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-2": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-3": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-4": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-5": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-6": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-7": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-8": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "partial",
+                "pending",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        }
+      },
+      "required": [
+        "IA-1",
+        "IA-2",
+        "IA-3",
+        "IA-4",
+        "IA-5",
+        "IA-6",
+        "IA-7",
+        "IA-8"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "created_at",
+    "module_id",
+    "module_sha256",
+    "runtime_lock_sha256",
+    "qualified",
+    "gates"
+  ]
+}

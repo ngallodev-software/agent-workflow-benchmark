@@ -1,6 +1,6 @@
 # Agent-Workflow Benchmark
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.4.1-blue)
 ![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.10%2C%3C0.12-2ea44f)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -41,6 +41,14 @@ For visual benchmark capture:
 ```bash
 python -m pip install 'agent-workflow-benchmark[visual]'
 ```
+
+For the isolated Inspect AI adjudication runtime:
+
+```bash
+python -m pip install 'agent-workflow-benchmark[inspect]'
+```
+
+Inspect AI and Inspect SWE are pinned as Python dependencies. Codex CLI is intentionally **not** pinned in the repository: the runtime resolves `latest` once at adjudication cohort start, records the exact resolved version in a runtime-lock artifact, and reuses that resolved version for A, B, and any required C pass.
 
 For a source checkout used alongside an Agent-Workflow wheel, use the repository
 installer so the plugin is built and installed into the **same shared virtualenv**
@@ -97,7 +105,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.4.0` declares `agent-workflow>=0.11.10,<0.12` and `agent-workflow-comparative-eval==0.2.0`. Agent-Workflow `0.11.10` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.4.1` declares `agent-workflow>=0.11.10,<0.12` and `agent-workflow-comparative-eval==0.2.0`. Agent-Workflow `0.11.10` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -452,3 +460,5 @@ For independent oracle production on a single Debian host, use the isolated [Doc
 The reusable design is documented in [Isolated Agent Execution Architecture](docs/architecture/ISOLATED_AGENT_EXECUTION.md), with the first declarative [A/B/C adjudication module](modules/abc-adjudication/README.md), the [sandboxing ADR](docs/decisions/ADR-0001-isolated-agent-sandboxing.md), and a [prior-art/standards review](docs/PRIOR_ART_AGENT_SANDBOXING.md). The historical routing-study implementation record is in [docs/history/2026-09-25-routing-semantic-oracle-containerization.md](docs/history/2026-09-25-routing-semantic-oracle-containerization.md).
 
 The current execution plan inserts an [Inspect AI pre-adjudication integration/parity gate](docs/plans/2026-09-25-inspect-adjudication-integration-plan.md) before any real A/B oracle labels are produced; the direct-Docker harness remains the rollback/reference backend.
+
+The implemented operator path is documented in [Inspect Oracle Adjudication — Debian Operator Guide](docs/INSPECT_ORACLE_ADJUDICATION.md). Benchmark 0.4.1 resolves Codex `latest` once at cohort start, freezes the exact resolved CLI version in a runtime lock, runs a synthetic IA-1 through IA-8 qualification suite, and refuses real A/B/C execution unless the matching qualification manifest passes.

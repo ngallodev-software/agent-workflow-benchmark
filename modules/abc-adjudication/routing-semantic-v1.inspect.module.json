@@ -1,33 +1,32 @@
 {
-  "schema": "agent-workflow-benchmark/abc-adjudication-module/v1",
-  "module_id": "routing-semantic-v1-oracle",
-  "module_version": "1.1.0",
+  "schema": "agent-workflow-benchmark/abc-adjudication-module/v2",
+  "module_id": "routing-semantic-v1-oracle-inspect",
+  "module_version": "2.0.0",
   "task": {
     "study_id": "routing-semantic-v1",
     "dataset_version": "routing-semantic-corpus-v1.0.0",
     "protocol_version": "routing-semantic-oracle-v1.0.0",
-    "description": "Produce an independent blinded A/B/C oracle for the three Agent-Workflow routing semantic seams before live comparative inference."
+    "description": "Produce the frozen routing semantic oracle using Inspect AI isolated A/B/C adjudicators."
   },
   "runtime": {
-    "kind": "oci-docker",
-    "dockerfile": "docker/adjudication/Dockerfile",
-    "image": "agent-workflow-oracle-adjudicator:local",
+    "kind": "inspect-ai",
+    "inspect_ai_version": "0.3.268",
+    "inspect_swe_version": "0.2.70",
+    "sandbox": "docker",
     "agent": {
-      "kind": "codex-cli",
+      "kind": "inspect-swe/codex-cli",
       "package": "@openai/codex",
-      "version": "latest",
-      "entrypoint": "/usr/local/bin/aw-adjudicate",
-      "config_mount": "/run/adjudication/config.toml"
+      "version_policy": "latest-at-cohort-start"
     },
     "network": {
-      "required": true,
-      "purpose": "Reach only the configured Codex model provider/load balancer; no web-search capability is granted to the adjudicator.",
-      "docker_network_env": "ADJUDICATION_DOCKER_NETWORK"
+      "sandbox_network": "none",
+      "model_bridge": "inspect-sandbox-agent-bridge",
+      "provider_credentials_location": "host-only"
     }
   },
   "prompt": {
     "template": "docker/adjudication/START_PROMPT.template.md",
-    "target": "/input/START_PROMPT.md",
+    "target": "oracle-prompt",
     "variables": [
       "ADJUDICATOR_ID"
     ]
@@ -37,7 +36,7 @@
       "id": "oracle-view",
       "source_repo": "agent-workflow-comparative-eval",
       "source_path": "docs/studies/artifacts/routing-semantic-v1/oracle-authoring-view.json",
-      "target": "/input/oracle-view.json",
+      "target": "oracle-view.json",
       "sha256": "a5a40224793a50d9371e9ae437e144b15812829ba1cd56a5564dc6ba28846a0a",
       "roles": [
         "A",
@@ -50,7 +49,7 @@
       "id": "oracle-protocol",
       "source_repo": "agent-workflow-comparative-eval",
       "source_path": "docs/studies/routing-semantic-v1-oracle-protocol.md",
-      "target": "/input/oracle-protocol.md",
+      "target": "oracle-protocol.md",
       "sha256": null,
       "roles": [
         "A",
@@ -94,12 +93,13 @@
     }
   },
   "credentials": {
-    "mode": "external-env-file",
+    "mode": "host-model-provider",
     "allow_names": [],
     "deny_prefixes": [
       "TYPESAFE_"
     ],
-    "secret_values_in_manifests": false
+    "secret_values_in_manifests": false,
+    "secrets_in_sandbox": false
   },
   "guardrails": {
     "repository_mounted": false,
@@ -117,7 +117,7 @@
     "overwrite_completed_results": false
   },
   "output": {
-    "model_schema_generator": "scripts/prepare-docker-oracle-adjudication.py",
+    "model_schema_generator": "host-contract-validation",
     "pass_schema": "agent-workflow-benchmark/decision-study-adjudication-pass/v1",
     "result_filename": "adjudication.json",
     "hash_sidecar": true
@@ -133,7 +133,7 @@
     "inference_allowed_after": "oracle-freeze-and-validation"
   },
   "results": {
-    "runtime_root": ".adjudication/routing-semantic-v1",
+    "runtime_root": ".adjudication/routing-semantic-v1-inspect",
     "coordinator_subdir": "coordinator",
     "frozen_result": "coordinator/oracle.json",
     "freeze_manifest": "coordinator/oracle.json.manifest.json",

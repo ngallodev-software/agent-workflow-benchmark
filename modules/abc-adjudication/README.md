@@ -2,9 +2,10 @@
 
 This module turns the independent adjudication pattern into a declarative, reusable unit.
 
-The module contract is:
+The module contracts are:
 
-`agent-workflow-benchmark/abc-adjudication-module/v1`
+- `agent-workflow-benchmark/abc-adjudication-module/v1` — direct-Docker reference/rollback backend;
+- `agent-workflow-benchmark/abc-adjudication-module/v2` — Inspect AI backend with host-side model bridge and latest-at-cohort-start Codex resolution.
 
 A module instance describes:
 
@@ -20,9 +21,10 @@ A module instance describes:
 - C disagreement routing;
 - final result/freeze locations.
 
-The first concrete instance is:
+Concrete routing study instances are:
 
-`routing-semantic-v1.module.json`
+- `routing-semantic-v1.module.json` — direct-Docker reference backend;
+- `routing-semantic-v1.inspect.module.json` — preferred Inspect backend after P0A qualification.
 
 ## Why a module?
 
@@ -77,7 +79,7 @@ Defines:
 - configuration mount;
 - network requirement.
 
-The current module uses an OCI/Docker image containing Codex CLI.
+The v1 reference module uses an OCI/Docker image containing Codex CLI. The v2 module uses Inspect AI's Docker sandbox and Inspect SWE's Codex CLI adapter. Codex itself follows a `latest-at-cohort-start` policy: resolve current stable once, persist the exact version in the runtime lock, then reuse it for A/B/C.
 
 ### `prompt`
 

@@ -75,6 +75,8 @@ The direct-Docker runner remains the rollback/reference backend. The preferred p
 
 See [Inspect AI Integration Plan for Independent Oracle Adjudication](plans/2026-09-25-inspect-adjudication-integration-plan.md).
 
+Implementation is available in benchmark 0.4.1. Follow [Inspect Oracle Adjudication — Debian Operator Guide](INSPECT_ORACLE_ADJUDICATION.md). The real A/B and C commands require a passing qualification manifest bound to the same module and runtime-lock hashes.
+
 ## Independent oracle adjudication contracts
 
 The benchmark now operationalizes the already-frozen A/B/C oracle protocol without changing study semantics.

@@ -36,6 +36,14 @@ from .benchmarking import (
     visual_capture_benchmark,
 )
 from .benchmarking.adjudication_module import validate_abc_adjudication_module
+from .benchmarking.inspect_adjudication import (
+    InspectRunConfig,
+    create_inspect_runtime_lock,
+    inspect_static_qualification,
+    run_inspect_live_qualification,
+    run_inspect_primary,
+    run_inspect_tiebreaker,
+)
 from .benchmarking.code_review import quality_review
 from .benchmarking.decision_study import (
     prepare_decision_study_publication,
@@ -103,6 +111,74 @@ def handle_benchmark_command(
         )
     if command == "adjudication-module-validate":
         return validate_abc_adjudication_module(args.module)
+    if command == "adjudication-inspect-runtime-lock":
+        return create_inspect_runtime_lock(
+            args.module,
+            args.destination,
+            force=args.force,
+        )
+    if command == "adjudication-inspect-qualify":
+        return inspect_static_qualification(
+            args.module,
+            args.destination,
+            runtime_lock_path=args.runtime_lock,
+            force=args.force,
+        )
+    if command == "adjudication-inspect-qualify-live":
+        model_args: dict[str, Any] = {}
+        for item in args.model_arg:
+            if "=" not in item:
+                raise WorkflowError(
+                    f"--model-arg must use KEY=VALUE syntax: {item!r}"
+                )
+            key, raw = item.split("=", 1)
+            key = key.strip()
+            if not key:
+                raise WorkflowError("--model-arg key must not be empty")
+            try:
+                value = __import__("json").loads(raw)
+            except Exception:
+                value = raw
+            model_args[key] = value
+        return run_inspect_live_qualification(
+            args.module,
+            args.runtime_lock,
+            args.destination,
+            model=args.model,
+            model_args=model_args,
+            log_model_api=bool(args.log_model_api),
+            force=args.force,
+        )
+    if command in {"adjudication-inspect-run-primary", "adjudication-inspect-run-c"}:
+        model_args: dict[str, Any] = {}
+        for item in args.model_arg:
+            if "=" not in item:
+                raise WorkflowError(
+                    f"--model-arg must use KEY=VALUE syntax: {item!r}"
+                )
+            key, raw = item.split("=", 1)
+            key = key.strip()
+            if not key:
+                raise WorkflowError("--model-arg key must not be empty")
+            try:
+                value = __import__("json").loads(raw)
+            except Exception:
+                value = raw
+            model_args[key] = value
+        config = InspectRunConfig(
+            module_path=args.module,
+            view_path=args.view,
+            protocol_path=args.protocol,
+            runtime_lock_path=args.runtime_lock,
+            output_root=args.output,
+            model=args.model,
+            qualification_path=args.qualification,
+            model_args=model_args,
+            log_model_api=bool(args.log_model_api),
+        )
+        if command == "adjudication-inspect-run-primary":
+            return run_inspect_primary(config)
+        return run_inspect_tiebreaker(config)
     if command == "decision-study-validate":
         return validate_decision_study(
             args.corpus,

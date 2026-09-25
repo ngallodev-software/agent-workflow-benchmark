@@ -153,6 +153,9 @@ def test_container_runtime_does_not_copy_repository_or_accept_typesafe_credentia
         "COPY docker/adjudication/entrypoint.sh /usr/local/bin/aw-adjudicate",
         "COPY docker/adjudication/wrap-output.mjs /opt/aw-adjudication/wrap-output.mjs",
     ]
+    assert "ARG CODEX_VERSION=latest" in dockerfile
+    runner = RUNNER_PATH.read_text(encoding="utf-8")
+    assert 'CODEX_VERSION="${CODEX_VERSION:-latest}"' in runner
     assert "TYPESAFE_" in entrypoint
     assert "refusing adjudicator startup" in entrypoint
     assert "--sandbox read-only" in entrypoint
