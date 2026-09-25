@@ -274,42 +274,6 @@ def run_decision_study(
                 task_text=str(case["task"]),
                 source_ref=f"decision-study:{spec['study_id']}:{case_id}",
             )
-            identity = _semantic_identity(
-                settings,
-                advice,
-                study_id=str(spec["study_id"]),
-                study_version=str(spec["study_version"]),
-                dataset_version=str(corpus["dataset_version"]),
-            )
-            records = routing_comparison_records(
-                advice=advice,
-                identity=identity,
-                source_input={"task": case["task"], "metadata": case["metadata"]},
-                projected_input={
-                    "task": case["task"],
-                    "metadata": case["metadata"],
-                    "source_ref": f"decision-study:{spec['study_id']}:{case_id}",
-                },
-                case_id=case_id,
-                observation_scope=(
-                    f"{spec['study_id']}:{corpus['dataset_version']}:{case_id}"
-                ),
-                mode="static",
-                data_class="synthetic",
-            )
-            encoded = json.dumps(records["observations"], ensure_ascii=False)
-            if str(case["task"]) in encoded:
-                raise WorkflowError(
-                    "neutral comparative observation unexpectedly persisted raw task text"
-                )
-            observations.extend(records["observations"])
-            request_id = str(records["request_id"])
-            if request_id in request_ids:
-                raise WorkflowError(
-                    f"provider request ID reused across study cases: {request_id}"
-                )
-            request_ids.add(request_id)
-            requests.append(records["request"])
         except WorkflowError as exc:
             exclusions.append(
                 comparative.make_exclusion(
@@ -320,6 +284,44 @@ def run_decision_study(
                     detail=type(exc).__name__,
                 )
             )
+            continue
+
+        identity = _semantic_identity(
+            settings,
+            advice,
+            study_id=str(spec["study_id"]),
+            study_version=str(spec["study_version"]),
+            dataset_version=str(corpus["dataset_version"]),
+        )
+        records = routing_comparison_records(
+            advice=advice,
+            identity=identity,
+            source_input={"task": case["task"], "metadata": case["metadata"]},
+            projected_input={
+                "task": case["task"],
+                "metadata": case["metadata"],
+                "source_ref": f"decision-study:{spec['study_id']}:{case_id}",
+            },
+            case_id=case_id,
+            observation_scope=(
+                f"{spec['study_id']}:{corpus['dataset_version']}:{case_id}"
+            ),
+            mode="static",
+            data_class="synthetic",
+        )
+        encoded = json.dumps(records["observations"], ensure_ascii=False)
+        if str(case["task"]) in encoded:
+            raise WorkflowError(
+                "neutral comparative observation unexpectedly persisted raw task text"
+            )
+        request_id = str(records["request_id"])
+        if request_id in request_ids:
+            raise WorkflowError(
+                f"provider request ID reused across study cases: {request_id}"
+            )
+        request_ids.add(request_id)
+        observations.extend(records["observations"])
+        requests.append(records["request"])
 
     _write_jsonl(output / _OBSERVATIONS, observations)
     _write_jsonl(output / _REQUESTS, requests)
