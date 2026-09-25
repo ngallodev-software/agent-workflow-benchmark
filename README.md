@@ -439,3 +439,10 @@ agent-workflow completion bash
 ```
 
 so documentation/completion stays aligned with the installed plugin version.
+
+
+## Comparative decision study
+
+Benchmark 0.4.0 adds a preregistered decision-quality lane for Agent-Workflow's bounded TypeSafe/Jev routing seams. Inference and oracle joining are separate commands, and provider-request overhead is counted once per batched call.
+
+See [Comparative Decision Study](docs/COMPARATIVE_DECISION_STUDY.md) for the command flow, evidence model, publication gate, and a portfolio-ready architecture diagram.
