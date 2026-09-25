@@ -32,3 +32,4 @@ jobs:
       - run: python -m pip install '.[inspect]'
       - run: python -c "from importlib import metadata; assert metadata.version('inspect-ai') == '0.3.268'; assert metadata.version('inspect-swe') == '0.2.70'; import agent_workflow_benchmark.benchmarking.inspect_adjudication"
       - run: python -c "from agent_workflow_benchmark.benchmarking.inspect_adjudication import _inspect_sandbox_spec; spec=_inspect_sandbox_spec(); assert spec.type == 'docker'"
+      - run: python -c "from pathlib import Path; from agent_workflow_benchmark.benchmarking.inspect_adjudication import _run_guardrail_probe; report=_run_guardrail_probe(output_root=Path('/tmp/inspect-guardrail'), model='mockllm/model', model_args=None); assert report['passed'] is True"
