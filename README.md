@@ -448,3 +448,5 @@ Benchmark 0.4.0 adds a preregistered decision-quality lane for Agent-Workflow's 
 See [Comparative Decision Study](docs/COMPARATIVE_DECISION_STUDY.md) for the command flow, evidence model, publication gate, and a portfolio-ready architecture diagram.
 
 For independent oracle production on a single Debian host, use the isolated [Docker Oracle Adjudication Harness](docs/DOCKER_ORACLE_ADJUDICATION.md). It runs A/B (and C when needed) in separate Codex containers without mounting the repository, treatment outputs, or TypeSafe credentials.
+
+The reusable design is documented in [Isolated Agent Execution Architecture](docs/architecture/ISOLATED_AGENT_EXECUTION.md), with the first declarative [A/B/C adjudication module](modules/abc-adjudication/README.md), the [sandboxing ADR](docs/decisions/ADR-0001-isolated-agent-sandboxing.md), and a [prior-art/standards review](docs/PRIOR_ART_AGENT_SANDBOXING.md). The historical routing-study implementation record is in [docs/history/2026-09-25-routing-semantic-oracle-containerization.md](docs/history/2026-09-25-routing-semantic-oracle-containerization.md).
