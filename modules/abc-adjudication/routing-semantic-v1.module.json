@@ -1,7 +1,7 @@
 {
   "schema": "agent-workflow-benchmark/abc-adjudication-module/v1",
   "module_id": "routing-semantic-v1-oracle",
-  "module_version": "1.0.0",
+  "module_version": "1.1.0",
   "task": {
     "study_id": "routing-semantic-v1",
     "dataset_version": "routing-semantic-corpus-v1.0.0",
@@ -15,7 +15,7 @@
     "agent": {
       "kind": "codex-cli",
       "package": "@openai/codex",
-      "version": "0.156.1",
+      "version": "latest",
       "entrypoint": "/usr/local/bin/aw-adjudicate",
       "config_mount": "/run/adjudication/config.toml"
     },
@@ -28,7 +28,9 @@
   "prompt": {
     "template": "docker/adjudication/START_PROMPT.template.md",
     "target": "/input/START_PROMPT.md",
-    "variables": ["ADJUDICATOR_ID"]
+    "variables": [
+      "ADJUDICATOR_ID"
+    ]
   },
   "required_files": [
     {
@@ -37,7 +39,11 @@
       "source_path": "docs/studies/artifacts/routing-semantic-v1/oracle-authoring-view.json",
       "target": "/input/oracle-view.json",
       "sha256": "a5a40224793a50d9371e9ae437e144b15812829ba1cd56a5564dc6ba28846a0a",
-      "roles": ["A", "B", "coordinator"],
+      "roles": [
+        "A",
+        "B",
+        "coordinator"
+      ],
       "read_only": true
     },
     {
@@ -46,7 +52,12 @@
       "source_path": "docs/studies/routing-semantic-v1-oracle-protocol.md",
       "target": "/input/oracle-protocol.md",
       "sha256": null,
-      "roles": ["A", "B", "C", "coordinator"],
+      "roles": [
+        "A",
+        "B",
+        "C",
+        "coordinator"
+      ],
       "read_only": true
     },
     {
@@ -55,7 +66,9 @@
       "source_path": "src/agent_workflow_comparative_eval/resources/studies/routing-semantic-v1.corpus.json",
       "target": "coordinator/routing-corpus.json",
       "sha256": "e4b33df3b3752b32cdb362833765cc8f0c9cc024473071209563d73284011280",
-      "roles": ["coordinator"],
+      "roles": [
+        "coordinator"
+      ],
       "read_only": true
     }
   ],
@@ -83,14 +96,18 @@
   "credentials": {
     "mode": "external-env-file",
     "allow_names": [],
-    "deny_prefixes": ["TYPESAFE_"],
+    "deny_prefixes": [
+      "TYPESAFE_"
+    ],
     "secret_values_in_manifests": false
   },
   "guardrails": {
     "repository_mounted": false,
     "docker_socket_mounted": false,
     "root_filesystem_read_only": true,
-    "cap_drop": ["ALL"],
+    "cap_drop": [
+      "ALL"
+    ],
     "no_new_privileges": true,
     "agent_sandbox": "read-only",
     "web_search": false,
