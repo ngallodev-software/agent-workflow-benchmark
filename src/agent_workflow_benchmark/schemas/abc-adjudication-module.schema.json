@@ -1,0 +1,261 @@
+{
+  "$id": "agent-workflow-benchmark/abc-adjudication-module/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A/B/C Adjudication Module",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/abc-adjudication-module/v1"},
+    "module_id": {"type": "string", "minLength": 1},
+    "module_version": {"type": "string", "minLength": 1},
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "study_id": {"type": "string", "minLength": 1},
+        "dataset_version": {"type": "string", "minLength": 1},
+        "protocol_version": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "required": ["study_id", "dataset_version", "protocol_version", "description"]
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["oci-docker"]},
+        "dockerfile": {"type": "string", "minLength": 1},
+        "image": {"type": "string", "minLength": 1},
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["codex-cli"]},
+            "package": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1},
+            "entrypoint": {"type": "string", "minLength": 1},
+            "config_mount": {"type": "string", "minLength": 1}
+          },
+          "required": ["kind", "package", "version", "entrypoint", "config_mount"]
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "required": {"type": "boolean"},
+            "purpose": {"type": "string", "minLength": 1},
+            "docker_network_env": {"type": "string", "minLength": 1}
+          },
+          "required": ["required", "purpose", "docker_network_env"]
+        }
+      },
+      "required": ["kind", "dockerfile", "image", "agent", "network"]
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "template": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "variables": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "required": ["template", "target", "variables"]
+    },
+    "required_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "source_repo": {"type": "string", "minLength": 1},
+          "source_path": {"type": "string", "minLength": 1},
+          "target": {"type": "string", "minLength": 1},
+          "sha256": {
+            "anyOf": [
+              {"type": "null"},
+              {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"enum": ["A", "B", "C", "coordinator"]},
+            "uniqueItems": true
+          },
+          "read_only": {"const": true}
+        },
+        "required": [
+          "id", "source_repo", "source_path", "target", "sha256", "roles", "read_only"
+        ]
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "role": {"enum": ["A", "B"]},
+              "adjudicator_id": {"type": "string", "minLength": 1},
+              "result_subdir": {"type": "string", "minLength": 1}
+            },
+            "required": ["role", "adjudicator_id", "result_subdir"]
+          }
+        },
+        "tiebreaker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {"const": "C"},
+            "adjudicator_id": {"type": "string", "minLength": 1},
+            "result_subdir": {"type": "string", "minLength": 1},
+            "trigger": {"const": "ab-disagreement-only"},
+            "input_policy": {"const": "disputed-cases-and-seams-only"}
+          },
+          "required": [
+            "role", "adjudicator_id", "result_subdir", "trigger", "input_policy"
+          ]
+        }
+      },
+      "required": ["primary", "tiebreaker"]
+    },
+    "credentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {"const": "external-env-file"},
+        "allow_names": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "deny_prefixes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "secret_values_in_manifests": {"const": false}
+      },
+      "required": ["mode", "allow_names", "deny_prefixes", "secret_values_in_manifests"]
+    },
+    "guardrails": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository_mounted": {"const": false},
+        "docker_socket_mounted": {"const": false},
+        "root_filesystem_read_only": {"const": true},
+        "cap_drop": {
+          "type": "array",
+          "contains": {"const": "ALL"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "no_new_privileges": {"const": true},
+        "agent_sandbox": {"const": "read-only"},
+        "web_search": {"const": false},
+        "cross_agent_visibility": {"const": false},
+        "treatment_outputs_visible": {"const": false},
+        "other_adjudicator_labels_visible": {"const": false},
+        "overwrite_completed_results": {"const": false}
+      },
+      "required": [
+        "repository_mounted",
+        "docker_socket_mounted",
+        "root_filesystem_read_only",
+        "cap_drop",
+        "no_new_privileges",
+        "agent_sandbox",
+        "web_search",
+        "cross_agent_visibility",
+        "treatment_outputs_visible",
+        "other_adjudicator_labels_visible",
+        "overwrite_completed_results"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model_schema_generator": {"type": "string", "minLength": 1},
+        "pass_schema": {"type": "string", "minLength": 1},
+        "result_filename": {"type": "string", "minLength": 1},
+        "hash_sidecar": {"type": "boolean"}
+      },
+      "required": [
+        "model_schema_generator", "pass_schema", "result_filename", "hash_sidecar"
+      ]
+    },
+    "coordination": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primary_start": {"const": "parallel"},
+        "reveal_policy": {"const": "after-all-primary-complete"},
+        "comparison_command": {"type": "string", "minLength": 1},
+        "c_input_artifact": {"type": "string", "minLength": 1},
+        "resolution_policy": {
+          "enum": ["two-of-three-then-recorded-discussion"]
+        },
+        "unresolved_marker": {"type": "string", "minLength": 1},
+        "freeze_command": {"type": "string", "minLength": 1},
+        "inference_allowed_after": {"const": "oracle-freeze-and-validation"}
+      },
+      "required": [
+        "primary_start",
+        "reveal_policy",
+        "comparison_command",
+        "c_input_artifact",
+        "resolution_policy",
+        "unresolved_marker",
+        "freeze_command",
+        "inference_allowed_after"
+      ]
+    },
+    "results": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtime_root": {"type": "string", "minLength": 1},
+        "coordinator_subdir": {"type": "string", "minLength": 1},
+        "frozen_result": {"type": "string", "minLength": 1},
+        "freeze_manifest": {"type": "string", "minLength": 1},
+        "final_validation": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "runtime_root",
+        "coordinator_subdir",
+        "frozen_result",
+        "freeze_manifest",
+        "final_validation"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "module_id",
+    "module_version",
+    "task",
+    "runtime",
+    "prompt",
+    "required_files",
+    "roles",
+    "credentials",
+    "guardrails",
+    "output",
+    "coordination",
+    "results"
+  ]
+}
