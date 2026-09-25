@@ -9,9 +9,12 @@ from agent_workflow.errors import WorkflowError
 
 from .schema_contracts import read_contract
 
-ABC_ADJUDICATION_MODULE_SCHEMA = (
-    "agent-workflow-benchmark/abc-adjudication-module/v1"
-)
+ABC_ADJUDICATION_MODULE_SCHEMA = "agent-workflow-benchmark/abc-adjudication-module/v1"
+ABC_ADJUDICATION_MODULE_SCHEMA_V2 = "agent-workflow-benchmark/abc-adjudication-module/v2"
+ABC_ADJUDICATION_MODULE_SCHEMAS = {
+    ABC_ADJUDICATION_MODULE_SCHEMA,
+    ABC_ADJUDICATION_MODULE_SCHEMA_V2,
+}
 
 
 def _stable_sha256(value: Mapping[str, Any]) -> str:
@@ -32,7 +35,16 @@ def _require_relative_safe(path: str, *, field: str) -> None:
 
 def validate_abc_adjudication_module(path: Path) -> dict[str, Any]:
     source = Path(path)
-    value = read_contract(source, ABC_ADJUDICATION_MODULE_SCHEMA)
+    try:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WorkflowError(f"invalid adjudication module {source}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise WorkflowError(f"adjudication module must be an object: {source}")
+    schema = raw.get("schema")
+    if schema not in ABC_ADJUDICATION_MODULE_SCHEMAS:
+        raise WorkflowError(f"unsupported adjudication module schema: {schema!r}")
+    value = read_contract(source, str(schema))
 
     primary = value["roles"]["primary"]
     roles = [str(item["role"]) for item in primary]
@@ -99,7 +111,17 @@ def validate_abc_adjudication_module(path: Path) -> dict[str, Any]:
     _require_relative_safe(str(prompt["template"]), field="prompt.template")
 
     runtime = value["runtime"]
-    _require_relative_safe(str(runtime["dockerfile"]), field="runtime.dockerfile")
+    if runtime["kind"] == "oci-docker":
+        _require_relative_safe(str(runtime["dockerfile"]), field="runtime.dockerfile")
+    elif runtime["kind"] == "inspect-ai":
+        if runtime["agent"]["version_policy"] != "latest-at-cohort-start":
+            raise WorkflowError(
+                "Inspect adjudication must resolve Codex latest once at cohort start"
+            )
+        if runtime["network"]["provider_credentials_location"] != "host-only":
+            raise WorkflowError("Inspect provider credentials must remain host-only")
+    else:
+        raise WorkflowError(f"unsupported adjudication runtime kind: {runtime['kind']!r}")
 
     results = value["results"]
     for field in (
@@ -137,6 +159,7 @@ def validate_abc_adjudication_module(path: Path) -> dict[str, Any]:
         "adjudicator_ids": adjudicator_ids,
         "shared_frozen_ab_inputs": sorted(shared_frozen_ab),
         "required_files": len(required_files),
+        "runtime_kind": runtime["kind"],
         "guardrails": {
             "repository_mounted": guardrails["repository_mounted"],
             "docker_socket_mounted": guardrails["docker_socket_mounted"],
