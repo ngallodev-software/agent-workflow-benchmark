@@ -1,6 +1,6 @@
 FROM node:24-bookworm-slim
 
-ARG CODEX_VERSION=0.156.1
+ARG CODEX_VERSION=latest
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
