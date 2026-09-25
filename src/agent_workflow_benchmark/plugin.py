@@ -12,6 +12,8 @@ __version__="0.4.0"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
+    a = c.add_parser("decision-study-corpus-export", help="export the frozen public-safe routing decision corpus"); a.add_argument("destination", type=Path); a.add_argument("--study", default="routing-semantic-v1"); a.add_argument("--force", action="store_true")
+    a = c.add_parser("decision-study-oracle-view-export", help="export a blinded oracle-authoring view with no construction tags or treatment outputs"); a.add_argument("destination", type=Path); a.add_argument("--study", default="routing-semantic-v1"); a.add_argument("--force", action="store_true")
     a = c.add_parser("decision-study-validate", help="validate a frozen comparative-decision corpus and optional separate oracle"); a.add_argument("corpus", type=Path); a.add_argument("--oracle", type=Path); a.add_argument("--study", default="routing-semantic-v1")
     a = c.add_parser("decision-study-run", help="run the frozen comparative-decision inference corpus without loading the oracle"); a.add_argument("corpus", type=Path); a.add_argument("output", type=Path); a.add_argument("--study", default="routing-semantic-v1"); a.add_argument("--force", action="store_true")
     a = c.add_parser("decision-study-report", help="join a separately frozen oracle after inference and build the study report"); a.add_argument("run", type=Path); a.add_argument("oracle", type=Path)
