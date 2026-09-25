@@ -40,6 +40,7 @@ from .benchmarking.inspect_adjudication import (
     InspectRunConfig,
     create_inspect_runtime_lock,
     inspect_static_qualification,
+    run_inspect_live_qualification,
     run_inspect_primary,
     run_inspect_tiebreaker,
 )
@@ -121,6 +122,31 @@ def handle_benchmark_command(
             args.module,
             args.destination,
             runtime_lock_path=args.runtime_lock,
+            force=args.force,
+        )
+    if command == "adjudication-inspect-qualify-live":
+        model_args: dict[str, Any] = {}
+        for item in args.model_arg:
+            if "=" not in item:
+                raise WorkflowError(
+                    f"--model-arg must use KEY=VALUE syntax: {item!r}"
+                )
+            key, raw = item.split("=", 1)
+            key = key.strip()
+            if not key:
+                raise WorkflowError("--model-arg key must not be empty")
+            try:
+                value = __import__("json").loads(raw)
+            except Exception:
+                value = raw
+            model_args[key] = value
+        return run_inspect_live_qualification(
+            args.module,
+            args.runtime_lock,
+            args.destination,
+            model=args.model,
+            model_args=model_args,
+            log_model_api=bool(args.log_model_api),
             force=args.force,
         )
     if command in {"adjudication-inspect-run-primary", "adjudication-inspect-run-c"}:
