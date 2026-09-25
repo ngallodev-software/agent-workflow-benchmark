@@ -446,3 +446,5 @@ so documentation/completion stays aligned with the installed plugin version.
 Benchmark 0.4.0 adds a preregistered decision-quality lane for Agent-Workflow's bounded TypeSafe/Jev routing seams. Inference and oracle joining are separate commands, and provider-request overhead is counted once per batched call.
 
 See [Comparative Decision Study](docs/COMPARATIVE_DECISION_STUDY.md) for the command flow, evidence model, publication gate, and a portfolio-ready architecture diagram.
+
+For independent oracle production on a single Debian host, use the isolated [Docker Oracle Adjudication Harness](docs/DOCKER_ORACLE_ADJUDICATION.md). It runs A/B (and C when needed) in separate Codex containers without mounting the repository, treatment outputs, or TypeSafe credentials.
