@@ -220,6 +220,43 @@ def _load_runtime_lock(path: Path, module: Mapping[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _require_passing_qualification(
+    qualification_path: Path | None,
+    *,
+    module: Mapping[str, Any],
+    runtime_lock_path: Path,
+    allow_unqualified: bool,
+) -> None:
+    if allow_unqualified:
+        return
+    if qualification_path is None:
+        raise WorkflowError(
+            "real Inspect adjudication requires a passing P0A qualification manifest"
+        )
+    value = _read_json(Path(qualification_path))
+    validate_instance(
+        value,
+        INSPECT_QUALIFICATION_SCHEMA,
+        artifact=str(qualification_path),
+    )
+    if value.get("qualified") is not True:
+        raise WorkflowError("Inspect adjudication qualification is not passing")
+    if value.get("module_id") != module["module_id"]:
+        raise WorkflowError("qualification module_id does not match adjudication module")
+    if value.get("module_sha256") != module["module_sha256"]:
+        raise WorkflowError("qualification module_sha256 does not match adjudication module")
+    if value.get("runtime_lock_sha256") != sha256_file(Path(runtime_lock_path)):
+        raise WorkflowError(
+            "qualification runtime_lock_sha256 does not match supplied runtime lock"
+        )
+    if any(
+        gate.get("status") != "pass"
+        for gate in value.get("gates", {}).values()
+        if isinstance(gate, Mapping)
+    ):
+        raise WorkflowError("Inspect adjudication qualification contains a non-passing gate")
+
+
 def _repo_root(module_path: Path) -> Path:
     current = Path(module_path).resolve().parent
     for candidate in (current, *current.parents):
@@ -320,8 +357,10 @@ class InspectRunConfig:
     runtime_lock_path: Path
     output_root: Path
     model: str
+    qualification_path: Path | None = None
     model_args: Mapping[str, Any] | None = None
     log_model_api: bool = False
+    allow_unqualified: bool = False
 
 
 def _inspect_sandbox_spec() -> Any:
@@ -418,6 +457,12 @@ def _sample_files(view_path: Path, protocol_path: Path) -> dict[str, str]:
 def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
     module = validate_abc_adjudication_module(config.module_path)
     runtime_lock = _load_runtime_lock(config.runtime_lock_path, module)
+    _require_passing_qualification(
+        config.qualification_path,
+        module=module,
+        runtime_lock_path=config.runtime_lock_path,
+        allow_unqualified=config.allow_unqualified,
+    )
     repo = _repo_root(config.module_path)
     module_value = _read_json(config.module_path)
     template = repo / str(module_value["prompt"]["template"])
@@ -470,7 +515,8 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             adjudicator_id=adjudicator_id,
             study=str(module_value["task"]["study_id"]),
         )
-        role_dir = config.output_root / role.lower()
+        role_spec = next(item for item in primary if str(item["role"]) == role)
+        role_dir = config.output_root / str(role_spec["result_subdir"])
         role_dir.mkdir(parents=True, exist_ok=True)
         pass_path = role_dir / "adjudication.json"
         if pass_path.exists():
@@ -521,6 +567,12 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
 def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
     module = validate_abc_adjudication_module(config.module_path)
     runtime_lock = _load_runtime_lock(config.runtime_lock_path, module)
+    _require_passing_qualification(
+        config.qualification_path,
+        module=module,
+        runtime_lock_path=config.runtime_lock_path,
+        allow_unqualified=config.allow_unqualified,
+    )
     repo = _repo_root(config.module_path)
     module_value = _read_json(config.module_path)
     template = repo / str(module_value["prompt"]["template"])
@@ -560,7 +612,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         adjudicator_id=adjudicator_id,
         study=str(module_value["task"]["study_id"]),
     )
-    role_dir = config.output_root / "c"
+    role_dir = config.output_root / str(tiebreaker["result_subdir"])
     role_dir.mkdir(parents=True, exist_ok=True)
     pass_path = role_dir / "adjudication.json"
     if pass_path.exists():
@@ -1064,6 +1116,7 @@ def run_inspect_live_qualification(
             model=model,
             model_args=model_args,
             log_model_api=log_model_api,
+            allow_unqualified=True,
         )
     )
     a_validation = validate_adjudication_pass(
@@ -1103,6 +1156,7 @@ def run_inspect_live_qualification(
             model=model,
             model_args=model_args,
             log_model_api=log_model_api,
+            allow_unqualified=True,
         )
     )
     c_validation = validate_adjudication_pass(
