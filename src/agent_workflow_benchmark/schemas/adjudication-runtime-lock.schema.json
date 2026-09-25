@@ -1,0 +1,103 @@
+{
+  "$id": "agent-workflow-benchmark/adjudication-runtime-lock/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow-benchmark/adjudication-runtime-lock/v1"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "backend": {
+      "const": "inspect-ai"
+    },
+    "inspect_ai_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inspect_swe_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "codex_cli": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policy": {
+          "const": "latest-at-cohort-start"
+        },
+        "requested": {
+          "const": "latest"
+        },
+        "resolved": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cached_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "policy",
+        "requested",
+        "resolved",
+        "platform",
+        "cached_path"
+      ]
+    },
+    "docker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "docker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compose": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "docker",
+        "compose"
+      ]
+    },
+    "frozen_for_cohort": {
+      "const": true
+    }
+  },
+  "required": [
+    "schema",
+    "created_at",
+    "module_id",
+    "module_version",
+    "module_sha256",
+    "backend",
+    "inspect_ai_version",
+    "inspect_swe_version",
+    "codex_cli",
+    "docker",
+    "frozen_for_cohort"
+  ]
+}
