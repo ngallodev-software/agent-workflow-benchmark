@@ -215,6 +215,140 @@ def export_oracle_authoring_view(
     return result
 
 
+def validate_oracle_adjudication_file(
+    corpus_path: Path,
+    adjudication_path: Path,
+    *,
+    study: str = "routing-semantic-v1",
+) -> dict[str, Any]:
+    corpus, _ = _load_corpus(Path(corpus_path), study)
+    try:
+        adjudication = comparative.validate_oracle_adjudication(
+            _read_json_object(Path(adjudication_path)),
+            corpus,
+        )
+    except (ValueError, comparative.ContractError) as exc:
+        raise WorkflowError(f"invalid oracle adjudication {adjudication_path}: {exc}") from exc
+    label_count = sum(len(record["labels"]) for record in adjudication["records"])
+    return {
+        "valid": True,
+        "adjudicator_id": adjudication["adjudicator_id"],
+        "study_id": adjudication["study_id"],
+        "dataset_version": adjudication["dataset_version"],
+        "records": len(adjudication["records"]),
+        "labels": label_count,
+        "sha256": sha256_file(Path(adjudication_path)),
+    }
+
+
+def compare_oracle_adjudication_files(
+    corpus_path: Path,
+    left_path: Path,
+    right_path: Path,
+    output: Path,
+    *,
+    study: str = "routing-semantic-v1",
+    force: bool = False,
+) -> dict[str, Any]:
+    corpus, _ = _load_corpus(Path(corpus_path), study)
+    try:
+        comparison = comparative.compare_oracle_adjudications(
+            corpus,
+            _read_json_object(Path(left_path)),
+            _read_json_object(Path(right_path)),
+        )
+    except (ValueError, comparative.ContractError) as exc:
+        raise WorkflowError(f"oracle A/B comparison failed: {exc}") from exc
+    result = _write_export(Path(output), comparison, force=force)
+    result.update(
+        {
+            "pair_count": comparison["pair_count"],
+            "agreement_count": comparison["agreement_count"],
+            "disagreement_count": comparison["disagreement_count"],
+            "adjudicators": list(comparison["adjudicators"]),
+        }
+    )
+    return result
+
+
+def export_oracle_tiebreak_view(
+    corpus_path: Path,
+    disagreement_path: Path,
+    output: Path,
+    *,
+    study: str = "routing-semantic-v1",
+    force: bool = False,
+) -> dict[str, Any]:
+    corpus, _ = _load_corpus(Path(corpus_path), study)
+    try:
+        view = comparative.oracle_tiebreak_view(
+            corpus,
+            _read_json_object(Path(disagreement_path)),
+        )
+    except (ValueError, comparative.ContractError) as exc:
+        raise WorkflowError(f"oracle C tie-break view failed: {exc}") from exc
+    result = _write_export(Path(output), view, force=force)
+    required_labels = sum(
+        len(case["required_decisions"]) for case in view["cases"]
+    )
+    result.update(
+        {
+            "cases": len(view["cases"]),
+            "required_labels": required_labels,
+            "prior_adjudicator_labels_included": view["blinding"][
+                "prior_adjudicator_labels_included"
+            ],
+        }
+    )
+    return result
+
+
+def freeze_oracle_from_adjudications(
+    corpus_path: Path,
+    a_path: Path,
+    b_path: Path,
+    output: Path,
+    *,
+    oracle_version: str,
+    c_path: Path | None = None,
+    consensus_path: Path | None = None,
+    study: str = "routing-semantic-v1",
+    force: bool = False,
+) -> dict[str, Any]:
+    corpus, _ = _load_corpus(Path(corpus_path), study)
+    try:
+        oracle = comparative.freeze_oracle_bundle(
+            corpus,
+            _read_json_object(Path(a_path)),
+            _read_json_object(Path(b_path)),
+            adjudication_c=(
+                _read_json_object(Path(c_path)) if c_path is not None else None
+            ),
+            consensus_resolution=(
+                _read_json_object(Path(consensus_path))
+                if consensus_path is not None
+                else None
+            ),
+            oracle_version=oracle_version,
+        )
+    except (ValueError, comparative.ContractError) as exc:
+        raise WorkflowError(f"oracle freeze failed: {exc}") from exc
+
+    canonical_sha256 = comparative.oracle_bundle_sha256(oracle)
+    result = _write_export(Path(output), oracle, force=force)
+    result.update(
+        {
+            "study_id": oracle["study_id"],
+            "dataset_version": oracle["dataset_version"],
+            "oracle_version": oracle["oracle_version"],
+            "records": len(oracle["records"]),
+            "canonical_sha256": canonical_sha256,
+            "frozen": oracle["frozen"],
+        }
+    )
+    return result
+
+
 def validate_decision_study(
     corpus_path: Path,
     *,
