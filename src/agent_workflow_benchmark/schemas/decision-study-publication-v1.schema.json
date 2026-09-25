@@ -1,0 +1,18 @@
+{
+  "$id": "agent-workflow-benchmark/decision-study-publication/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/decision-study-publication/v1"},
+    "study_id": {"type": "string", "minLength": 1},
+    "study_version": {"type": "string", "minLength": 1},
+    "dataset_version": {"type": "string", "minLength": 1},
+    "oracle_version": {"type": "string", "minLength": 1},
+    "prepared_at": {"type": "string", "minLength": 1},
+    "study_eligible": {"type": "boolean"},
+    "files": {"type": "object"},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["schema", "study_id", "study_version", "dataset_version", "oracle_version", "prepared_at", "study_eligible", "files", "limitations"]
+}

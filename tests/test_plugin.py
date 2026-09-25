@@ -10,10 +10,10 @@ from agent_workflow_benchmark.plugin import plugin
 def test_descriptor_owns_benchmark_command_and_schemas():
     descriptor = plugin()
     assert descriptor.name == "agent-workflow-benchmark"
-    assert __version__ == "0.3.9"
+    assert __version__ == "0.4.0"
     assert descriptor.version == __version__
     assert [command.name for command in descriptor.commands] == ["benchmark"]
-    assert len(descriptor.package_resources) == 26
+    assert len(descriptor.package_resources) == 30
 
 
 def test_exported_suite_validates_with_plugin_owned_contracts(tmp_path: Path):

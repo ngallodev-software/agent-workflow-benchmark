@@ -1,7 +1,7 @@
 # Agent-Workflow Benchmark
 
-![Version](https://img.shields.io/badge/version-0.3.9-blue)
-![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.9%2C%3C0.12-2ea44f)
+![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.10%2C%3C0.12-2ea44f)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
 **Agent-Workflow case study:** https://ngallodev-software.uk/projects/agent-workflow  
@@ -97,7 +97,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.3.9` declares `agent-workflow>=0.11.9,<0.12`; Agent-Workflow `0.11.9` is the minimum supported core for the execution-seal and BM6 blind-run workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.4.0` declares `agent-workflow>=0.11.10,<0.12` and `agent-workflow-comparative-eval==0.2.0`. Agent-Workflow `0.11.10` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
@@ -156,7 +156,7 @@ The scorer bundle must contain the externally referenced evaluator, and its tree
 
 ## Universal post-seal scoring bundles
 
-Benchmark 0.3.9 adds a task-agnostic external scorer driven by `bundle.json`.
+Benchmark 0.3.9 introduced a task-agnostic external scorer driven by `bundle.json`.
 Create a reusable bundle shell with:
 
 ```bash
@@ -439,3 +439,10 @@ agent-workflow completion bash
 ```
 
 so documentation/completion stays aligned with the installed plugin version.
+
+
+## Comparative decision study
+
+Benchmark 0.4.0 adds a preregistered decision-quality lane for Agent-Workflow's bounded TypeSafe/Jev routing seams. Inference and oracle joining are separate commands, and provider-request overhead is counted once per batched call.
+
+See [Comparative Decision Study](docs/COMPARATIVE_DECISION_STUDY.md) for the command flow, evidence model, publication gate, and a portfolio-ready architecture diagram.

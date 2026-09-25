@@ -320,7 +320,7 @@ from importlib import metadata
 
 required = {
     "typesafe-sdk": "0.6.0",
-    "agent-workflow-comparative-eval": "0.1.0",
+    "agent-workflow-comparative-eval": "0.2.0",
 }
 for name, expected in required.items():
     try:
@@ -345,7 +345,7 @@ from agent_workflow.decisions import require_decision_runtime_ready
 
 required = {
     "typesafe-sdk": "0.6.0",
-    "agent-workflow-comparative-eval": "0.1.0",
+    "agent-workflow-comparative-eval": "0.2.0",
 }
 for name, expected in required.items():
     try:
@@ -367,7 +367,7 @@ if status.get("ready") is not True:
     raise SystemExit(f"comparative semantic runtime is not ready: {status}")
 print(
     "semantic runtime verified: mode=comparative; typesafe_sdk=0.6.0; "
-    "comparative_eval=0.1.0; typesafe_api_key=configured"
+    "comparative_eval=0.2.0; typesafe_api_key=configured"
 )
 PY
 }

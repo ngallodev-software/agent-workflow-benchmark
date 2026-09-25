@@ -8,10 +8,14 @@ from agent_workflow.util import atomic_write_bytes, atomic_write_json
 from .handler import handle_benchmark_command
 from .legacy import build_benchmark_report, render_benchmark_markdown, validate_benchmark_manifest
 
-__version__="0.3.9"
+__version__="0.4.0"
 
 def configure(parser: argparse.ArgumentParser) -> None:
     c = parser.add_subparsers(dest="benchmark_command", required=True)
+    a = c.add_parser("decision-study-validate", help="validate a frozen comparative-decision corpus and optional separate oracle"); a.add_argument("corpus", type=Path); a.add_argument("--oracle", type=Path); a.add_argument("--study", default="routing-semantic-v1")
+    a = c.add_parser("decision-study-run", help="run the frozen comparative-decision inference corpus without loading the oracle"); a.add_argument("corpus", type=Path); a.add_argument("output", type=Path); a.add_argument("--study", default="routing-semantic-v1"); a.add_argument("--force", action="store_true")
+    a = c.add_parser("decision-study-report", help="join a separately frozen oracle after inference and build the study report"); a.add_argument("run", type=Path); a.add_argument("oracle", type=Path)
+    a = c.add_parser("decision-study-publish-prepare", help="prepare a sanitized public decision-study evidence tree"); a.add_argument("run", type=Path); a.add_argument("oracle", type=Path); a.add_argument("destination", type=Path); a.add_argument("--force", action="store_true")
     v = c.add_parser("validate", help="validate a comparative benchmark suite"); v.add_argument("spec", type=Path); v.add_argument("--executor", type=Path)
     a = c.add_parser("auth-check", help="verify benchmark executor authentication"); a.add_argument("executor", type=Path)
     r = c.add_parser("readiness", help="validate benchmark readiness"); r.add_argument("spec", type=Path); r.add_argument("--executor", type=Path, required=True); r.add_argument("--policy", type=Path); r.add_argument("--runtime-lock", type=Path); r.add_argument("--execution-only", action="store_true", help="skip visual-runtime attestation for execution smoke validation")
