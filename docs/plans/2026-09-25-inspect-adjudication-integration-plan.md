@@ -459,7 +459,7 @@ Only after P0A qualification:
 9. Validate against frozen corpus.
 10. Archive Inspect execution provenance separately.
 
-If Inspect fails qualification or execution before valid A/B completion, roll back to DirectDockerBackend and begin fresh A/B sessions. Do not mix one backend's A pass with another backend's B pass in the same oracle unless a future protocol version explicitly permits heterogeneous adjudicator runtimes.
+If Inspect fails qualification, P0B remains blocked under the current checkpoint. DirectDockerBackend remains available for deterministic parity, diagnostics, and rollback analysis, but it is not a bypass around authenticated P0A qualification. A future decision to use a different backend for real oracle production must be made explicitly before labels are generated and must preserve one backend/runtime identity for the full A/B/C cohort.
 
 ### P1 — development instrumentation run
 
@@ -685,9 +685,9 @@ Do not publish provider credentials, raw authenticated configuration, or sensiti
 
 ## Failure/rollback rules
 
-Rollback is a normal qualification outcome, not a study failure.
+A failed qualification is an infrastructure finding, not a study result.
 
-Use DirectDockerBackend when:
+Use DirectDockerBackend as a reference/diagnostic implementation when:
 
 - Inspect cannot route the user's provider correctly;
 - sandbox bridge leaks credentials/capabilities;
@@ -697,7 +697,7 @@ Use DirectDockerBackend when:
 - Inspect retries/resume violate role independence;
 - required evidence identities cannot be reconstructed.
 
-If rollback occurs before real A/B labels: begin P0B with fresh DirectDocker sessions.
+Under the current checkpoint, do not begin P0B after a failed Inspect qualification. Correct the failure and re-run P0A. If the project later elects to revert real oracle production to DirectDockerBackend, record that as an explicit pre-label checkpoint/runtime decision and re-establish the required qualification evidence before generating A/B labels.
 
 If a failure occurs after one real Inspect adjudicator pass has completed but before both A/B are valid: discard that incomplete cohort and restart both A and B together under one qualified backend. Preserve the discarded run privately as operational evidence, but do not mix it into the oracle.
 
