@@ -35,6 +35,7 @@ from .benchmarking import (
     verify_benchmark,
     visual_capture_benchmark,
 )
+from .benchmarking.adjudication_module import validate_abc_adjudication_module
 from .benchmarking.code_review import quality_review
 from .benchmarking.decision_study import (
     prepare_decision_study_publication,
@@ -100,6 +101,8 @@ def handle_benchmark_command(
             study=args.study,
             force=args.force,
         )
+    if command == "adjudication-module-validate":
+        return validate_abc_adjudication_module(args.module)
     if command == "decision-study-validate":
         return validate_decision_study(
             args.corpus,
