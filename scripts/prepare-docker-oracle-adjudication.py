@@ -117,15 +117,19 @@ def decision_schema(decision_id: str) -> dict[str, Any]:
 
 
 def model_output_schema(records: list[dict[str, Any]]) -> dict[str, Any]:
-    case_variants: list[dict[str, Any]] = []
+    grouped: dict[tuple[str, ...], list[str]] = {}
     for record in records:
-        decision_ids = record["decision_ids"]
-        case_variants.append(
+        decision_ids = tuple(record["decision_ids"])
+        grouped.setdefault(decision_ids, []).append(record["case_id"])
+
+    shape_variants: list[dict[str, Any]] = []
+    for decision_ids, case_ids in grouped.items():
+        shape_variants.append(
             {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "case_id": {"const": record["case_id"]},
+                    "case_id": {"type": "string", "enum": case_ids},
                     "labels": {
                         "type": "object",
                         "additionalProperties": False,
@@ -133,12 +137,18 @@ def model_output_schema(records: list[dict[str, Any]]) -> dict[str, Any]:
                             decision_id: decision_schema(decision_id)
                             for decision_id in decision_ids
                         },
-                        "required": decision_ids,
+                        "required": list(decision_ids),
                     },
                 },
                 "required": ["case_id", "labels"],
             }
         )
+
+    item_schema = (
+        shape_variants[0]
+        if len(shape_variants) == 1
+        else {"oneOf": shape_variants}
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -149,7 +159,7 @@ def model_output_schema(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "minItems": len(records),
                 "maxItems": len(records),
                 "uniqueItems": True,
-                "items": {"oneOf": case_variants},
+                "items": item_schema,
             }
         },
         "required": ["records"],
