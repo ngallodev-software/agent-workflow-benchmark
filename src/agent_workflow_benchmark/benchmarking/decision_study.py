@@ -166,6 +166,55 @@ def _case_map(corpus: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     return {str(case["case_id"]): case for case in corpus["cases"]}
 
 
+def _write_export(path: Path, value: Mapping[str, Any], *, force: bool) -> dict[str, Any]:
+    path = Path(path)
+    if path.exists() and not force:
+        raise WorkflowError(f"decision-study export already exists: {path}")
+    if path.exists() and (path.is_dir() or path.is_symlink()):
+        raise WorkflowError(f"decision-study export must be a regular file path: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(path, dict(value))
+    return {"path": str(path), "sha256": sha256_file(path)}
+
+
+def export_decision_study_corpus(
+    destination: Path,
+    *,
+    study: str = "routing-semantic-v1",
+    force: bool = False,
+) -> dict[str, Any]:
+    corpus = comparative.load_study_corpus(study)
+    result = _write_export(Path(destination), corpus, force=force)
+    result.update(
+        {
+            "study_id": corpus["study_id"],
+            "dataset_version": corpus["dataset_version"],
+            "cases": len(corpus["cases"]),
+        }
+    )
+    return result
+
+
+def export_oracle_authoring_view(
+    destination: Path,
+    *,
+    study: str = "routing-semantic-v1",
+    force: bool = False,
+) -> dict[str, Any]:
+    corpus = comparative.load_study_corpus(study)
+    view = comparative.oracle_authoring_view(corpus)
+    result = _write_export(Path(destination), view, force=force)
+    result.update(
+        {
+            "study_id": view["study_id"],
+            "dataset_version": view["dataset_version"],
+            "cases": len(view["cases"]),
+            "construction_tags_included": view["blinding"]["construction_tags_included"],
+        }
+    )
+    return result
+
+
 def validate_decision_study(
     corpus_path: Path,
     *,
