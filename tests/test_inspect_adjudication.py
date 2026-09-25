@@ -251,3 +251,99 @@ def test_static_qualification_is_not_ready_until_live_gates_pass(
     assert result["gates"]["IA-1"]["status"] == "pass"
     assert result["gates"]["IA-2"]["status"] == "pending"
     assert result["gates"]["IA-3"]["status"] == "partial"
+
+
+def test_synthetic_qualification_view_never_uses_real_case_ids(tmp_path: Path):
+    path = tmp_path / "synthetic.json"
+    value = inspect_runtime._synthetic_qualification_view(path)
+    ids = {item["case_id"] for item in value["cases"]}
+    assert ids == {"inspect-qualification-001", "inspect-qualification-002"}
+    assert not any(item.startswith("rsv1-") for item in ids)
+
+
+def test_direct_and_inspect_modules_share_prompt_and_frozen_identities():
+    direct = json.loads(
+        (
+            ROOT
+            / "modules"
+            / "abc-adjudication"
+            / "routing-semantic-v1.module.json"
+        ).read_text(encoding="utf-8")
+    )
+    inspect = json.loads(MODULE.read_text(encoding="utf-8"))
+
+    assert direct["prompt"]["template"] == inspect["prompt"]["template"]
+    direct_files = {item["id"]: item for item in direct["required_files"]}
+    inspect_files = {item["id"]: item for item in inspect["required_files"]}
+    for item_id in ("oracle-view", "routing-corpus"):
+        assert direct_files[item_id]["sha256"] == inspect_files[item_id]["sha256"]
+
+
+def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
+    module = validate_abc_adjudication_module(MODULE)
+    runtime_lock = tmp_path / "runtime-lock.json"
+    lock = {
+        "schema": inspect_runtime.RUNTIME_LOCK_SCHEMA,
+        "created_at": "2026-09-25T00:00:00+00:00",
+        "module_id": module["module_id"],
+        "module_version": module["module_version"],
+        "module_sha256": module["module_sha256"],
+        "backend": "inspect-ai",
+        "inspect_ai_version": inspect_runtime.INSPECT_AI_VERSION,
+        "inspect_swe_version": inspect_runtime.INSPECT_SWE_VERSION,
+        "codex_cli": {
+            "policy": "latest-at-cohort-start",
+            "requested": "latest",
+            "resolved": "0.999.7",
+            "platform": "linux-x64",
+            "cached_path": "/tmp/codex",
+        },
+        "docker": {
+            "docker": "Docker version 99",
+            "compose": "Docker Compose version 99",
+        },
+        "frozen_for_cohort": True,
+    }
+    runtime_lock.write_text(json.dumps(lock), encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="requires a passing P0A qualification"):
+        inspect_runtime._require_passing_qualification(
+            None,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            allow_unqualified=False,
+        )
+
+    gates = {
+        gate: {"status": "pass"}
+        for gate in ("IA-1", "IA-2", "IA-3", "IA-4", "IA-5", "IA-6", "IA-7", "IA-8")
+    }
+    qualification = tmp_path / "qualification.json"
+    value = {
+        "schema": inspect_runtime.INSPECT_QUALIFICATION_SCHEMA,
+        "created_at": "2026-09-25T00:00:00+00:00",
+        "module_id": module["module_id"],
+        "module_sha256": module["module_sha256"],
+        "runtime_lock_sha256": inspect_runtime.sha256_file(runtime_lock),
+        "qualified": True,
+        "gates": gates,
+    }
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    inspect_runtime._require_passing_qualification(
+        qualification,
+        module=module,
+        runtime_lock_path=runtime_lock,
+        allow_unqualified=False,
+    )
+
+    value["gates"]["IA-7"]["status"] = "pending"
+    value["qualified"] = False
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+    with pytest.raises(WorkflowError, match="not passing"):
+        inspect_runtime._require_passing_qualification(
+            qualification,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            allow_unqualified=False,
+        )
