@@ -1,6 +1,6 @@
 # Agent-Workflow Benchmark
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.4.1-blue)
 ![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.10%2C%3C0.12-2ea44f)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -41,6 +41,14 @@ For visual benchmark capture:
 ```bash
 python -m pip install 'agent-workflow-benchmark[visual]'
 ```
+
+For the isolated Inspect AI adjudication runtime:
+
+```bash
+python -m pip install 'agent-workflow-benchmark[inspect]'
+```
+
+Inspect AI and Inspect SWE are pinned as Python dependencies. Codex CLI is intentionally **not** pinned in the repository: the runtime resolves `latest` once at adjudication cohort start, records the exact resolved version in a runtime-lock artifact, and reuses that resolved version for A, B, and any required C pass.
 
 For a source checkout used alongside an Agent-Workflow wheel, use the repository
 installer so the plugin is built and installed into the **same shared virtualenv**
@@ -97,7 +105,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.4.0` declares `agent-workflow>=0.11.10,<0.12` and `agent-workflow-comparative-eval==0.2.0`. Agent-Workflow `0.11.10` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.4.1` declares `agent-workflow>=0.11.10,<0.12` and `agent-workflow-comparative-eval==0.2.0`. Agent-Workflow `0.11.10` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
