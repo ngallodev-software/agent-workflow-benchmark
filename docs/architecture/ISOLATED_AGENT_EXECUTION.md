@@ -118,7 +118,8 @@ For benchmark arms:
 ### Blinded adjudication
 
 - no repository mount;
-- provider network only;
+- no direct external network from the sandbox;
+- model-provider access only through Inspect's host-side sandbox-agent bridge;
 - task files read-only;
 - narrow structured result.
 
