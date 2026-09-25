@@ -15,6 +15,7 @@ from agent_workflow.errors import WorkflowError
 from agent_workflow.util import atomic_write_json, sha256_file
 
 from .adjudication_module import validate_abc_adjudication_module
+from .schema_contracts import validate_instance
 from .oracle_adjudication import (
     ADJUDICATION_PASS_SCHEMA,
     _decision_specs,
@@ -173,6 +174,7 @@ def create_inspect_runtime_lock(
         "docker": docker,
         "frozen_for_cohort": True,
     }
+    validate_instance(record, RUNTIME_LOCK_SCHEMA, artifact="adjudication runtime lock")
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(destination, record)
     return {
@@ -641,6 +643,11 @@ def inspect_static_qualification(
         "qualified": all(item["status"] == "pass" for item in gates.values()),
         "gates": gates,
     }
+    validate_instance(
+        record,
+        INSPECT_QUALIFICATION_SCHEMA,
+        artifact="Inspect adjudication qualification",
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(destination, record)
     return {"path": str(destination), "sha256": sha256_file(destination), **record}
