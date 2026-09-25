@@ -1,0 +1,20 @@
+{
+  "$id": "agent-workflow-benchmark/decision-study-run/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/decision-study-run/v1"},
+    "study_id": {"type": "string", "minLength": 1},
+    "study_version": {"type": "string", "minLength": 1},
+    "dataset_version": {"type": "string", "minLength": 1},
+    "started_at": {"type": "string", "minLength": 1},
+    "completed_at": {"type": "string", "minLength": 1},
+    "identity": {"type": "object"},
+    "counts": {"type": "object"},
+    "hashes": {"type": "object"},
+    "files": {"type": "object"},
+    "oracle_seen_during_inference": {"const": false}
+  },
+  "required": ["schema", "study_id", "study_version", "dataset_version", "started_at", "completed_at", "identity", "counts", "hashes", "files", "oracle_seen_during_inference"]
+}
