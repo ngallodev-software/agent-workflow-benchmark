@@ -40,6 +40,10 @@ from .benchmarking.decision_study import (
     prepare_decision_study_publication,
     export_decision_study_corpus,
     export_oracle_authoring_view,
+    validate_oracle_adjudication_file,
+    compare_oracle_adjudication_files,
+    export_oracle_tiebreak_view,
+    freeze_oracle_from_adjudications,
     report_decision_study,
     run_decision_study,
     validate_decision_study,
@@ -64,6 +68,41 @@ def handle_benchmark_command(
     if command == "decision-study-oracle-view-export":
         return export_oracle_authoring_view(
             args.destination,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-oracle-validate":
+        return validate_oracle_adjudication_file(
+            args.corpus,
+            args.adjudication,
+            study=args.study,
+        )
+    if command == "decision-study-oracle-compare":
+        return compare_oracle_adjudication_files(
+            args.corpus,
+            args.left,
+            args.right,
+            args.output,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-oracle-tiebreak-view":
+        return export_oracle_tiebreak_view(
+            args.corpus,
+            args.disagreements,
+            args.output,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-oracle-freeze":
+        return freeze_oracle_from_adjudications(
+            args.corpus,
+            args.a,
+            args.b,
+            args.output,
+            oracle_version=args.oracle_version,
+            c_path=args.c,
+            consensus_path=args.consensus,
             study=args.study,
             force=args.force,
         )
