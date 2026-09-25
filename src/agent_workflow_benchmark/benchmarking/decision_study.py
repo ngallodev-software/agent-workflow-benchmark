@@ -502,7 +502,7 @@ def report_decision_study(
 ) -> dict[str, Any]:
     run = Path(run).resolve()
     manifest = read_contract(run / _RUN, RUN_SCHEMA)
-    corpus = read_contract(run / _CORPUS, CORPUS_SCHEMA)
+    corpus = comparative.validate_decision_study_corpus(_read_json_object(run / _CORPUS))
     spec = json.loads((run / _STUDY_SPEC).read_text(encoding="utf-8"))
     comparative.validate_record(spec, comparative.DECISION_STUDY_SPEC_SCHEMA)
     cases = _case_map(corpus)
@@ -621,7 +621,7 @@ def prepare_decision_study_publication(
             raise WorkflowError(f"refusing to replace publication destination: {destination}")
         shutil.rmtree(destination)
 
-    corpus = read_contract(run / _CORPUS, CORPUS_SCHEMA)
+    corpus = comparative.validate_decision_study_corpus(_read_json_object(run / _CORPUS))
     manifest = read_contract(run / _RUN, RUN_SCHEMA)
     oracle = comparative.validate_decision_study_oracle_bundle(
         _read_json_object(Path(oracle_path)),
