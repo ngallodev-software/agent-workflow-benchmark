@@ -26,7 +26,7 @@ def _corpus() -> dict:
         },
     }
     return {
-        "schema": "agent-workflow-benchmark/decision-study-corpus/v1",
+        "schema": "agent-workflow-comparative-eval/decision-study-corpus/v1",
         "study_id": "routing-semantic-v1",
         "dataset_version": "routing-study-smoke-v1.0.0",
         "cases": [case],
@@ -35,7 +35,7 @@ def _corpus() -> dict:
 
 def _oracle() -> dict:
     return {
-        "schema": "agent-workflow-benchmark/decision-study-oracle-bundle/v1",
+        "schema": "agent-workflow-comparative-eval/decision-study-oracle-bundle/v1",
         "study_id": "routing-semantic-v1",
         "dataset_version": "routing-study-smoke-v1.0.0",
         "oracle_version": "smoke-oracle-v1",
