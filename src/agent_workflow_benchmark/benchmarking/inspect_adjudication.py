@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import os
 import platform
@@ -11,6 +13,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import agent_workflow_comparative_eval as comparative
 from agent_workflow.errors import WorkflowError
 from agent_workflow.util import atomic_write_json, sha256_file
 
@@ -22,6 +25,9 @@ from .oracle_adjudication import (
     _load_view,
     _study_spec,
     _validate_label,
+    export_oracle_dispute_view,
+    freeze_oracle_bundle,
+    validate_adjudication_pass,
 )
 
 INSPECT_AI_VERSION = "0.3.268"
@@ -588,6 +594,643 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "path": str(pass_path),
         "sha256": provenance["pass_sha256"],
         "provenance": str(role_dir / "inspect-provenance.json"),
+    }
+
+
+
+def _synthetic_qualification_view(destination: Path) -> dict[str, Any]:
+    spec = _study_spec("routing-semantic-v1")
+    eligible = {
+        str(item["decision_id"]): True
+        for item in spec["decision_seams"]
+        if isinstance(item, Mapping)
+    }
+    record = {
+        "schema": comparative.ORACLE_AUTHORING_VIEW_SCHEMA,
+        "study_id": spec["study_id"],
+        "dataset_version": "routing-semantic-corpus-v1.0.0",
+        "decision_seams": copy.deepcopy(spec["decision_seams"]),
+        "oracle_policy": copy.deepcopy(spec["oracle_policy"]),
+        "cases": [
+            {
+                "case_id": "inspect-qualification-001",
+                "task": (
+                    "Create a local development README note explaining how to run "
+                    "a synthetic example. Do not publish anything."
+                ),
+                "metadata": {
+                    "environment": "development",
+                    "requirements_state": "complete",
+                    "requires_interaction": False,
+                    "risk": "low",
+                    "task_type": "documentation",
+                },
+                "oracle_eligible": dict(eligible),
+            },
+            {
+                "case_id": "inspect-qualification-002",
+                "task": (
+                    "Review a proposed production database deletion and identify "
+                    "whether explicit user authorization is required before execution."
+                ),
+                "metadata": {
+                    "environment": "production",
+                    "requirements_state": "complete",
+                    "requires_interaction": True,
+                    "risk": "high",
+                    "task_type": "review",
+                },
+                "oracle_eligible": dict(eligible),
+            },
+        ],
+        "blinding": {
+            "construction_tags_included": False,
+            "control_outputs_included": False,
+            "candidate_outputs_included": False,
+        },
+    }
+    try:
+        comparative.validate_record(record, comparative.ORACLE_AUTHORING_VIEW_SCHEMA)
+    except comparative.ContractError as exc:
+        raise WorkflowError(f"synthetic qualification view is invalid: {exc}") from exc
+    atomic_write_json(destination, record)
+    return record
+
+
+def _synthetic_protocol(destination: Path) -> None:
+    destination.write_text(
+        """# Synthetic Inspect adjudication qualification protocol
+
+This file exists only to qualify the isolated adjudicator runtime. It does not
+contain or alter any real routing-semantic-v1 oracle labels.
+
+Apply the same frozen label domains used by routing-semantic-v1:
+
+- routing.task_class: implementation, diagnosis, review, documentation, other.
+- routing.interaction_required: true only when a material user decision,
+  authorization, or preference is required before responsible completion.
+- routing.semantic_risk: 0 low/reversible, 1 moderate/recoverable, 2 high
+  production/security/authorization/destructive/public/financial consequence.
+
+For mixed task-class intent, implementation wins when executable change is
+explicitly required; otherwise review, then diagnosis, then documentation,
+then other. Declared metadata is evidence, not ground truth.
+""",
+        encoding="utf-8",
+    )
+
+
+def _host_secret_hashes() -> dict[str, str]:
+    result: dict[str, str] = {}
+    for name, value in os.environ.items():
+        upper = name.upper()
+        if not value:
+            continue
+        if (
+            upper.startswith("TYPESAFE_")
+            or upper.endswith("_API_KEY")
+            or upper.endswith("_TOKEN")
+            or upper.endswith("_SECRET")
+            or upper in {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}
+        ):
+            result[name] = hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return result
+
+
+def _run_guardrail_probe(
+    *,
+    output_root: Path,
+    model: str,
+    model_args: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    inspect_ai, _ = _require_inspect_dependencies()
+    from inspect_ai import Task
+    from inspect_ai.dataset import Sample
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+    from inspect_ai.util import sandbox
+
+    secret_hashes = _host_secret_hashes()
+    embedded_hashes = json.dumps(secret_hashes, sort_keys=True)
+
+    @solver
+    def guardrail_probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            code = r'''
+import hashlib
+import json
+import os
+from pathlib import Path
+import socket
+
+host_hashes = json.loads(%r)
+matched = []
+for name, expected in host_hashes.items():
+    value = os.environ.get(name)
+    if value is not None:
+        actual = hashlib.sha256(value.encode("utf-8")).hexdigest()
+        if actual == expected:
+            matched.append(name)
+
+network_reachable = False
+try:
+    connection = socket.create_connection(("1.1.1.1", 443), timeout=0.5)
+    connection.close()
+    network_reachable = True
+except Exception:
+    pass
+
+workspace = Path("/workspace")
+visible_files = []
+if workspace.exists():
+    for path in workspace.rglob("*"):
+        if path.is_file():
+            visible_files.append(str(path.relative_to(workspace)))
+
+report = {
+    "matched_host_secret_names": sorted(matched),
+    "typesafe_env_names": sorted(
+        name for name in os.environ if name.upper().startswith("TYPESAFE_")
+    ),
+    "docker_socket_present": Path("/var/run/docker.sock").exists(),
+    "workspace_git_present": (workspace / ".git").exists(),
+    "repo_git_present": Path("/repo/.git").exists(),
+    "external_network_reachable": network_reachable,
+    "visible_workspace_files": sorted(visible_files),
+}
+print(json.dumps(report, sort_keys=True))
+''' % embedded_hashes
+            result = await sandbox().exec(
+                ["python", "-c", code],
+                cwd="/workspace",
+                timeout=30,
+            )
+            if not result.success:
+                raise RuntimeError(
+                    f"guardrail probe failed: {result.stderr or result.stdout}"
+                )
+            state.output = ModelOutput.from_content(
+                "guardrail-probe",
+                result.stdout.strip(),
+            )
+            return state
+
+        return solve
+
+    output_root.mkdir(parents=True, exist_ok=True)
+    task = Task(
+        dataset=[
+            Sample(
+                id="guardrail",
+                input="Run the deterministic sandbox guardrail probe.",
+                files={"allowed.txt": "qualification sentinel\n"},
+            )
+        ],
+        solver=guardrail_probe(),
+        sandbox=_inspect_sandbox_spec(),
+        checkpoint=False,
+    )
+    logs = inspect_ai.eval(
+        task,
+        model=model,
+        model_args=dict(model_args or {}),
+        log_dir=str(output_root / "inspect-logs" / "guardrail"),
+        log_format="eval",
+        max_samples=1,
+        max_sandboxes=1,
+        retry_on_error=0,
+        score=False,
+        display="plain",
+    )
+    if len(logs) != 1 or getattr(logs[0], "status", None) != "success":
+        raise WorkflowError("Inspect guardrail probe did not complete successfully")
+    samples = logs[0].samples or []
+    if len(samples) != 1 or samples[0].error:
+        raise WorkflowError(
+            f"Inspect guardrail probe sample failed: "
+            f"{getattr(samples[0] if samples else None, 'error', None)}"
+        )
+    report = _json_completion(samples[0].output.completion)
+    expected_files = {"allowed.txt"}
+    actual_files = set(report.get("visible_workspace_files") or [])
+    passed = (
+        not report.get("matched_host_secret_names")
+        and not report.get("typesafe_env_names")
+        and report.get("docker_socket_present") is False
+        and report.get("workspace_git_present") is False
+        and report.get("repo_git_present") is False
+        and report.get("external_network_reachable") is False
+        and expected_files.issubset(actual_files)
+    )
+    safe_report = {
+        "passed": passed,
+        "checked_host_secret_names": sorted(secret_hashes),
+        "matched_host_secret_names": list(report.get("matched_host_secret_names") or []),
+        "typesafe_env_names": list(report.get("typesafe_env_names") or []),
+        "docker_socket_present": bool(report.get("docker_socket_present")),
+        "workspace_git_present": bool(report.get("workspace_git_present")),
+        "repo_git_present": bool(report.get("repo_git_present")),
+        "external_network_reachable": bool(report.get("external_network_reachable")),
+        "visible_workspace_files": sorted(actual_files),
+        "inspect_log": logs[0].location,
+    }
+    atomic_write_json(output_root / "guardrail-probe.json", safe_report)
+    if not passed:
+        raise WorkflowError("Inspect guardrail probe detected a sandbox isolation violation")
+    return safe_report
+
+
+def _deterministic_output_for_view(view_path: Path) -> dict[str, Any]:
+    view, expected, _ = _load_view(view_path, study="routing-semantic-v1")
+    del view
+    records: list[dict[str, Any]] = []
+    defaults: dict[str, Any] = {
+        "routing.task_class": "implementation",
+        "routing.interaction_required": False,
+        "routing.semantic_risk": 0,
+    }
+    for case_id, decision_ids in expected.items():
+        records.append(
+            {
+                "case_id": case_id,
+                "labels": {
+                    decision_id: defaults[decision_id]
+                    for decision_id in sorted(decision_ids)
+                },
+            }
+        )
+    return {"records": records}
+
+
+def _direct_wrapper_parity(
+    *,
+    module_path: Path,
+    runtime_lock_path: Path,
+    view_path: Path,
+    output_root: Path,
+) -> dict[str, Any]:
+    module = validate_abc_adjudication_module(module_path)
+    runtime_lock = _load_runtime_lock(runtime_lock_path, module)
+    repo = _repo_root(module_path)
+    codex_version = str(runtime_lock["codex_cli"]["resolved"])
+    safe_version = re.sub(r"[^A-Za-z0-9_.-]+", "-", codex_version)
+    image = f"agent-workflow-oracle-adjudicator:qualification-{safe_version}"
+
+    build = subprocess.run(
+        [
+            "docker",
+            "build",
+            "--pull",
+            "--build-arg",
+            f"CODEX_VERSION={codex_version}",
+            "-f",
+            str(repo / "docker" / "adjudication" / "Dockerfile"),
+            "-t",
+            image,
+            str(repo),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    if build.returncode != 0:
+        raise WorkflowError(
+            "direct-Docker qualification image build failed: "
+            + (build.stderr or build.stdout)[-4000:]
+        )
+    image_id = _run_version_command(
+        ["docker", "image", "inspect", image, "--format", "{{.Id}}"]
+    )
+
+    direct_root = output_root / "direct-wrapper-parity"
+    input_dir = direct_root / "input"
+    output_dir = direct_root / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    view, expected, view_sha256 = _load_view(
+        view_path,
+        study="routing-semantic-v1",
+    )
+    metadata_record = {
+        "study_id": view["study_id"],
+        "dataset_version": view["dataset_version"],
+        "protocol_version": _study_spec("routing-semantic-v1")["oracle_policy"][
+            "protocol_version"
+        ],
+        "input_view_sha256": view_sha256,
+        "adjudicator_id": "qualification-direct",
+        "expected_records": [
+            {
+                "case_id": case_id,
+                "decision_ids": sorted(decision_ids),
+            }
+            for case_id, decision_ids in expected.items()
+        ],
+    }
+    deterministic_output = _deterministic_output_for_view(view_path)
+    atomic_write_json(input_dir / "pass-metadata.json", metadata_record)
+    atomic_write_json(output_dir / "model-output.json", deterministic_output)
+
+    run = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--read-only",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges:true",
+            "--network",
+            "none",
+            "-v",
+            f"{input_dir.resolve()}:/input:ro",
+            "-v",
+            f"{output_dir.resolve()}:/output:rw",
+            "--entrypoint",
+            "node",
+            image,
+            "/opt/aw-adjudication/wrap-output.mjs",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if run.returncode != 0:
+        raise WorkflowError(
+            "direct-Docker wrapper parity run failed: "
+            + (run.stderr or run.stdout)[-4000:]
+        )
+
+    direct_contract = _read_json(output_dir / "adjudication.json")
+    inspect_contract = _wrap_pass(
+        view_path,
+        deterministic_output,
+        adjudicator_id="qualification-direct",
+        study="routing-semantic-v1",
+    )
+    direct_normalized = copy.deepcopy(direct_contract)
+    inspect_normalized = copy.deepcopy(inspect_contract)
+    direct_normalized["completed_at"] = "<normalized>"
+    inspect_normalized["completed_at"] = "<normalized>"
+    passed = direct_normalized == inspect_normalized
+    report = {
+        "passed": passed,
+        "image": image,
+        "image_id": image_id,
+        "codex_cli_version": codex_version,
+        "view_sha256": view_sha256,
+        "direct_contract_sha256": sha256_file(output_dir / "adjudication.json"),
+        "normalized_contract_equal": passed,
+    }
+    atomic_write_json(direct_root / "parity-report.json", report)
+    if not passed:
+        raise WorkflowError(
+            "Inspect adapter output is not contract-equivalent to direct-Docker wrapper"
+        )
+    return report
+
+
+def _forced_disagreement_passes(
+    *,
+    view_path: Path,
+    primary_manifest: Mapping[str, Any],
+    output_root: Path,
+) -> tuple[Path, Path]:
+    a_source = Path(primary_manifest["outputs"]["A"]["path"])
+    a = _read_json(a_source)
+    forced_a = copy.deepcopy(a)
+    forced_b = copy.deepcopy(a)
+    forced_a["adjudicator_id"] = "qualification-forced-a"
+    forced_b["adjudicator_id"] = "qualification-forced-b"
+    forced_a["completed_at"] = _utc()
+    forced_b["completed_at"] = _utc()
+    if not forced_b["records"]:
+        raise WorkflowError("synthetic primary result unexpectedly contains no records")
+    labels = forced_b["records"][0]["labels"]
+    current = bool(labels["routing.interaction_required"])
+    labels["routing.interaction_required"] = not current
+
+    forced_root = output_root / "forced-dispute"
+    forced_root.mkdir(parents=True, exist_ok=True)
+    a_path = forced_root / "adjudication-a.json"
+    b_path = forced_root / "adjudication-b.json"
+    atomic_write_json(a_path, forced_a)
+    atomic_write_json(b_path, forced_b)
+    validate_adjudication_pass(view_path, a_path, study="routing-semantic-v1")
+    validate_adjudication_pass(view_path, b_path, study="routing-semantic-v1")
+    return a_path, b_path
+
+
+def run_inspect_live_qualification(
+    module_path: Path,
+    runtime_lock_path: Path,
+    destination: Path,
+    *,
+    model: str,
+    model_args: Mapping[str, Any] | None = None,
+    force: bool = False,
+    log_model_api: bool = False,
+) -> dict[str, Any]:
+    module_path = Path(module_path)
+    runtime_lock_path = Path(runtime_lock_path)
+    destination = Path(destination)
+    if destination.exists() and not force:
+        raise WorkflowError(f"Inspect qualification manifest already exists: {destination}")
+    module = validate_abc_adjudication_module(module_path)
+    runtime_lock = _load_runtime_lock(runtime_lock_path, module)
+    root = destination.parent / "inspect-qualification"
+    if root.exists() and any(root.iterdir()) and not force:
+        raise WorkflowError(f"Inspect qualification evidence directory already exists: {root}")
+    root.mkdir(parents=True, exist_ok=True)
+
+    synthetic_view = root / "synthetic-oracle-view.json"
+    synthetic_protocol = root / "synthetic-protocol.md"
+    _synthetic_qualification_view(synthetic_view)
+    _synthetic_protocol(synthetic_protocol)
+
+    guardrail = _run_guardrail_probe(
+        output_root=root,
+        model=model,
+        model_args=model_args,
+    )
+
+    primary = run_inspect_primary(
+        InspectRunConfig(
+            module_path=module_path,
+            view_path=synthetic_view,
+            protocol_path=synthetic_protocol,
+            runtime_lock_path=runtime_lock_path,
+            output_root=root / "inspect-primary",
+            model=model,
+            model_args=model_args,
+            log_model_api=log_model_api,
+        )
+    )
+    a_validation = validate_adjudication_pass(
+        synthetic_view,
+        Path(primary["outputs"]["A"]["path"]),
+        study="routing-semantic-v1",
+    )
+    b_validation = validate_adjudication_pass(
+        synthetic_view,
+        Path(primary["outputs"]["B"]["path"]),
+        study="routing-semantic-v1",
+    )
+
+    forced_a, forced_b = _forced_disagreement_passes(
+        view_path=synthetic_view,
+        primary_manifest=primary,
+        output_root=root,
+    )
+    dispute_path = root / "synthetic-disputes-for-c.json"
+    dispute = export_oracle_dispute_view(
+        synthetic_view,
+        forced_a,
+        forced_b,
+        dispute_path,
+        study="routing-semantic-v1",
+    )
+    if not dispute["requires_c"]:
+        raise WorkflowError("synthetic qualification failed to create a required C dispute")
+
+    c_result = run_inspect_tiebreaker(
+        InspectRunConfig(
+            module_path=module_path,
+            view_path=dispute_path,
+            protocol_path=synthetic_protocol,
+            runtime_lock_path=runtime_lock_path,
+            output_root=root / "inspect-c",
+            model=model,
+            model_args=model_args,
+            log_model_api=log_model_api,
+        )
+    )
+    c_validation = validate_adjudication_pass(
+        dispute_path,
+        Path(c_result["path"]),
+        study="routing-semantic-v1",
+    )
+
+    synthetic_oracle = root / "synthetic-oracle.json"
+    frozen = freeze_oracle_bundle(
+        synthetic_view,
+        forced_a,
+        forced_b,
+        synthetic_oracle,
+        oracle_version="inspect-qualification-v1",
+        c_view_path=dispute_path,
+        pass_c_path=Path(c_result["path"]),
+        study="routing-semantic-v1",
+    )
+
+    wrapper_parity = _direct_wrapper_parity(
+        module_path=module_path,
+        runtime_lock_path=runtime_lock_path,
+        view_path=synthetic_view,
+        output_root=root,
+    )
+
+    repo = _repo_root(module_path)
+    direct_module_path = (
+        repo / "modules" / "abc-adjudication" / "routing-semantic-v1.module.json"
+    )
+    direct_module = _read_json(direct_module_path)
+    inspect_module = _read_json(module_path)
+    direct_required = {item["id"]: item for item in direct_module["required_files"]}
+    inspect_required = {item["id"]: item for item in inspect_module["required_files"]}
+    identity_ids = {"oracle-view", "routing-corpus"}
+    identity_parity = all(
+        direct_required[item]["sha256"] == inspect_required[item]["sha256"]
+        for item in identity_ids
+    )
+    common_prompt = (
+        direct_module["prompt"]["template"] == inspect_module["prompt"]["template"]
+    )
+    if not identity_parity or not common_prompt:
+        raise WorkflowError("direct-Docker and Inspect modules do not preserve study input/prompt parity")
+
+    gates = {
+        "IA-1": {
+            "status": "pass",
+            "evidence": {
+                "inspect_ai_version": runtime_lock["inspect_ai_version"],
+                "inspect_swe_version": runtime_lock["inspect_swe_version"],
+                "codex_cli": dict(runtime_lock["codex_cli"]),
+                "docker": dict(runtime_lock["docker"]),
+            },
+        },
+        "IA-2": {
+            "status": "pass",
+            "evidence": {
+                "synthetic_primary_completed": True,
+                "model": model,
+                "host_provider_bridge_required_by_sandbox_network_none": True,
+            },
+        },
+        "IA-3": {
+            "status": "pass",
+            "evidence": guardrail,
+        },
+        "IA-4": {
+            "status": "pass",
+            "evidence": {
+                "common_prompt_template": inspect_module["prompt"]["template"],
+                "common_prompt": common_prompt,
+                "canonical_identity_hash_parity": identity_parity,
+                "synthetic_view_sha256": sha256_file(synthetic_view),
+                "synthetic_protocol_sha256": sha256_file(synthetic_protocol),
+            },
+        },
+        "IA-5": {
+            "status": "pass",
+            "evidence": wrapper_parity,
+        },
+        "IA-6": {
+            "status": "pass",
+            "evidence": {
+                "a_pass_sha256": a_validation["pass_sha256"],
+                "b_pass_sha256": b_validation["pass_sha256"],
+                "reveal_policy": primary["reveal_policy"],
+            },
+        },
+        "IA-7": {
+            "status": "pass",
+            "evidence": {
+                "dispute_view_sha256": dispute["sha256"],
+                "c_pass_sha256": c_validation["pass_sha256"],
+                "disputed_cases": dispute["disputed_cases"],
+                "disputed_seams": dispute["disputed_seams"],
+            },
+        },
+        "IA-8": {
+            "status": "pass",
+            "evidence": {
+                "direct_wrapper_contract_parity": True,
+                "synthetic_oracle_sha256": frozen["sha256"],
+                "direct_reference_module": str(direct_module_path),
+            },
+        },
+    }
+    record = {
+        "schema": INSPECT_QUALIFICATION_SCHEMA,
+        "created_at": _utc(),
+        "module_id": module["module_id"],
+        "module_sha256": module["module_sha256"],
+        "runtime_lock_sha256": sha256_file(runtime_lock_path),
+        "qualified": all(item["status"] == "pass" for item in gates.values()),
+        "gates": gates,
+    }
+    validate_instance(
+        record,
+        INSPECT_QUALIFICATION_SCHEMA,
+        artifact="Inspect adjudication qualification",
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(destination, record)
+    return {
+        "path": str(destination),
+        "sha256": sha256_file(destination),
+        **record,
     }
 
 
