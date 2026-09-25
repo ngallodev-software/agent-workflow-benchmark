@@ -186,13 +186,16 @@ The existing routing Docker runner remains the historical/reference executor for
 
 The module file captures its configuration declaratively.
 
-Do not silently refactor the frozen study runner to a new generic engine during the study. Instead:
+Do not silently replace the frozen study semantics. The execution decision was amended before any real oracle labels existed:
 
-1. complete routing-semantic-v1 with the merged reference runner;
-2. implement a new versioned generic module runner;
-3. execute a parity test using the module instance;
-4. compare generated inputs, image/runtime identity, output contracts, guardrails, and result manifests;
-5. use the generic runner for future studies after parity is demonstrated.
+1. retain the merged direct-Docker runner as the reference/rollback backend;
+2. implement an Inspect AI backend against the same module semantics;
+3. qualify it only on synthetic fixtures before real adjudication;
+4. compare generated inputs, runtime identity, output contracts, guardrails, failure semantics, and result manifests against the reference backend;
+5. use Inspect for the real A/B/C oracle only after the pre-adjudication qualification gates pass;
+6. if qualification fails, restart fresh A/B sessions using the reference backend.
+
+The integrated plan is `docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
 
 ## Future generic runner
 
