@@ -46,6 +46,31 @@ Frozen corpus SHA-256:
 
 The preparation script refuses to continue if either identity changes.
 
+## Declarative module identity
+
+The Docker runner is the frozen reference executor for this study. Its configuration is also captured as a versioned module instance:
+
+`modules/abc-adjudication/routing-semantic-v1.module.json`
+
+Validate it with:
+
+~~~bash
+agent-workflow benchmark adjudication-module-validate \
+  modules/abc-adjudication/routing-semantic-v1.module.json
+~~~
+
+The module declares the prompt, required files and hashes, A/B/C identities, runtime image/agent version, credential policy, guardrails, output contract, delayed-reveal policy, C-dispute routing, and final result locations.
+
+This module is intentionally separate from the historical runner. Future generic execution can consume the same contract after parity testing without changing the frozen routing-semantic-v1 study implementation.
+
+See:
+
+- [A/B/C Adjudication Module](../modules/abc-adjudication/README.md)
+- [Isolated Agent Execution Architecture](architecture/ISOLATED_AGENT_EXECUTION.md)
+- [Prior Art and Standards](PRIOR_ART_AGENT_SANDBOXING.md)
+- [ADR-0001](decisions/ADR-0001-isolated-agent-sandboxing.md)
+- [Historical Record](history/2026-09-25-routing-semantic-oracle-containerization.md)
+
 ## Prerequisites on the Debian host
 
 1. Docker Engine is installed and the current user can run `docker`.
