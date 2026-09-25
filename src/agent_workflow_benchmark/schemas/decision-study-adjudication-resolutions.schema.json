@@ -1,0 +1,47 @@
+{
+  "$id": "agent-workflow-benchmark/decision-study-adjudication-resolutions/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/decision-study-adjudication-resolutions/v1"},
+    "study_id": {"type": "string", "minLength": 1},
+    "dataset_version": {"type": "string", "minLength": 1},
+    "protocol_version": {"type": "string", "minLength": 1},
+    "authoring_view_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "decision_id": {"type": "string", "minLength": 1},
+          "status": {"enum": ["resolved", "unresolved"]},
+          "label": {},
+          "rationale": {"type": "string", "minLength": 1},
+          "participants": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "case_id",
+          "decision_id",
+          "status",
+          "rationale",
+          "participants"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "study_id",
+    "dataset_version",
+    "protocol_version",
+    "authoring_view_sha256",
+    "records"
+  ]
+}

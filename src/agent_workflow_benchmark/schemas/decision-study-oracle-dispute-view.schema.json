@@ -1,0 +1,68 @@
+{
+  "$id": "agent-workflow-benchmark/decision-study-oracle-dispute-view/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/decision-study-oracle-dispute-view/v1"},
+    "study_id": {"type": "string", "minLength": 1},
+    "dataset_version": {"type": "string", "minLength": 1},
+    "protocol_version": {"type": "string", "minLength": 1},
+    "source_authoring_view_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision_seams": {"type": "array", "items": {"type": "object"}},
+    "oracle_policy": {"type": "object"},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "task": {"type": "string"},
+          "metadata": {"type": "object"},
+          "oracle_eligible": {"type": "object"},
+          "disputed_decision_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "case_id",
+          "task",
+          "metadata",
+          "oracle_eligible",
+          "disputed_decision_ids"
+        ]
+      }
+    },
+    "blinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "construction_tags_included": {"const": false},
+        "control_outputs_included": {"const": false},
+        "candidate_outputs_included": {"const": false},
+        "a_b_labels_included": {"const": false}
+      },
+      "required": [
+        "construction_tags_included",
+        "control_outputs_included",
+        "candidate_outputs_included",
+        "a_b_labels_included"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "study_id",
+    "dataset_version",
+    "protocol_version",
+    "source_authoring_view_sha256",
+    "decision_seams",
+    "oracle_policy",
+    "cases",
+    "blinding"
+  ]
+}
