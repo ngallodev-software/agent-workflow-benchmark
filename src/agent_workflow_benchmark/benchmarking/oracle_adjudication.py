@@ -14,6 +14,7 @@ from .schema_contracts import validate_instance
 ADJUDICATION_PASS_SCHEMA = "agent-workflow-benchmark/decision-study-adjudication-pass/v1"
 DISPUTE_VIEW_SCHEMA = "agent-workflow-benchmark/decision-study-oracle-dispute-view/v1"
 RESOLUTIONS_SCHEMA = "agent-workflow-benchmark/decision-study-adjudication-resolutions/v1"
+FREEZE_MANIFEST_SCHEMA = "agent-workflow-benchmark/decision-study-oracle-freeze-manifest/v1"
 
 
 def _utc() -> str:
@@ -419,6 +420,11 @@ def freeze_oracle_bundle(
         study=study,
         decisions=decisions,
     )
+    resolutions_sha256 = (
+        sha256_file(Path(resolutions_path))
+        if resolutions_path is not None
+        else None
+    )
 
     a_records = a["records_by_case"]
     b_records = b["records_by_case"]
@@ -530,6 +536,25 @@ def freeze_oracle_bundle(
                     "b": b["pass_sha256"],
                     **({"c": c["pass_sha256"]} if c is not None else {}),
                 },
+                "pass_completed_at": {
+                    "a": a["contract"]["completed_at"],
+                    "b": b["contract"]["completed_at"],
+                    **(
+                        {"c": c["contract"]["completed_at"]}
+                        if c is not None
+                        else {}
+                    ),
+                },
+                **(
+                    {"c_dispute_view_sha256": c["view_sha256"]}
+                    if c is not None
+                    else {}
+                ),
+                **(
+                    {"resolutions_sha256": resolutions_sha256}
+                    if resolutions_sha256 is not None
+                    else {}
+                ),
                 "frozen_at": frozen_at,
             },
             "adjudication": adjudication,
@@ -556,16 +581,76 @@ def freeze_oracle_bundle(
         raise WorkflowError(f"assembled oracle bundle is invalid: {exc}") from exc
 
     destination = Path(destination)
-    if destination.exists() and not force:
-        raise WorkflowError(f"frozen oracle destination already exists: {destination}")
-    if destination.exists() and (destination.is_dir() or destination.is_symlink()):
-        raise WorkflowError(f"frozen oracle destination must be a regular file path: {destination}")
+    manifest_path = destination.with_name(destination.name + ".manifest.json")
+    for path, label in (
+        (destination, "frozen oracle destination"),
+        (manifest_path, "oracle freeze manifest destination"),
+    ):
+        if path.exists() and not force:
+            raise WorkflowError(f"{label} already exists: {path}")
+        if path.exists() and (path.is_dir() or path.is_symlink()):
+            raise WorkflowError(f"{label} must be a regular file path: {path}")
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(destination, bundle)
+    oracle_sha256 = sha256_file(destination)
+    freeze_manifest = {
+        "schema": FREEZE_MANIFEST_SCHEMA,
+        "study_id": bundle["study_id"],
+        "dataset_version": bundle["dataset_version"],
+        "oracle_version": bundle["oracle_version"],
+        "oracle_file": destination.name,
+        "oracle_sha256": oracle_sha256,
+        "authoring_view_sha256": authoring_sha256,
+        "frozen_at": frozen_at,
+        "frozen": True,
+        "adjudication": {
+            "a": {
+                "adjudicator_id": a["adjudicator_id"],
+                "completed_at": a["contract"]["completed_at"],
+                "pass_sha256": a["pass_sha256"],
+                "input_view_sha256": a["view_sha256"],
+            },
+            "b": {
+                "adjudicator_id": b["adjudicator_id"],
+                "completed_at": b["contract"]["completed_at"],
+                "pass_sha256": b["pass_sha256"],
+                "input_view_sha256": b["view_sha256"],
+            },
+            **(
+                {
+                    "c": {
+                        "adjudicator_id": c["adjudicator_id"],
+                        "completed_at": c["contract"]["completed_at"],
+                        "pass_sha256": c["pass_sha256"],
+                        "input_view_sha256": c["view_sha256"],
+                    }
+                }
+                if c is not None
+                else {}
+            ),
+            "resolutions_sha256": resolutions_sha256,
+        },
+        "counts": {
+            "records": len(oracle_records),
+            "labels": sum(len(record["labels"]) for record in oracle_records),
+            "direct_agreements": direct_agreements,
+            "majority_resolved": majority_resolved,
+            "discussion_resolved": discussion_resolved,
+            "unresolved": unresolved,
+        },
+    }
+    validate_instance(
+        freeze_manifest,
+        FREEZE_MANIFEST_SCHEMA,
+        artifact="oracle freeze manifest",
+    )
+    atomic_write_json(manifest_path, freeze_manifest)
 
     return {
         "path": str(destination),
-        "sha256": sha256_file(destination),
+        "manifest": str(manifest_path),
+        "sha256": oracle_sha256,
         "study_id": bundle["study_id"],
         "dataset_version": bundle["dataset_version"],
         "oracle_version": bundle["oracle_version"],
