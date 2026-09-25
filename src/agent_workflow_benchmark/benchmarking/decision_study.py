@@ -396,7 +396,7 @@ def _render_report(report: Mapping[str, Any], *, oracle_version: str) -> str:
         "| --- | ---: | --- | --- | --- |",
     ]
     for feature_id, seam in report["seams"].items():
-        n = seam["counts"]["paired_correctness_eligible"]
+        n = seam["counts"]["oracle_eligible"]
         semantic_type = seam.get("semantic_type")
         correctness = seam.get("correctness", {})
         if semantic_type in {"choice", "noul"} and "candidate_accuracy" in correctness:
