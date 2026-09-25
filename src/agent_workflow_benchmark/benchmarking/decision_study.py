@@ -21,8 +21,8 @@ from agent_workflow_benchmark import __version__ as benchmark_version
 from .common import file_inventory, write_manifest
 from .schema_contracts import read_contract, validate_instance
 
-CORPUS_SCHEMA = "agent-workflow-benchmark/decision-study-corpus/v1"
-ORACLE_BUNDLE_SCHEMA = "agent-workflow-benchmark/decision-study-oracle-bundle/v1"
+CORPUS_SCHEMA = comparative.DECISION_STUDY_CORPUS_SCHEMA
+ORACLE_BUNDLE_SCHEMA = comparative.DECISION_STUDY_ORACLE_BUNDLE_SCHEMA
 RUN_SCHEMA = "agent-workflow-benchmark/decision-study-run/v1"
 PUBLICATION_SCHEMA = "agent-workflow-benchmark/decision-study-publication/v1"
 
@@ -70,6 +70,16 @@ def _write_jsonl(path: Path, records: list[Mapping[str, Any]]) -> None:
     atomic_write_bytes(path, payload.encode("utf-8"))
 
 
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WorkflowError(f"invalid decision-study contract {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise WorkflowError(f"decision-study contract must be an object: {path}")
+    return value
+
+
 def _contains_reserved_key(value: Any, *, path: str = "metadata") -> str | None:
     if isinstance(value, Mapping):
         for key, item in value.items():
@@ -89,7 +99,10 @@ def _contains_reserved_key(value: Any, *, path: str = "metadata") -> str | None:
 
 
 def _load_corpus(path: Path, study: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    corpus = read_contract(Path(path), CORPUS_SCHEMA)
+    try:
+        corpus = comparative.validate_decision_study_corpus(_read_json_object(Path(path)))
+    except (ValueError, comparative.ContractError) as exc:
+        raise WorkflowError(f"invalid decision-study corpus {path}: {exc}") from exc
     spec = comparative.load_study_spec(study)
     if corpus["study_id"] != spec["study_id"]:
         raise WorkflowError(
@@ -119,11 +132,14 @@ def _load_corpus(path: Path, study: str) -> tuple[dict[str, Any], dict[str, Any]
 def _load_oracle(
     path: Path, *, study_id: str, dataset_version: str, cases: Mapping[str, Mapping[str, Any]]
 ) -> dict[str, Any]:
-    bundle = read_contract(Path(path), ORACLE_BUNDLE_SCHEMA)
-    if bundle["study_id"] != study_id:
-        raise WorkflowError("oracle bundle belongs to a different study")
-    if bundle["dataset_version"] != dataset_version:
-        raise WorkflowError("oracle bundle dataset_version does not match inference corpus")
+    try:
+        bundle = comparative.validate_decision_study_oracle_bundle(
+            _read_json_object(Path(path)),
+            expected_study_id=study_id,
+            expected_dataset_version=dataset_version,
+        )
+    except (ValueError, comparative.ContractError) as exc:
+        raise WorkflowError(f"invalid decision-study oracle bundle {path}: {exc}") from exc
     records: dict[str, Mapping[str, Any]] = {}
     for raw in bundle["records"]:
         comparative.validate_record(raw, comparative.DECISION_STUDY_ORACLE_SCHEMA)
@@ -558,7 +574,11 @@ def prepare_decision_study_publication(
 
     corpus = read_contract(run / _CORPUS, CORPUS_SCHEMA)
     manifest = read_contract(run / _RUN, RUN_SCHEMA)
-    oracle = read_contract(Path(oracle_path), ORACLE_BUNDLE_SCHEMA)
+    oracle = comparative.validate_decision_study_oracle_bundle(
+        _read_json_object(Path(oracle_path)),
+        expected_study_id=str(manifest["study_id"]),
+        expected_dataset_version=str(corpus["dataset_version"]),
+    )
     report = json.loads((run / _REPORT).read_text(encoding="utf-8"))
 
     paths = {
