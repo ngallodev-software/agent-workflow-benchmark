@@ -347,3 +347,46 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
             runtime_lock_path=runtime_lock,
             allow_unqualified=False,
         )
+
+
+def test_resolve_codex_npm_latest_uses_exact_registry_version(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"version":"0.321.4"}'
+
+    monkeypatch.setattr(
+        inspect_runtime.urllib.request,
+        "urlopen",
+        lambda request, timeout=30: Response(),
+    )
+    assert inspect_runtime._resolve_codex_npm_latest() == "0.321.4"
+
+
+def test_resolve_codex_npm_latest_rejects_nonversion(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"version":"latest"}'
+
+    monkeypatch.setattr(
+        inspect_runtime.urllib.request,
+        "urlopen",
+        lambda request, timeout=30: Response(),
+    )
+    with pytest.raises(WorkflowError, match="invalid Codex CLI version"):
+        inspect_runtime._resolve_codex_npm_latest()
