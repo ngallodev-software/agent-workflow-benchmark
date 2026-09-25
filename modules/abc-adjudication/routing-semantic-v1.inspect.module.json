@@ -1,0 +1,142 @@
+{
+  "schema": "agent-workflow-benchmark/abc-adjudication-module/v2",
+  "module_id": "routing-semantic-v1-oracle-inspect",
+  "module_version": "2.0.0",
+  "task": {
+    "study_id": "routing-semantic-v1",
+    "dataset_version": "routing-semantic-corpus-v1.0.0",
+    "protocol_version": "routing-semantic-oracle-v1.0.0",
+    "description": "Produce the frozen routing semantic oracle using Inspect AI isolated A/B/C adjudicators."
+  },
+  "runtime": {
+    "kind": "inspect-ai",
+    "inspect_ai_version": "0.3.268",
+    "inspect_swe_version": "0.2.70",
+    "sandbox": "docker",
+    "agent": {
+      "kind": "inspect-swe/codex-cli",
+      "package": "@openai/codex",
+      "version_policy": "latest-at-cohort-start"
+    },
+    "network": {
+      "sandbox_network": "none",
+      "model_bridge": "inspect-sandbox-agent-bridge",
+      "provider_credentials_location": "host-only"
+    }
+  },
+  "prompt": {
+    "template": "docker/adjudication/START_PROMPT.inspect.template.md",
+    "target": "oracle-prompt",
+    "variables": [
+      "ADJUDICATOR_ID"
+    ]
+  },
+  "required_files": [
+    {
+      "id": "oracle-view",
+      "source_repo": "agent-workflow-comparative-eval",
+      "source_path": "docs/studies/artifacts/routing-semantic-v1/oracle-authoring-view.json",
+      "target": "oracle-view.json",
+      "sha256": "a5a40224793a50d9371e9ae437e144b15812829ba1cd56a5564dc6ba28846a0a",
+      "roles": [
+        "A",
+        "B",
+        "coordinator"
+      ],
+      "read_only": true
+    },
+    {
+      "id": "oracle-protocol",
+      "source_repo": "agent-workflow-comparative-eval",
+      "source_path": "docs/studies/routing-semantic-v1-oracle-protocol.md",
+      "target": "oracle-protocol.md",
+      "sha256": null,
+      "roles": [
+        "A",
+        "B",
+        "C",
+        "coordinator"
+      ],
+      "read_only": true
+    },
+    {
+      "id": "routing-corpus",
+      "source_repo": "agent-workflow-comparative-eval",
+      "source_path": "src/agent_workflow_comparative_eval/resources/studies/routing-semantic-v1.corpus.json",
+      "target": "coordinator/routing-corpus.json",
+      "sha256": "e4b33df3b3752b32cdb362833765cc8f0c9cc024473071209563d73284011280",
+      "roles": [
+        "coordinator"
+      ],
+      "read_only": true
+    }
+  ],
+  "roles": {
+    "primary": [
+      {
+        "role": "A",
+        "adjudicator_id": "codex-a",
+        "result_subdir": "a/output"
+      },
+      {
+        "role": "B",
+        "adjudicator_id": "codex-b",
+        "result_subdir": "b/output"
+      }
+    ],
+    "tiebreaker": {
+      "role": "C",
+      "adjudicator_id": "codex-c",
+      "result_subdir": "c/output",
+      "trigger": "ab-disagreement-only",
+      "input_policy": "disputed-cases-and-seams-only"
+    }
+  },
+  "credentials": {
+    "mode": "host-model-provider",
+    "allow_names": [],
+    "deny_prefixes": [
+      "TYPESAFE_"
+    ],
+    "secret_values_in_manifests": false,
+    "secrets_in_sandbox": false
+  },
+  "guardrails": {
+    "repository_mounted": false,
+    "docker_socket_mounted": false,
+    "root_filesystem_read_only": true,
+    "cap_drop": [
+      "ALL"
+    ],
+    "no_new_privileges": true,
+    "agent_sandbox": "read-only",
+    "web_search": false,
+    "cross_agent_visibility": false,
+    "treatment_outputs_visible": false,
+    "other_adjudicator_labels_visible": false,
+    "overwrite_completed_results": false
+  },
+  "output": {
+    "model_schema_generator": "host-contract-validation",
+    "pass_schema": "agent-workflow-benchmark/decision-study-adjudication-pass/v1",
+    "result_filename": "adjudication.json",
+    "hash_sidecar": true
+  },
+  "coordination": {
+    "primary_start": "parallel",
+    "reveal_policy": "after-all-primary-complete",
+    "comparison_command": "agent-workflow benchmark decision-study-oracle-disputes",
+    "c_input_artifact": "coordinator/oracle-disputes-for-c.json",
+    "resolution_policy": "two-of-three-then-recorded-discussion",
+    "unresolved_marker": "oracle_conflict_unresolved",
+    "freeze_command": "agent-workflow benchmark decision-study-oracle-freeze",
+    "inference_allowed_after": "oracle-freeze-and-validation"
+  },
+  "results": {
+    "runtime_root": ".adjudication/routing-semantic-v1-inspect",
+    "coordinator_subdir": "coordinator",
+    "frozen_result": "coordinator/oracle.json",
+    "freeze_manifest": "coordinator/oracle.json.manifest.json",
+    "final_validation": "coordinator/final-validation.json"
+  }
+}
