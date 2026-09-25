@@ -206,3 +206,44 @@ def test_exports_packaged_corpus_and_blinded_oracle_view(tmp_path: Path):
         "control_outputs_included": False,
         "candidate_outputs_included": False,
     }
+
+
+def test_explicit_unresolved_oracle_conflict_validates_and_reports_distinct_reason(
+    tmp_path: Path,
+    monkeypatch,
+):
+    corpus_value = _corpus()
+    oracle_value = _oracle()
+    oracle_value["records"][0]["labels"].pop("routing.semantic_risk")
+    oracle_value["records"][0]["adjudication"] = {
+        "routing.task_class": {"status": "resolved", "method": "a_b_agreement"},
+        "routing.interaction_required": {"status": "resolved", "method": "a_b_agreement"},
+        "routing.semantic_risk": {
+            "status": "oracle_conflict_unresolved",
+            "method": "recorded_discussion",
+        },
+    }
+
+    corpus = tmp_path / "corpus.json"
+    oracle = tmp_path / "oracle.json"
+    corpus.write_text(json.dumps(corpus_value), encoding="utf-8")
+    oracle.write_text(json.dumps(oracle_value), encoding="utf-8")
+
+    validated = decision_study.validate_decision_study(corpus, oracle_path=oracle)
+    assert validated["valid"] is True
+    assert validated["oracle"]["unresolved_conflicts"] == 1
+
+    monkeypatch.setattr(
+        decision_study,
+        "require_decision_runtime_ready",
+        lambda settings: {"ready": True},
+    )
+    monkeypatch.setattr(decision_study, "advise_routing_with_policy", _advice)
+    settings = replace(defaults(tmp_path / "missing.toml"), decision_mode="comparative")
+
+    run = tmp_path / "run"
+    decision_study.run_decision_study(settings, corpus, run)
+    decision_study.report_decision_study(run, oracle)
+    report = json.loads((run / "decision-study-report.json").read_text(encoding="utf-8"))
+    assert report["exclusions"]["reason_counts"]["oracle_conflict_unresolved"] == 1
+    assert report["seams"]["routing.semantic-risk/v1"]["counts"]["oracle_eligible"] == 0
