@@ -65,6 +65,16 @@ agent-workflow benchmark decision-study-publish-prepare ./run ./oracle.json ./pu
 
 The active Agent-Workflow configuration must use comparative decision mode and have a ready TypeSafe runtime. The production decision boundary is reused; the benchmark does not implement a second semantic-routing algorithm.
 
+## Pre-adjudication runtime gate
+
+Before the first real A/B oracle pass for `routing-semantic-v1`, the adjudicator execution runtime must complete **P0A Inspect integration and parity qualification**.
+
+This is an infrastructure gate only. It does not change the frozen corpus, authoring view, oracle protocol, metrics, or inference semantics.
+
+The direct-Docker runner remains the rollback/reference backend. The preferred path is Inspect AI + Inspect SWE + Docker sandbox after qualification. Real A/B labels must not be produced during the P0A synthetic parity work.
+
+See [Inspect AI Integration Plan for Independent Oracle Adjudication](plans/2026-09-25-inspect-adjudication-integration-plan.md).
+
 ## Independent oracle adjudication contracts
 
 The benchmark now operationalizes the already-frozen A/B/C oracle protocol without changing study semantics.
