@@ -6,3 +6,5 @@ dist/
 *.egg-info/
 runs/
 artifacts/
+.adjudication/
+*.adjudicator.env
