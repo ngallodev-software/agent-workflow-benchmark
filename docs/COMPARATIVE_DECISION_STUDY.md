@@ -87,7 +87,14 @@ The freeze command enforces the frozen protocol mechanically:
 3. Two-of-three agreement becomes the oracle label.
 4. A genuine three-way categorical conflict or 0/1/2 risk split requires a recorded discussion artifact using `decision-study-adjudication-resolutions/v1`.
 5. A discussion may resolve to a valid frozen label or remain explicitly `oracle_conflict_unresolved`.
-6. The final comparative-eval oracle bundle is marked frozen and the command returns the SHA-256 of the exact file written.
+6. The final comparative-eval oracle bundle is marked frozen and the command persists the SHA-256 of the exact file written.
+
+The freeze command writes two artifacts:
+
+- `oracle.json` — the frozen comparative-eval oracle bundle;
+- `oracle.json.manifest.json` — a freeze manifest containing the oracle SHA-256, exact authoring-view SHA-256, A/B/C adjudicator IDs, pass hashes and completion timestamps, the C dispute-view hash when used, the discussion-resolution artifact hash when used, and final adjudication counts.
+
+Retain both files before any live comparative inference begins. The manifest makes the oracle freeze identity reconstructable without relying on terminal output.
 
 An explicitly unresolved conflict is valid study evidence. It is excluded with reason `oracle_conflict_unresolved`; it is not silently rewritten as `oracle_missing` and no label is invented to preserve sample size.
 
