@@ -12,7 +12,8 @@ RUN apt-get update \
 COPY docker/adjudication/entrypoint.sh /usr/local/bin/aw-adjudicate
 COPY docker/adjudication/wrap-output.mjs /opt/aw-adjudication/wrap-output.mjs
 
-RUN chmod 0555 /usr/local/bin/aw-adjudicate \
+RUN mkdir -p /run/adjudication \
+    && chmod 0555 /usr/local/bin/aw-adjudicate \
     && chmod 0444 /opt/aw-adjudication/wrap-output.mjs
 
 WORKDIR /input
