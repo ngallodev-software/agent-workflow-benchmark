@@ -91,10 +91,13 @@ build_image() {
     fi
     docker "${args[@]}"
 
-    mkdir -p "${ROOT}/coordinator"
-    docker image inspect "${IMAGE}" --format '{{.Id}}' > "${ROOT}/coordinator/docker-image-id.txt"
-    docker run --rm --entrypoint codex "${IMAGE}" --version > "${ROOT}/coordinator/codex-version.txt"
-    echo "built ${IMAGE}: $(cat "${ROOT}/coordinator/codex-version.txt")"
+    local codex_version
+    codex_version="$(docker run --rm --entrypoint codex "${IMAGE}" --version)"
+    if [[ -d "${ROOT}/coordinator" ]]; then
+        docker image inspect "${IMAGE}" --format '{{.Id}}' > "${ROOT}/coordinator/docker-image-id.txt"
+        printf '%s\n' "${codex_version}" > "${ROOT}/coordinator/codex-version.txt"
+    fi
+    echo "built ${IMAGE}: ${codex_version}"
 }
 
 ensure_image() {
