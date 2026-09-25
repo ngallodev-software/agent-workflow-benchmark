@@ -202,6 +202,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _load_runtime_lock(path: Path, module: Mapping[str, Any]) -> dict[str, Any]:
     value = _read_json(path)
+    validate_instance(value, RUNTIME_LOCK_SCHEMA, artifact=str(path))
     if value.get("schema") != RUNTIME_LOCK_SCHEMA:
         raise WorkflowError(f"unsupported adjudication runtime lock schema: {value.get('schema')!r}")
     if value.get("backend") != "inspect-ai":
