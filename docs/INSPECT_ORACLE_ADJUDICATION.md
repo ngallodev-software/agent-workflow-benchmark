@@ -1,0 +1,331 @@
+# Inspect Oracle Adjudication — Debian Operator Guide
+
+This is the preferred execution path for `routing-semantic-v1` after benchmark 0.4.1.
+
+It replaces the direct-Docker runner as the preferred backend only after the synthetic P0A qualification suite passes. The direct-Docker runner remains the rollback/reference implementation.
+
+## Invariants
+
+Do not change these for the current study:
+
+- study: `routing-semantic-v1`
+- dataset: `routing-semantic-corpus-v1.0.0`
+- corpus SHA-256: `e4b33df3b3752b32cdb362833765cc8f0c9cc024473071209563d73284011280`
+- A/B view SHA-256: `a5a40224793a50d9371e9ae437e144b15812829ba1cd56a5564dc6ba28846a0a`
+- oracle protocol: `routing-semantic-oracle-v1.0.0`
+
+The real 120-case authoring view is not used during P0A qualification.
+
+## Version policy
+
+Python runtime dependencies are pinned:
+
+- `inspect-ai==0.3.268`
+- `inspect-swe==0.2.70`
+
+Codex CLI is intentionally not repository-pinned.
+
+At cohort start the runtime-lock command asks Inspect SWE for `latest`, downloads/resolves it, records the exact resolved Codex version, and freezes that identity for the cohort.
+
+A, B, and any required C pass must all use the same runtime lock.
+
+Do not re-run the runtime-lock command after real A/B adjudication begins.
+
+## 1. Update and install the benchmark
+
+From the benchmark checkout:
+
+~~~bash
+git pull --ff-only
+
+/path/to/shared-agent-workflow-venv/bin/python -m pip install -U   '.[inspect]'
+~~~
+
+Or rebuild/install through the normal repository installer, then ensure the Inspect extra exists in the same shared virtualenv.
+
+Verify:
+
+~~~bash
+/path/to/shared-agent-workflow-venv/bin/python - <<'PY'
+from importlib import metadata
+
+print("benchmark", metadata.version("agent-workflow-benchmark"))
+print("inspect-ai", metadata.version("inspect-ai"))
+print("inspect-swe", metadata.version("inspect-swe"))
+PY
+~~~
+
+Expected benchmark version for this implementation: `0.4.1`.
+
+## 2. Configure the host-side load-balancer provider
+
+The preferred path uses Inspect's OpenAI-compatible provider layer.
+
+Choose a stable provider alias. The examples below use `load-balancer`.
+
+Set these variables **on the Debian host**, not in the adjudicator sandbox:
+
+~~~bash
+export LOAD_BALANCER_API_KEY='...'
+export LOAD_BALANCER_BASE_URL='https://your-load-balancer.example/v1'
+~~~
+
+Then choose the Inspect model spec for the actual model:
+
+~~~bash
+export ADJUDICATION_MODEL='openai-api/load-balancer/<model-name>'
+~~~
+
+If your endpoint uses the Responses API, also pass:
+
+~~~bash
+export ADJUDICATION_MODEL_ARGS=(--model-arg responses_api=true)
+~~~
+
+Do not export `TYPESAFE_API_KEY` into an adjudicator container. P0A and P0B oracle production do not need TypeSafe/Jev credentials.
+
+The Inspect sandbox has `network_mode: none`. Codex model traffic reaches the host Inspect provider through Inspect's sandbox-agent bridge.
+
+## 3. Define paths
+
+Example:
+
+~~~bash
+export AW_VENV=/path/to/shared-agent-workflow-venv
+export AW="$AW_VENV/bin/agent-workflow"
+
+export BENCH_REPO=/path/to/agent-workflow-benchmark
+export COMP_REPO=/path/to/agent-workflow-comparative-eval
+
+export MODULE="$BENCH_REPO/modules/abc-adjudication/routing-semantic-v1.inspect.module.json"
+
+export PRIVATE_ROOT=/private/path/routing-semantic-v1-inspect
+mkdir -p "$PRIVATE_ROOT"
+
+export RUNTIME_LOCK="$PRIVATE_ROOT/runtime-lock.json"
+export QUALIFICATION="$PRIVATE_ROOT/qualification.json"
+
+export ORACLE_VIEW="$COMP_REPO/docs/studies/artifacts/routing-semantic-v1/oracle-authoring-view.json"
+export ORACLE_PROTOCOL="$COMP_REPO/docs/studies/routing-semantic-v1-oracle-protocol.md"
+export CORPUS="$COMP_REPO/src/agent_workflow_comparative_eval/resources/studies/routing-semantic-v1.corpus.json"
+~~~
+
+The private root must not be committed.
+
+## 4. Validate the module
+
+~~~bash
+"$AW" benchmark adjudication-module-validate "$MODULE"
+~~~
+
+The module must report:
+
+- runtime kind `inspect-ai`;
+- host-only provider credentials;
+- sandbox network `none`;
+- no repository mount;
+- no Docker socket;
+- no cross-adjudicator visibility.
+
+## 5. Resolve current Codex and freeze the cohort runtime
+
+Run this once:
+
+~~~bash
+"$AW" benchmark adjudication-inspect-runtime-lock   "$MODULE"   "$RUNTIME_LOCK"
+~~~
+
+This resolves current Codex `latest` through Inspect SWE and records the exact result.
+
+Inspect it:
+
+~~~bash
+python -m json.tool "$RUNTIME_LOCK"
+~~~
+
+The important fields are:
+
+~~~text
+backend = inspect-ai
+inspect_ai_version = 0.3.268
+inspect_swe_version = 0.2.70
+codex_cli.policy = latest-at-cohort-start
+codex_cli.requested = latest
+codex_cli.resolved = <exact version resolved today>
+frozen_for_cohort = true
+~~~
+
+Do not regenerate this file for B or C.
+
+## 6. Run P0A synthetic qualification
+
+This command never sends the real 120-case authoring view to an agent.
+
+~~~bash
+"$AW" benchmark adjudication-inspect-qualify-live   "$MODULE"   "$RUNTIME_LOCK"   "$QUALIFICATION"   --model "$ADJUDICATION_MODEL"   "${ADJUDICATION_MODEL_ARGS[@]}"
+~~~
+
+The qualification suite exercises:
+
+- IA-1 runtime/dependency identity;
+- IA-2 host provider bridge using synthetic cases;
+- IA-3 sandbox leakage guardrail probe;
+- IA-4 shared prompt/input identity parity;
+- IA-5 direct-Docker wrapper vs Inspect adapter contract parity;
+- IA-6 independent synthetic A/B execution;
+- IA-7 synthetic dispute-only C execution;
+- IA-8 complete synthetic freeze/rollback compatibility.
+
+The guardrail probe compares hashes of any host secret-like environment values against values visible inside the sandbox. Secret values themselves are never written to qualification evidence.
+
+It also verifies:
+
+- no `TYPESAFE_*` environment variable inside the sandbox;
+- no Docker socket;
+- no repository `.git`;
+- no direct external network reachability;
+- only expected qualification workspace files.
+
+## 7. Verify qualification
+
+~~~bash
+python - <<'PY'
+import json
+import os
+
+path = os.environ["QUALIFICATION"]
+value = json.load(open(path, encoding="utf-8"))
+assert value["qualified"] is True, value
+for gate, evidence in value["gates"].items():
+    assert evidence["status"] == "pass", (gate, evidence)
+print("P0A qualified:", path)
+PY
+~~~
+
+If any gate fails, do not start the real A/B run.
+
+Investigate or use the direct-Docker rollback backend with fresh A/B sessions.
+
+## 8. Re-verify frozen inputs
+
+Before real adjudication:
+
+~~~bash
+sha256sum "$ORACLE_VIEW" "$CORPUS"
+~~~
+
+Required:
+
+~~~text
+a5a40224793a50d9371e9ae437e144b15812829ba1cd56a5564dc6ba28846a0a  oracle-authoring-view.json
+e4b33df3b3752b32cdb362833765cc8f0c9cc024473071209563d73284011280  routing-semantic-v1.corpus.json
+~~~
+
+## 9. Start real independent A/B adjudication
+
+Use a new output root:
+
+~~~bash
+export ORACLE_RUN="$PRIVATE_ROOT/oracle-run"
+
+"$AW" benchmark adjudication-inspect-run-primary   "$MODULE"   "$ORACLE_VIEW"   "$ORACLE_PROTOCOL"   "$RUNTIME_LOCK"   "$QUALIFICATION"   "$ORACLE_RUN"   --model "$ADJUDICATION_MODEL"   "${ADJUDICATION_MODEL_ARGS[@]}"
+~~~
+
+The command refuses to execute if:
+
+- the qualification is absent;
+- `qualified` is false;
+- qualification module identity differs;
+- qualification runtime-lock SHA differs.
+
+A and B are separate Inspect samples and therefore receive separate sandbox instances.
+
+Neither adjudication pass is written to the benchmark-owned output tree until the primary Inspect task has completed successfully.
+
+Expected authoritative passes:
+
+~~~text
+$ORACLE_RUN/a/output/adjudication.json
+$ORACLE_RUN/b/output/adjudication.json
+~~~
+
+Inspect logs remain supplementary execution evidence.
+
+## 10. Validate A and B
+
+~~~bash
+"$AW" benchmark decision-study-adjudication-validate   "$ORACLE_VIEW"   "$ORACLE_RUN/a/output/adjudication.json"
+
+"$AW" benchmark decision-study-adjudication-validate   "$ORACLE_VIEW"   "$ORACLE_RUN/b/output/adjudication.json"
+~~~
+
+## 11. Compute disputes only after both are complete
+
+~~~bash
+export DISPUTE_VIEW="$ORACLE_RUN/oracle-disputes-for-c.json"
+
+"$AW" benchmark decision-study-oracle-disputes   "$ORACLE_VIEW"   "$ORACLE_RUN/a/output/adjudication.json"   "$ORACLE_RUN/b/output/adjudication.json"   "$DISPUTE_VIEW"
+~~~
+
+If `requires_c=false`, skip C.
+
+## 12. Run C when required
+
+C uses the **same runtime lock and same passing qualification**:
+
+~~~bash
+"$AW" benchmark adjudication-inspect-run-c   "$MODULE"   "$DISPUTE_VIEW"   "$ORACLE_PROTOCOL"   "$RUNTIME_LOCK"   "$QUALIFICATION"   "$ORACLE_RUN"   --model "$ADJUDICATION_MODEL"   "${ADJUDICATION_MODEL_ARGS[@]}"
+~~~
+
+Expected pass:
+
+~~~text
+$ORACLE_RUN/c/output/adjudication.json
+~~~
+
+C receives only the dispute view plus protocol. A/B label values are not supplied to its sandbox.
+
+## 13. Freeze
+
+If C was required:
+
+~~~bash
+"$AW" benchmark decision-study-oracle-freeze   "$ORACLE_VIEW"   "$ORACLE_RUN/a/output/adjudication.json"   "$ORACLE_RUN/b/output/adjudication.json"   "$ORACLE_RUN/oracle.json"   --oracle-version routing-semantic-oracle-v1.0.0   --c-view "$DISPUTE_VIEW"   --c-pass "$ORACLE_RUN/c/output/adjudication.json"
+~~~
+
+If no C was required, omit the two C arguments.
+
+If genuine three-way conflicts remain, create the existing recorded-resolution artifact and pass `--resolutions`.
+
+## 14. Validate final oracle
+
+~~~bash
+"$AW" benchmark decision-study-validate   "$CORPUS"   --oracle "$ORACLE_RUN/oracle.json"
+~~~
+
+Retain:
+
+~~~text
+$ORACLE_RUN/oracle.json
+$ORACLE_RUN/oracle.json.manifest.json
+$RUNTIME_LOCK
+$QUALIFICATION
+$ORACLE_RUN/**/inspect-provenance.json
+$ORACLE_RUN/inspect-logs/
+~~~
+
+Only after this point may P1 live TypeSafe/Jev instrumentation begin.
+
+## Failure rules
+
+If P0A fails, no real oracle cohort exists yet. Fix Inspect or use the direct-Docker rollback backend.
+
+If one real Inspect primary sample fails, do not salvage one side into another cohort. Restart A and B together with a valid qualification/runtime identity.
+
+Never combine:
+
+- Inspect A with direct-Docker B;
+- one runtime-lock A with another runtime-lock B;
+- a newly resolved Codex C with an older A/B cohort.
+
+The runtime lock, not the moving npm `latest` tag, is the cohort identity.
