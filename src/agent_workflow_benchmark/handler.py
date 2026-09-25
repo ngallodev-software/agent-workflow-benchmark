@@ -44,6 +44,11 @@ from .benchmarking.decision_study import (
     run_decision_study,
     validate_decision_study,
 )
+from .benchmarking.oracle_adjudication import (
+    export_oracle_dispute_view,
+    freeze_oracle_bundle,
+    validate_adjudication_pass,
+)
 from .benchmarking.scoring_bundle_tools import initialize_scoring_bundle, validate_scoring_bundle
 from agent_workflow.config import Settings
 from agent_workflow.errors import WorkflowError
@@ -64,6 +69,34 @@ def handle_benchmark_command(
     if command == "decision-study-oracle-view-export":
         return export_oracle_authoring_view(
             args.destination,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-adjudication-validate":
+        return validate_adjudication_pass(
+            args.view,
+            args.adjudication,
+            study=args.study,
+        )
+    if command == "decision-study-oracle-disputes":
+        return export_oracle_dispute_view(
+            args.view,
+            args.pass_a,
+            args.pass_b,
+            args.destination,
+            study=args.study,
+            force=args.force,
+        )
+    if command == "decision-study-oracle-freeze":
+        return freeze_oracle_bundle(
+            args.view,
+            args.pass_a,
+            args.pass_b,
+            args.destination,
+            oracle_version=args.oracle_version,
+            c_view_path=args.c_view,
+            pass_c_path=args.c_pass,
+            resolutions_path=args.resolutions,
             study=args.study,
             force=args.force,
         )
