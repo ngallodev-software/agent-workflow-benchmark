@@ -31,3 +31,4 @@ jobs:
       - run: python -m pip install 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@master'
       - run: python -m pip install '.[inspect]'
       - run: python -c "from importlib import metadata; assert metadata.version('inspect-ai') == '0.3.268'; assert metadata.version('inspect-swe') == '0.2.70'; import agent_workflow_benchmark.benchmarking.inspect_adjudication"
+      - run: python -c "from agent_workflow_benchmark.benchmarking.inspect_adjudication import _inspect_sandbox_spec; spec=_inspect_sandbox_spec(); assert spec.type == 'docker'"
