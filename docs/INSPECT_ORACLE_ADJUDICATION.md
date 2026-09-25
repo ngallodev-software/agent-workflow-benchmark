@@ -204,7 +204,7 @@ PY
 
 If any gate fails, do not start the real A/B run.
 
-Investigate or use the direct-Docker rollback backend with fresh A/B sessions.
+Investigate and correct the qualification failure. Under the current comparative-study checkpoint, P0B remains blocked until the authenticated P0A manifest reports `qualified: true` with IA-1 through IA-8 all passing. The direct-Docker backend remains available for parity, diagnostics, and rollback analysis, but it is not a bypass around this gate.
 
 ## 8. Re-verify frozen inputs
 
@@ -318,7 +318,7 @@ Only after this point may P1 live TypeSafe/Jev instrumentation begin.
 
 ## Failure rules
 
-If P0A fails, no real oracle cohort exists yet. Fix Inspect or use the direct-Docker rollback backend.
+If P0A fails, no real oracle cohort exists yet. Fix the qualification failure and keep P0B blocked. The direct-Docker backend remains the reference/rollback implementation for diagnosis and parity; using a different backend for real oracle production would require an explicit pre-label checkpoint/runtime decision rather than bypassing the current qualification gate.
 
 If one real Inspect primary sample fails, do not salvage one side into another cohort. Restart A and B together with a valid qualification/runtime identity.
 
