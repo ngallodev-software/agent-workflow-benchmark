@@ -25,7 +25,7 @@ Python runtime dependencies are pinned:
 
 Codex CLI is intentionally not repository-pinned.
 
-At cohort start the runtime-lock command asks Inspect SWE for `latest`, downloads/resolves it, records the exact resolved Codex version, and freezes that identity for the cohort.
+At cohort start the runtime-lock command resolves the current `@openai/codex` npm `latest` metadata to an exact version, asks Inspect SWE to cache that exact version, records it, and freezes that identity for the cohort. This avoids accidentally selecting some other previously cached Codex build.
 
 A, B, and any required C pass must all use the same runtime lock.
 
