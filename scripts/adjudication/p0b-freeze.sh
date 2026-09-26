@@ -55,7 +55,7 @@ PY
   )
 
   if [[ "$todo_count" -gt 0 ]]; then
-    aw_die "$todo_count three-way resolution record(s) still contain TODO rationale text. Review $RESOLUTION_REVIEW and edit $RESOLUTIONS before freezing."
+    aw_die "$todo_count three-way resolution record(s) still contain TODO rationale text. Review $RESOLUTION_REVIEW_MD and edit $RESOLUTIONS before freezing."
   fi
 
   if [[ "$unresolved_count" -gt 0 && "${ALLOW_UNRESOLVED_RESOLUTIONS:-0}" != "1" ]]; then
