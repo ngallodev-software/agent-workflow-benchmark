@@ -395,11 +395,34 @@ C receives only the dispute view plus protocol. A/B label values are not supplie
 
 ## 13. Resolve genuine three-way conflicts
 
-After C, prepare the recorded-resolution artifact:
+After C, prepare the recorded-resolution artifacts:
 
 ~~~bash
 bash scripts/adjudication/p0b-prepare-resolutions.sh
 ~~~
+
+This writes both machine-readable JSON and a human-facing Markdown worksheet.
+Use the Markdown file for review:
+
+~~~text
+$ORACLE_RUN/resolution-review.md
+~~~
+
+It presents the verbatim case prompt, the specific oracle question being decided,
+the supplied metadata, the frozen rubric, and the independent A/B/C votes. The
+machine JSON remains available at `$ORACLE_RUN/resolution-review.json`.
+
+If the JSON review already exists from an earlier run, render only the Markdown
+without touching A/B/C or the resolution template:
+
+~~~bash
+bash scripts/adjudication/p0b-render-resolution-review.sh
+~~~
+
+Field meanings and reviewer boundaries are explained in the comparative-eval
+library's `docs/studies/routing-semantic-v1-oracle-review-guide.md`. The frozen
+oracle protocol remains authoritative.
+
 
 If every A/B disagreement has a two-of-three majority after C, the generated
 resolution artifact contains no records and no human adjudication is needed.
