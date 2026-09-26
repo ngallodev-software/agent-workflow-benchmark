@@ -37,6 +37,16 @@ def sha256(path):
             h.update(block)
     return h.hexdigest()
 
+def stable_json_sha256(path):
+    value = load(path)
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
 q = load(qualification_path)
 if q.get("qualified") is not True:
     raise SystemExit("qualification manifest does not report qualified=true")
@@ -54,8 +64,8 @@ if missing or failed:
         f"qualification gates are not all passing; missing={missing}, failed={failed}"
     )
 
-if q.get("module_sha256") != sha256(module_path):
-    raise SystemExit("qualification module_sha256 does not match module bytes")
+if q.get("module_sha256") != stable_json_sha256(module_path):
+    raise SystemExit("qualification module_sha256 does not match module contract")
 if q.get("runtime_lock_sha256") != sha256(runtime_lock_path):
     raise SystemExit("qualification runtime_lock_sha256 does not match runtime lock bytes")
 
