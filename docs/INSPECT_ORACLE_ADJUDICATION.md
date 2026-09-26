@@ -393,7 +393,36 @@ $ORACLE_RUN/c/output/adjudication.json
 
 C receives only the dispute view plus protocol. A/B label values are not supplied to its sandbox.
 
-## 13. Freeze
+## 13. Resolve genuine three-way conflicts
+
+After C, prepare the recorded-resolution artifact:
+
+~~~bash
+bash scripts/adjudication/p0b-prepare-resolutions.sh
+~~~
+
+If every A/B disagreement has a two-of-three majority after C, the generated
+resolution artifact contains no records and no human adjudication is needed.
+
+If A, B, and C all chose different labels for one or more seams, inspect:
+
+~~~text
+$ORACLE_RUN/resolution-review.json
+~~~
+
+and edit:
+
+~~~text
+$ORACLE_RUN/resolutions.json
+~~~
+
+For each conflict, record either a resolved label plus rationale/participants or
+an explicit unresolved rationale/participants. The freeze script rejects
+untouched TODO records. It also rejects unresolved conflicts by default; use
+`ALLOW_UNRESOLVED_RESOLUTIONS=1` only when unresolved oracle conflicts are an
+intentional study outcome.
+
+## 14. Freeze
 
 If C was required:
 
@@ -405,7 +434,7 @@ If no C was required, omit the two C arguments.
 
 If genuine three-way conflicts remain, create the existing recorded-resolution artifact and pass `--resolutions`.
 
-## 14. Validate final oracle
+## 15. Validate final oracle
 
 ~~~bash
 "$AW" benchmark decision-study-validate   "$CORPUS"   --oracle "$ORACLE_RUN/oracle.json"
