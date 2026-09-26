@@ -148,3 +148,61 @@ def test_recovery_command_is_documented_with_runtime_lock_preservation() -> None
         assert command in text
         assert "runtime lock" in text.lower()
         assert "verify-qualification.sh" in text
+
+
+def _run_dispute_requires_c(tmp_path: Path, cases: list[dict[str, object]]) -> str:
+    dispute = tmp_path / "dispute.json"
+    dispute.write_text(
+        __import__("json").dumps({"cases": cases}),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": __import__("sys").executable,
+            "DISPUTE_VIEW": str(dispute),
+        }
+    )
+    command = r"""
+source scripts/adjudication/lib.sh
+aw_dispute_requires_c
+"""
+    result = subprocess.run(
+        ["bash", "-c", command],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def test_dispute_view_requires_c_when_cases_are_present(tmp_path: Path) -> None:
+    assert _run_dispute_requires_c(
+        tmp_path,
+        [{"case_id": "case-001", "disputed_decision_ids": ["routing.task_class"]}],
+    ) == "true"
+
+
+def test_dispute_view_skips_c_only_when_cases_are_empty(tmp_path: Path) -> None:
+    assert _run_dispute_requires_c(tmp_path, []) == "false"
+
+
+def test_internal_script_chaining_does_not_require_execute_bits() -> None:
+    for name in ("p0a-qualify.sh", "p0b-run-ab.sh", "p0b-run-c.sh", "run-all.sh"):
+        text = (SCRIPT_DIR / name).read_text(encoding="utf-8")
+        for child in (
+            "verify-qualification.sh",
+            "verify-frozen-inputs.sh",
+            "p0a-qualify.sh",
+            "p0b-run-ab.sh",
+            "p0b-validate-ab.sh",
+            "p0b-compute-disputes.sh",
+            "p0b-run-c.sh",
+            "p0b-freeze.sh",
+            "p0b-validate-oracle.sh",
+        ):
+            if child in text:
+                assert f'bash "$SCRIPT_DIR/{child}"' in text
