@@ -6,11 +6,21 @@ aw_die() {
 }
 
 aw_require_file() {
-  [[ -f "$1" ]] || aw_die "required file not found: $1"
+  local path="${1:-}"
+  [[ -n "$path" ]] || {
+    aw_die "required path is unset; set the corresponding environment override or provide the expected source checkout"
+    return
+  }
+  [[ -f "$path" ]] || aw_die "required file not found: $path"
 }
 
 aw_require_executable() {
-  [[ -x "$1" ]] || aw_die "required executable not found: $1"
+  local path="${1:-}"
+  [[ -n "$path" ]] || {
+    aw_die "required executable is unresolved; set AW/PYTHON or activate the installed agent-workflow environment"
+    return
+  }
+  [[ -x "$path" ]] || aw_die "required executable not found: $path"
 }
 
 aw_qualification_model() {

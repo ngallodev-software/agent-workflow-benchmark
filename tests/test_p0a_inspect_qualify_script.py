@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 
@@ -86,3 +87,64 @@ def test_master_runner_preserves_existing_p0a_and_orders_p0b_steps() -> None:
     ]
     positions = [text.index(item) for item in ordered]
     assert positions == sorted(positions)
+
+
+def test_adjudication_scripts_do_not_hardcode_local_install_root() -> None:
+    for path in sorted(SCRIPT_DIR.glob("*")):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert "/lump/" not in text, path
+
+    operator = (ROOT / "docs" / "INSPECT_ORACLE_ADJUDICATION.md").read_text(
+        encoding="utf-8"
+    )
+    assert "/lump/" not in operator
+
+
+def test_env_derives_benchmark_repo_from_script_location_and_honors_overrides(
+    tmp_path: Path,
+) -> None:
+    private_root = tmp_path / "private"
+    env = os.environ.copy()
+    env.update(
+        {
+            "AW": "/portable/venv/bin/agent-workflow",
+            "PYTHON": "/portable/venv/bin/python",
+            "COMP_REPO": "/portable/agent-workflow-comparative-eval",
+            "PRIVATE_ROOT": str(private_root),
+        }
+    )
+    command = r"""
+source scripts/adjudication/env.sh
+printf '%s\n' "$BENCH_REPO" "$AW" "$PYTHON" "$COMP_REPO" "$PRIVATE_ROOT"
+"""
+    result = subprocess.run(
+        ["bash", "-c", command],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    values = result.stdout.splitlines()
+    assert values == [
+        str(ROOT),
+        "/portable/venv/bin/agent-workflow",
+        "/portable/venv/bin/python",
+        "/portable/agent-workflow-comparative-eval",
+        str(private_root),
+    ]
+
+
+def test_recovery_command_is_documented_with_runtime_lock_preservation() -> None:
+    readme = (SCRIPT_DIR / "README.md").read_text(encoding="utf-8")
+    operator = (ROOT / "docs" / "INSPECT_ORACLE_ADJUDICATION.md").read_text(
+        encoding="utf-8"
+    )
+    command = "FORCE_REQUALIFY=1 MODEL_ID=deepseek-flash"
+    for text in (readme, operator):
+        assert command in text
+        assert "runtime lock" in text.lower()
+        assert "verify-qualification.sh" in text

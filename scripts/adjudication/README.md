@@ -49,6 +49,52 @@ The selected adjudicator model is recorded separately in the P0A qualification m
 
 Use `FORCE_REQUALIFY=1` to deliberately replace an already-passing qualification. The old qualification/evidence is archived under `$PRIVATE_ROOT/retries/`.
 
+For the current `deepseek-flash` cohort, the explicit recovery command is:
+
+~~~bash
+FORCE_REQUALIFY=1 MODEL_ID=deepseek-flash \
+  bash scripts/adjudication/p0a-qualify.sh
+~~~
+
+Do **not** delete `runtime-lock.json` for this recovery. The runtime lock freezes Inspect AI, Inspect SWE, the resolved Codex CLI version, and Docker identity; P0A records the adjudicator model separately.
+
+After recovery, verify the replacement before P0B:
+
+~~~bash
+bash scripts/adjudication/verify-qualification.sh
+~~~
+
+The verifier must report `qualified: true`, IA-1 through IA-8 as `pass`, and:
+
+~~~text
+IA-2 model: openai-api/codex-lb/deepseek-flash
+~~~
+
+## Path discovery and portability
+
+The workflow scripts do not contain machine-specific installation roots.
+
+Path resolution works as follows:
+
+- `BENCH_REPO` is derived from the physical location of `scripts/adjudication/env.sh`.
+- `AW` uses an explicit environment override first, then an installed `agent-workflow` found on `PATH`, then the conventional sibling checkout `agent-workflow/.venv/bin/agent-workflow` only as a fallback.
+- `PYTHON` uses an explicit override first, then the Python executable beside the resolved `AW`, then `python3` on `PATH`.
+- `COMP_REPO` uses an explicit override first and otherwise auto-detects a sibling `agent-workflow-comparative-eval` checkout.
+- `PRIVATE_ROOT` defaults under `$XDG_DATA_HOME`, or `$HOME/.local/share` when XDG data storage is not configured.
+- Study file paths are derived from those roots.
+
+A non-sibling installation is supported explicitly:
+
+~~~bash
+export COMP_REPO=/path/to/agent-workflow-comparative-eval
+export AW=/path/to/venv/bin/agent-workflow
+# PYTHON normally resolves beside AW; override it only when necessary.
+
+bash /path/to/agent-workflow-benchmark/scripts/adjudication/verify-qualification.sh
+~~~
+
+The scripts can be launched from any current working directory because they locate their own benchmark checkout from the script path.
+
 ## Typical manual workflow
 
 Set up variables in the current shell when desired:

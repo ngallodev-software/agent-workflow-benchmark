@@ -104,10 +104,14 @@ pattern to verify the hardened profile remains compatible.
 
 The repository-owned P0A entry point is:
 
+From any benchmark checkout:
+
 ~~~bash
-cd /lump/apps/agent-workflow-benchmark
 bash scripts/adjudication/p0a-qualify.sh
 ~~~
+
+The script derives the benchmark repository from its own location. It does not
+depend on a machine-specific checkout path.
 
 Run it with `bash`; do **not** source it into an interactive SSH shell.
 
@@ -129,6 +133,21 @@ The P0A qualification manifest records the exact Inspect model under
 model. The benchmark rejects a P0B run whose requested model differs from the
 qualified model, so changing the adjudicator model requires a new P0A
 qualification for that cohort.
+
+To deliberately recover from a passing qualification that used the wrong model,
+preserve the existing runtime lock and replace only the P0A qualification:
+
+~~~bash
+FORCE_REQUALIFY=1 MODEL_ID=deepseek-flash \
+  bash scripts/adjudication/p0a-qualify.sh
+~~~
+
+The prior qualification/evidence is archived under `$PRIVATE_ROOT/retries/`.
+Immediately verify the replacement with:
+
+~~~bash
+bash scripts/adjudication/verify-qualification.sh
+~~~
 
 For a fully scripted execution, use the organized adjudication suite:
 
@@ -156,7 +175,22 @@ than as container root. This keeps restrictive host file modes intact and works
 with rootless/user-namespaced Docker daemons without granting broader write
 permissions to the evidence directory.
 
-## 3. Define paths
+## 3. Path discovery and overrides
+
+The scripted workflow does not require any fixed installation root. `scripts/adjudication/env.sh` derives `BENCH_REPO` from its own location,
+prefers an installed `agent-workflow` on `PATH`, and auto-detects a sibling
+comparative-eval checkout when present. Non-sibling installations should provide
+explicit overrides such as:
+
+~~~bash
+export AW=/path/to/venv/bin/agent-workflow
+export COMP_REPO=/path/to/agent-workflow-comparative-eval
+~~~
+
+`PYTHON` normally resolves beside `AW`. `PRIVATE_ROOT` defaults under
+`$XDG_DATA_HOME`, or `$HOME/.local/share` when XDG storage is not configured.
+
+For manual protocol execution, the equivalent variables are:
 
 Example:
 
