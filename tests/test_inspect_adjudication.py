@@ -301,6 +301,7 @@ def test_direct_and_inspect_modules_share_prompt_and_frozen_identities():
 
 def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
     module = validate_abc_adjudication_module(MODULE)
+    model = "openai-api/codex-lb/deepseek-flash"
     runtime_lock = tmp_path / "runtime-lock.json"
     lock = {
         "schema": inspect_runtime.RUNTIME_LOCK_SCHEMA,
@@ -331,6 +332,7 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
             None,
             module=module,
             runtime_lock_path=runtime_lock,
+            model=model,
             allow_unqualified=False,
         )
 
@@ -338,6 +340,7 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
         gate: {"status": "pass"}
         for gate in ("IA-1", "IA-2", "IA-3", "IA-4", "IA-5", "IA-6", "IA-7", "IA-8")
     }
+    gates["IA-2"]["evidence"] = {"model": model}
     qualification = tmp_path / "qualification.json"
     value = {
         "schema": inspect_runtime.INSPECT_QUALIFICATION_SCHEMA,
@@ -354,8 +357,18 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
         qualification,
         module=module,
         runtime_lock_path=runtime_lock,
+        model=model,
         allow_unqualified=False,
     )
+
+    with pytest.raises(WorkflowError, match="qualification model does not match"):
+        inspect_runtime._require_passing_qualification(
+            qualification,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            model="openai-api/codex-lb/gpt-6-luna",
+            allow_unqualified=False,
+        )
 
     value["gates"]["IA-7"]["status"] = "pending"
     value["qualified"] = False
@@ -365,6 +378,7 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
             qualification,
             module=module,
             runtime_lock_path=runtime_lock,
+            model=model,
             allow_unqualified=False,
         )
 

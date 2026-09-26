@@ -60,15 +60,16 @@ Expected benchmark version for this implementation: `0.4.1`.
 ## 2. Configure the host-side codex-lb provider
 
 The current `routing-semantic-v1` adjudication cohort uses the local `codex-lb`
-OpenAI-compatible endpoint and **explicitly fixes the adjudication model to
-`gpt-6-luna`**. Do not derive the model from `~/.codex/config.toml`, a prior
-interactive session, or a provider default.
+OpenAI-compatible endpoint. The repository launcher defaults to
+**`deepseek-flash`** and permits an explicit `MODEL_ID=...` override only when
+intentionally starting a different adjudicator cohort. Do not derive the model
+from `~/.codex/config.toml`, a prior interactive session, or a provider default.
 
 Set the provider base URL **on the Debian host**, not in the adjudicator sandbox:
 
 ~~~bash
 export CODEX_LB_BASE_URL='http://127.0.0.1:2455/v1'
-export ADJUDICATION_MODEL='openai-api/codex-lb/gpt-6-luna'
+export ADJUDICATION_MODEL='openai-api/codex-lb/deepseek-flash'
 export ADJUDICATION_MODEL_ARGS=(--model-arg responses_api=true)
 ~~~
 
@@ -113,8 +114,8 @@ Run it with `bash`; do **not** source it into an interactive SSH shell.
 The launcher:
 
 - verifies benchmark/Inspect versions;
-- verifies that `gpt-6-luna` is present in the live `codex-lb /models` list;
-- passes `--model openai-api/codex-lb/gpt-6-luna` explicitly;
+- verifies that the selected `MODEL_ID` is present in the live `codex-lb /models` list;
+- defaults to `deepseek-flash` and passes the fully-qualified model explicitly;
 - creates the cohort runtime lock once and reuses it on retries;
 - archives partial synthetic qualification evidence from failed attempts without
   replacing the runtime lock;
@@ -122,6 +123,12 @@ The launcher:
   Inspect raises outside the normal `WorkflowError` path;
 - refuses to report success unless all IA-1 through IA-8 gates pass and IA-2
   records the expected explicit model.
+
+The P0A qualification manifest records the exact Inspect model under
+`IA-2.evidence.model`. Real A/B/C commands must use that same fully-qualified
+model. The benchmark rejects a P0B run whose requested model differs from the
+qualified model, so changing the adjudicator model requires a new P0A
+qualification for that cohort.
 
 The remaining sections document the same procedure manually and are retained for
 auditability and diagnosis.

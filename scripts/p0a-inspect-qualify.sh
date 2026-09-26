@@ -16,7 +16,9 @@ RUN_LOG="$PRIVATE_ROOT/p0a-qualify-last.log"
 
 # Current routing-semantic-v1 adjudication cohort model.
 # Do not infer this from ~/.codex/config.toml or previous interactive state.
-MODEL_ID="gpt-6-luna"
+# Override explicitly with MODEL_ID=... before P0A if intentionally starting a
+# different adjudicator cohort; the resulting P0B run is bound to that model.
+MODEL_ID="${MODEL_ID:-deepseek-flash}"
 ADJUDICATION_MODEL="openai-api/codex-lb/$MODEL_ID"
 
 export CODEX_LB_BASE_URL="${CODEX_LB_BASE_URL:-http://127.0.0.1:2455/v1}"

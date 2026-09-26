@@ -19,10 +19,10 @@ def test_p0a_launcher_has_valid_bash_syntax() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_p0a_launcher_fixes_current_adjudication_model() -> None:
+def test_p0a_launcher_defaults_and_explicitly_passes_current_adjudication_model() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert 'MODEL_ID="gpt-6-luna"' in text
+    assert 'MODEL_ID="${MODEL_ID:-deepseek-flash}"' in text
     assert 'ADJUDICATION_MODEL="openai-api/codex-lb/$MODEL_ID"' in text
     assert "--model \"$ADJUDICATION_MODEL\"" in text
     assert "--model-arg responses_api=true" in text
