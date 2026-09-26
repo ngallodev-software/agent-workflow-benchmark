@@ -92,6 +92,13 @@ oracle production do not need TypeSafe/Jev credentials.
 The Inspect sandbox has `network_mode: none`. Codex model traffic reaches the
 host Inspect provider through Inspect's sandbox-agent bridge.
 
+The sandbox also drops all Linux capabilities by default and restores only
+`CHOWN` and `FOWNER`. Inspect SWE's pinned Codex package installer runs
+`tar -xzf` as root, which restores package ownership, and then applies
+`chmod +x` to the entrypoint. Those two capabilities are the minimum required
+for that install step; the live IA-3 guardrail reproduces the package extraction
+pattern to verify the hardened profile remains compatible.
+
 ## 2A. Preferred P0A launcher
 
 The repository-owned P0A entry point is:

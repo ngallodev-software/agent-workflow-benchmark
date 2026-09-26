@@ -412,6 +412,7 @@ def _inspect_sandbox_spec() -> Any:
         cpus=1.0,
         read_only=True,
         cap_drop=["ALL"],
+        cap_add=["CHOWN", "FOWNER"],
         security_opt=["no-new-privileges:true"],
         working_dir="/workspace",
         tmpfs=[
@@ -858,9 +859,41 @@ print(json.dumps(report, sort_keys=True))
                 raise RuntimeError(
                     f"guardrail probe failed: {result.stderr or result.stdout}"
                 )
+
+            # Inspect SWE installs pinned Codex package archives as root using
+            # plain `tar -xzf`, which restores archive ownership, followed by
+            # `chmod +x` on the entrypoint. Reproduce that exact capability
+            # requirement with synthetic bytes so the hardened sandbox cannot
+            # regress to a profile that blocks the agent installer.
+            package_probe = r"""
+set -euo pipefail
+root="$(mktemp -d /var/tmp/inspect-swe-package-probe.XXXXXX)"
+trap 'rm -rf "$root"' EXIT
+mkdir -p "$root/src" "$root/dst"
+printf '#!/bin/sh\\nexit 0\\n' > "$root/src/codex"
+tar --owner=1001 --group=1001 -czf "$root/package.tar.gz" -C "$root/src" codex
+tar -xzf "$root/package.tar.gz" -C "$root/dst"
+chmod +x "$root/dst/codex"
+test "$(stat -c '%u:%g' "$root/dst/codex")" = "1001:1001"
+test -x "$root/dst/codex"
+"""
+            package_result = await sandbox().exec(
+                ["bash", "-c", package_probe],
+                user="root",
+                cwd="/var/tmp",
+                timeout=30,
+            )
+            if not package_result.success:
+                raise RuntimeError(
+                    "Inspect SWE package install capability probe failed: "
+                    f"{package_result.stderr or package_result.stdout}"
+                )
+
+            report = json.loads(result.stdout.strip())
+            report["inspect_swe_package_install_probe"] = True
             state.output = ModelOutput.from_content(
                 "guardrail-probe",
-                result.stdout.strip(),
+                json.dumps(report, sort_keys=True),
             )
             return state
 
@@ -909,6 +942,7 @@ print(json.dumps(report, sort_keys=True))
         and report.get("workspace_git_present") is False
         and report.get("repo_git_present") is False
         and report.get("external_network_reachable") is False
+        and report.get("inspect_swe_package_install_probe") is True
         and expected_files.issubset(actual_files)
     )
     safe_report = {
@@ -920,6 +954,9 @@ print(json.dumps(report, sort_keys=True))
         "workspace_git_present": bool(report.get("workspace_git_present")),
         "repo_git_present": bool(report.get("repo_git_present")),
         "external_network_reachable": bool(report.get("external_network_reachable")),
+        "inspect_swe_package_install_probe": bool(
+            report.get("inspect_swe_package_install_probe")
+        ),
         "visible_workspace_files": sorted(actual_files),
         "inspect_log": logs[0].location,
     }
