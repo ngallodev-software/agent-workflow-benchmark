@@ -57,34 +57,67 @@ PY
 
 Expected benchmark version for this implementation: `0.4.1`.
 
-## 2. Configure the host-side load-balancer provider
+## 2. Configure the host-side codex-lb provider
 
-The preferred path uses Inspect's OpenAI-compatible provider layer.
+The current `routing-semantic-v1` adjudication cohort uses the local `codex-lb`
+OpenAI-compatible endpoint and **explicitly fixes the adjudication model to
+`gpt-6-luna`**. Do not derive the model from `~/.codex/config.toml`, a prior
+interactive session, or a provider default.
 
-Choose a stable provider alias. The examples below use `load-balancer`.
-
-Set these variables **on the Debian host**, not in the adjudicator sandbox:
-
-~~~bash
-export LOAD_BALANCER_API_KEY='...'
-export LOAD_BALANCER_BASE_URL='https://your-load-balancer.example/v1'
-~~~
-
-Then choose the Inspect model spec for the actual model:
+Set the provider base URL **on the Debian host**, not in the adjudicator sandbox:
 
 ~~~bash
-export ADJUDICATION_MODEL='openai-api/load-balancer/<model-name>'
-~~~
-
-If your endpoint uses the Responses API, also pass:
-
-~~~bash
+export CODEX_LB_BASE_URL='http://127.0.0.1:2455/v1'
+export ADJUDICATION_MODEL='openai-api/codex-lb/gpt-6-luna'
 export ADJUDICATION_MODEL_ARGS=(--model-arg responses_api=true)
 ~~~
 
-Do not export `TYPESAFE_API_KEY` into an adjudicator container. P0A and P0B oracle production do not need TypeSafe/Jev credentials.
+Local `codex-lb` access does not require authentication. Inspect's generic
+`openai-api` provider nevertheless requires a non-empty
+`<PROVIDER_NAME>_API_KEY` value before constructing its OpenAI-compatible
+client. For this localhost-only path, use a non-secret sentinel:
 
-The Inspect sandbox has `network_mode: none`. Codex model traffic reaches the host Inspect provider through Inspect's sandbox-agent bridge.
+~~~bash
+export CODEX_LB_API_KEY='inspect-placeholder'
+~~~
+
+That value is not a `codex-lb` credential. It only satisfies Inspect's provider
+precondition and is included in the P0A host-secret leakage probe so the
+qualification still verifies that provider-side values do not enter the
+sandbox.
+
+Do not export `TYPESAFE_API_KEY` into an adjudicator container. P0A and P0B
+oracle production do not need TypeSafe/Jev credentials.
+
+The Inspect sandbox has `network_mode: none`. Codex model traffic reaches the
+host Inspect provider through Inspect's sandbox-agent bridge.
+
+## 2A. Preferred P0A launcher
+
+The repository-owned P0A entry point is:
+
+~~~bash
+cd /lump/apps/agent-workflow-benchmark
+bash scripts/p0a-inspect-qualify.sh
+~~~
+
+Run it with `bash`; do **not** source it into an interactive SSH shell.
+
+The launcher:
+
+- verifies benchmark/Inspect versions;
+- verifies that `gpt-6-luna` is present in the live `codex-lb /models` list;
+- passes `--model openai-api/codex-lb/gpt-6-luna` explicitly;
+- creates the cohort runtime lock once and reuses it on retries;
+- archives partial synthetic qualification evidence from failed attempts without
+  replacing the runtime lock;
+- prints a bounded summary of Agent-Workflow unexpected-failure diagnostics when
+  Inspect raises outside the normal `WorkflowError` path;
+- refuses to report success unless all IA-1 through IA-8 gates pass and IA-2
+  records the expected explicit model.
+
+The remaining sections document the same procedure manually and are retained for
+auditability and diagnosis.
 
 ## 3. Define paths
 
