@@ -206,6 +206,7 @@ def test_internal_script_chaining_does_not_require_execute_bits() -> None:
             "p0b-compute-disputes.sh",
             "p0b-run-c.sh",
             "p0b-prepare-resolutions.sh",
+            "p0b-render-resolution-review.sh",
             "p0b-freeze.sh",
             "p0b-validate-oracle.sh",
         ):
