@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import stat
 import subprocess
 
 
@@ -206,3 +207,11 @@ def test_internal_script_chaining_does_not_require_execute_bits() -> None:
         ):
             if child in text:
                 assert f'bash "$SCRIPT_DIR/{child}"' in text
+
+
+def test_adjudication_shell_scripts_are_committed_executable() -> None:
+    for script in sorted(SCRIPT_DIR.glob("*.sh")):
+        mode = script.stat().st_mode
+        assert mode & stat.S_IXUSR, f"{script} is not executable by owner"
+        assert mode & stat.S_IXGRP, f"{script} is not executable by group"
+        assert mode & stat.S_IXOTH, f"{script} is not executable by others"
