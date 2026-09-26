@@ -993,6 +993,15 @@ def _deterministic_output_for_view(view_path: Path) -> dict[str, Any]:
     return {"records": records}
 
 
+def _direct_wrapper_container_user() -> str:
+    """Run the host bind-mount parity fixture as the invoking Unix user."""
+    if not hasattr(os, "getuid") or not hasattr(os, "getgid"):
+        raise WorkflowError(
+            "direct-Docker wrapper parity requires a Unix host UID/GID"
+        )
+    return f"{os.getuid()}:{os.getgid()}"
+
+
 def _direct_wrapper_parity(
     *,
     module_path: Path,
@@ -1073,6 +1082,8 @@ def _direct_wrapper_parity(
             "--security-opt=no-new-privileges:true",
             "--network",
             "none",
+            "--user",
+            _direct_wrapper_container_user(),
             "-v",
             f"{input_dir.resolve()}:/input:ro",
             "-v",
