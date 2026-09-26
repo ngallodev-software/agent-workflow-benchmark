@@ -106,7 +106,7 @@ The repository-owned P0A entry point is:
 
 ~~~bash
 cd /lump/apps/agent-workflow-benchmark
-bash scripts/p0a-inspect-qualify.sh
+bash scripts/adjudication/p0a-qualify.sh
 ~~~
 
 Run it with `bash`; do **not** source it into an interactive SSH shell.
@@ -129,6 +129,23 @@ The P0A qualification manifest records the exact Inspect model under
 model. The benchmark rejects a P0B run whose requested model differs from the
 qualified model, so changing the adjudicator model requires a new P0A
 qualification for that cohort.
+
+For a fully scripted execution, use the organized adjudication suite:
+
+~~~bash
+bash scripts/adjudication/verify-qualification.sh
+bash scripts/adjudication/p0b-run-ab.sh
+~~~
+
+Or run the complete qualification-to-oracle workflow:
+
+~~~bash
+bash scripts/adjudication/run-all.sh
+~~~
+
+The staged scripts remain available for validation, dispute construction, C,
+freeze, and final oracle validation. See `scripts/adjudication/README.md`.
+The manual commands below are retained as the transparent protocol reference.
 
 The remaining sections document the same procedure manually and are retained for
 auditability and diagnosis.
@@ -289,7 +306,8 @@ The command refuses to execute if:
 - the qualification is absent;
 - `qualified` is false;
 - qualification module identity differs;
-- qualification runtime-lock SHA differs.
+- qualification runtime-lock SHA differs;
+- requested A/B/C model differs from the model recorded by P0A IA-2.
 
 A and B are separate Inspect samples and therefore receive separate sandbox instances.
 
