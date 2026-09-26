@@ -74,7 +74,7 @@ def test_p0b_model_is_resolved_from_qualification() -> None:
 def test_master_runner_preserves_existing_p0a_and_orders_p0b_steps() -> None:
     text = (SCRIPT_DIR / "run-all.sh").read_text(encoding="utf-8")
 
-    assert "Existing P0A qualification found; verifying without regenerating it." in text
+    assert "Existing passing P0A qualification found; verifying without regenerating it." in text
 
     ordered = [
         "p0b-run-ab.sh",
