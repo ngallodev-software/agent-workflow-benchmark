@@ -329,6 +329,11 @@ def _json_completion(text: str) -> dict[str, Any]:
     return value
 
 
+def _sample_retry_count(sample: Any) -> int:
+    """Return the retry count from the pinned Inspect EvalSample contract."""
+    return len(sample.error_retries or [])
+
+
 def _wrap_pass(
     view_path: Path,
     output: Mapping[str, Any],
@@ -569,7 +574,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "inspect_run_id": log.eval.run_id,
             "inspect_log": log.location,
             "sample_uuid": sample.uuid,
-            "sample_retries": len(sample.error_retries or []),
+            "sample_retries": _sample_retry_count(sample),
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
@@ -665,7 +670,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "inspect_run_id": log.eval.run_id,
         "inspect_log": log.location,
         "sample_uuid": result_sample.uuid,
-        "sample_retries": len(result_sample.error_retries or []),
+        "sample_retries": _sample_retry_count(result_sample),
         "sample_total_time": result_sample.total_time,
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
