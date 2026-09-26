@@ -6,14 +6,14 @@ source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/lib.sh"
 
 # A. Verify the existing P0A qualification as an independent script.
-"$SCRIPT_DIR/verify-qualification.sh"
+bash "$SCRIPT_DIR/verify-qualification.sh"
 
 # B. env.sh above established all study paths. Resolve the model from the
 # qualification so P0B cannot silently drift from P0A.
 aw_resolve_adjudication_model
 
 # C. Re-check frozen authoring-view and corpus bytes.
-"$SCRIPT_DIR/verify-frozen-inputs.sh"
+bash "$SCRIPT_DIR/verify-frozen-inputs.sh"
 
 # D. Start real independent A/B oracle adjudication.
 aw_require_file "$ORACLE_PROTOCOL"
