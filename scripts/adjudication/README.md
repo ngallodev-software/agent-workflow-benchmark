@@ -72,7 +72,7 @@ IA-2 model: openai-api/codex-lb/deepseek-flash
 
 ## Path discovery and portability
 
-The workflow scripts do not contain machine-specific installation paths such as `/lump/apps/...`.
+The workflow scripts do not contain machine-specific installation roots.
 
 Path resolution works as follows:
 
