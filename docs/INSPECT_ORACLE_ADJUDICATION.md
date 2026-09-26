@@ -126,6 +126,12 @@ The launcher:
 The remaining sections document the same procedure manually and are retained for
 auditability and diagnosis.
 
+IA-5's direct-Docker wrapper parity fixture uses host bind mounts for synthetic
+input/output evidence. It runs the wrapper as the invoking host UID:GID rather
+than as container root. This keeps restrictive host file modes intact and works
+with rootless/user-namespaced Docker daemons without granting broader write
+permissions to the evidence directory.
+
 ## 3. Define paths
 
 Example:
