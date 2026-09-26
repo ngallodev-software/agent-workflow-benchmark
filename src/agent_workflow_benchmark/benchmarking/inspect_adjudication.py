@@ -262,6 +262,7 @@ def _require_passing_qualification(
     *,
     module: Mapping[str, Any],
     runtime_lock_path: Path,
+    model: str,
     allow_unqualified: bool,
 ) -> None:
     if allow_unqualified:
@@ -285,6 +286,17 @@ def _require_passing_qualification(
     if value.get("runtime_lock_sha256") != sha256_file(Path(runtime_lock_path)):
         raise WorkflowError(
             "qualification runtime_lock_sha256 does not match supplied runtime lock"
+        )
+    qualified_model = (
+        value.get("gates", {})
+        .get("IA-2", {})
+        .get("evidence", {})
+        .get("model")
+    )
+    if qualified_model != model:
+        raise WorkflowError(
+            "qualification model does not match requested adjudication model; "
+            f"qualified={qualified_model!r}, requested={model!r}"
         )
     if any(
         gate.get("status") != "pass"
@@ -504,6 +516,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         config.qualification_path,
         module=module,
         runtime_lock_path=config.runtime_lock_path,
+        model=config.model,
         allow_unqualified=config.allow_unqualified,
     )
     repo = _repo_root(config.module_path)
@@ -614,6 +627,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         config.qualification_path,
         module=module,
         runtime_lock_path=config.runtime_lock_path,
+        model=config.model,
         allow_unqualified=config.allow_unqualified,
     )
     repo = _repo_root(config.module_path)
