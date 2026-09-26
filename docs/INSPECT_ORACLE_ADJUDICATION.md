@@ -177,8 +177,7 @@ permissions to the evidence directory.
 
 ## 3. Path discovery and overrides
 
-The scripted workflow does not require `/lump` or any other fixed installation
-root. `scripts/adjudication/env.sh` derives `BENCH_REPO` from its own location,
+The scripted workflow does not require any fixed installation root. `scripts/adjudication/env.sh` derives `BENCH_REPO` from its own location,
 prefers an installed `agent-workflow` on `PATH`, and auto-detects a sibling
 comparative-eval checkout when present. Non-sibling installations should provide
 explicit overrides such as:
