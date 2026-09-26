@@ -114,7 +114,7 @@ lines = [
     "",
 ]
 
-if guide_path is not None:
+if guide_path is not None and guide_path.is_file():
     lines += [
         "## Reviewer references",
         "",
