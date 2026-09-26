@@ -14,6 +14,7 @@ These scripts make the `routing-semantic-v1` P0A/P0B oracle procedure reproducib
 - `p0b-compute-disputes.sh` — produce the blinded dispute view for C.
 - `p0b-run-c.sh` — run and validate C only when the persisted dispute view contains cases.
 - `p0b-prepare-resolutions.sh` — identify genuine three-way A/B/C conflicts and create private resolution/review artifacts.
+- `p0b-render-resolution-review.sh` — render the private machine review JSON as a human-readable Markdown worksheet with the verbatim case prompt, explicit oracle question, rubric, metadata, and A/B/C votes.
 - `p0b-freeze.sh` — prepare/check three-way resolutions when needed, then freeze the oracle.
 - `p0b-validate-oracle.sh` — validate the final oracle against the frozen corpus.
 - `run-all.sh` — end-to-end driver. It creates P0A when missing, retries an incomplete/invalid P0A after archiving it, and verifies/preserves an existing passing qualification.
@@ -171,8 +172,19 @@ resolutions.json
 resolution-review.json
 ~~~
 
-`resolution-review.json` contains each genuine three-way conflict, including
-the source task, decision-seam contract, allowed labels, and the A/B/C votes.
+`resolution-review.json` contains the machine-readable review evidence. The preparation step also writes `resolution-review.md`, which is the preferred human review surface. It contains the verbatim case prompt, the explicit question being decided, supplied metadata, the frozen rubric, and the A/B/C votes.
+
+If the JSON already exists from an earlier run, render the Markdown without regenerating any adjudication artifacts:
+
+~~~bash
+bash scripts/adjudication/p0b-render-resolution-review.sh
+~~~
+
+The field meanings and review rules are documented in the comparative-eval library at:
+
+`docs/studies/routing-semantic-v1-oracle-review-guide.md`
+
+That guide is non-normative; the frozen oracle protocol remains authoritative.
 
 `resolutions.json` is the schema-valid artifact consumed by oracle freeze. Each
 generated record starts as:
@@ -203,6 +215,18 @@ ALLOW_UNRESOLVED_RESOLUTIONS=1 bash scripts/adjudication/p0b-freeze.sh
 ~~~
 
 Do not use that override merely to bypass adjudication.
+
+### Reading the authoring-view fields
+
+The human reviewer should not have to infer meaning from raw JSON:
+
+- `task` is the verbatim request being labeled.
+- `metadata` is supplied evidence and may be stale or misleading; it is not an answer key.
+- `oracle_eligible` says which oracle questions require labels. A value of `true` means "label this seam", not "the label is true".
+- `decision_seams` defines the allowed answer space and rubric.
+- A/B/C votes explain why human adjudication is required; they are not themselves evidence about the live system.
+
+For semantic risk, judge the consequence of acting on a materially wrong interpretation of the **frozen case**. Do not import knowledge of local credentials, real deployment automation, private repository contents, or portfolio infrastructure unless the case itself contains that information.
 
 ## Output safety
 

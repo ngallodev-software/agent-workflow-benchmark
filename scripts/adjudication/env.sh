@@ -56,10 +56,12 @@ export QUALIFICATION="${QUALIFICATION:-$PRIVATE_ROOT/qualification.json}"
 if [[ -n "$COMP_REPO" ]]; then
   export ORACLE_VIEW="${ORACLE_VIEW:-$COMP_REPO/docs/studies/artifacts/routing-semantic-v1/oracle-authoring-view.json}"
   export ORACLE_PROTOCOL="${ORACLE_PROTOCOL:-$COMP_REPO/docs/studies/routing-semantic-v1-oracle-protocol.md}"
+  export ORACLE_REVIEW_GUIDE="${ORACLE_REVIEW_GUIDE:-$COMP_REPO/docs/studies/routing-semantic-v1-oracle-review-guide.md}"
   export CORPUS="${CORPUS:-$COMP_REPO/src/agent_workflow_comparative_eval/resources/studies/routing-semantic-v1.corpus.json}"
 else
   export ORACLE_VIEW="${ORACLE_VIEW:-}"
   export ORACLE_PROTOCOL="${ORACLE_PROTOCOL:-}"
+  export ORACLE_REVIEW_GUIDE="${ORACLE_REVIEW_GUIDE:-}"
   export CORPUS="${CORPUS:-}"
 fi
 
@@ -67,6 +69,7 @@ export ORACLE_RUN="${ORACLE_RUN:-$PRIVATE_ROOT/oracle-run}"
 export DISPUTE_VIEW="${DISPUTE_VIEW:-$ORACLE_RUN/oracle-disputes-for-c.json}"
 export RESOLUTIONS="${RESOLUTIONS:-$ORACLE_RUN/resolutions.json}"
 export RESOLUTION_REVIEW="${RESOLUTION_REVIEW:-$ORACLE_RUN/resolution-review.json}"
+export RESOLUTION_REVIEW_MD="${RESOLUTION_REVIEW_MD:-$ORACLE_RUN/resolution-review.md}"
 
 export CODEX_LB_BASE_URL="${CODEX_LB_BASE_URL:-http://127.0.0.1:2455/v1}"
 # codex-lb itself does not require this credential. Inspect's generic
