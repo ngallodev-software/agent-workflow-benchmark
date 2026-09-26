@@ -372,7 +372,10 @@ export DISPUTE_VIEW="$ORACLE_RUN/oracle-disputes-for-c.json"
 "$AW" benchmark decision-study-oracle-disputes   "$ORACLE_VIEW"   "$ORACLE_RUN/a/output/adjudication.json"   "$ORACLE_RUN/b/output/adjudication.json"   "$DISPUTE_VIEW"
 ~~~
 
-If `requires_c=false`, skip C.
+If the persisted dispute view has an empty `cases` array, skip C. If it
+contains one or more cases, C is required. The `requires_c` value printed by
+the dispute-export command is a command result and is not stored as a field in
+the dispute-view JSON.
 
 ## 12. Run C when required
 

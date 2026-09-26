@@ -5,9 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/lib.sh"
 
-"$SCRIPT_DIR/verify-qualification.sh"
+bash "$SCRIPT_DIR/verify-qualification.sh"
 aw_resolve_adjudication_model
-"$SCRIPT_DIR/verify-frozen-inputs.sh"
+bash "$SCRIPT_DIR/verify-frozen-inputs.sh"
 
 requires_c="$(aw_dispute_requires_c)"
 if [[ "$requires_c" != "true" ]]; then

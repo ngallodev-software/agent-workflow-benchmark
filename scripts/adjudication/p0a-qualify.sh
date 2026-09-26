@@ -179,7 +179,7 @@ fi
 
 echo
 echo "Verifying newly created qualification..."
-"$SCRIPT_DIR/verify-qualification.sh"
+bash "$SCRIPT_DIR/verify-qualification.sh"
 
 echo
 echo "P0A qualification complete."

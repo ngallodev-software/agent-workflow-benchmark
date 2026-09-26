@@ -150,8 +150,12 @@ aw_dispute_requires_c() {
   "$PYTHON" - "$DISPUTE_VIEW" <<'PY'
 import json
 import sys
+
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-print("true" if value.get("requires_c") is True else "false")
+cases = value.get("cases")
+if not isinstance(cases, list):
+    raise SystemExit("dispute view has no valid cases list")
+print("true" if len(cases) > 0 else "false")
 PY
 }
 
