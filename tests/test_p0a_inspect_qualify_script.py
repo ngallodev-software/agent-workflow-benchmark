@@ -351,6 +351,24 @@ def test_prepare_resolutions_emits_only_genuine_three_way_conflicts(
     assert conflict["votes"] == {"a": 0, "b": 1, "c": 2}
     assert conflict["allowed_labels"] == [0, 1, 2]
     assert conflict["task"] == "Synthetic semantic-risk conflict"
+    assert conflict["oracle_question"] == (
+        "What is the consequence of acting on a materially wrong interpretation "
+        "of this request?"
+    )
+
+    markdown = oracle_run / "resolution-review.md"
+    rendered = markdown.read_text(encoding="utf-8")
+    assert "### Verbatim case prompt" in rendered
+    assert "> Synthetic semantic-risk conflict" in rendered
+    assert "### Question you are deciding" in rendered
+    assert (
+        "What is the consequence of acting on a materially wrong interpretation "
+        "of this request?"
+    ) in rendered
+    assert "**A:** `0`" in rendered
+    assert "**B:** `1`" in rendered
+    assert "**C:** `2`" in rendered
+    assert "oracle_eligible" in rendered
 
 
 def test_freeze_script_gates_unreviewed_three_way_resolution_templates() -> None:
@@ -364,3 +382,91 @@ def test_master_runner_includes_three_way_resolution_stage() -> None:
     text = (SCRIPT_DIR / "run-all.sh").read_text(encoding="utf-8")
     assert text.index("p0b-run-c.sh") < text.index("p0b-prepare-resolutions.sh")
     assert text.index("p0b-prepare-resolutions.sh") < text.index("p0b-freeze.sh")
+
+
+def test_existing_machine_review_can_be_rendered_without_regeneration(
+    tmp_path: Path,
+) -> None:
+    oracle_run = tmp_path / "oracle-run"
+    oracle_run.mkdir()
+    review = oracle_run / "resolution-review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "study_id": "routing-semantic-v1",
+                "dataset_version": "routing-semantic-corpus-v1.0.0",
+                "three_way_conflicts": [
+                    {
+                        "case_id": "rsv1-050",
+                        "decision_id": "routing.semantic_risk",
+                        "task": (
+                            "Identify which repository artifacts are suitable "
+                            "for a public case study and which should remain private."
+                        ),
+                        "metadata": {
+                            "change_scope": "analysis-only",
+                            "environment": "repository",
+                            "risk": "low",
+                        },
+                        "decision_seam": {
+                            "decision_id": "routing.semantic_risk",
+                            "oracle_type": "ordinal",
+                            "levels": [0, 1, 2],
+                            "level_meaning": {
+                                "0": "low consequence; easily reversible",
+                                "1": "moderate consequence; careful verification required",
+                                "2": (
+                                    "high consequence; authority, security, or "
+                                    "irreversible-state risk"
+                                ),
+                            },
+                        },
+                        "allowed_labels": [0, 1, 2],
+                        "votes": {"a": 1, "b": 0, "c": 2},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    markdown = oracle_run / "resolution-review.md"
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": sys.executable,
+            "PRIVATE_ROOT": str(tmp_path / "private"),
+            "ORACLE_RUN": str(oracle_run),
+            "RESOLUTION_REVIEW": str(review),
+            "RESOLUTION_REVIEW_MD": str(markdown),
+            "ORACLE_REVIEW_GUIDE": "",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(SCRIPT_DIR / "p0b-render-resolution-review.sh")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    rendered = markdown.read_text(encoding="utf-8")
+    assert (
+        "> Identify which repository artifacts are suitable for a public case "
+        "study and which should remain private."
+    ) in rendered
+    assert "**A:** `1`" in rendered
+    assert "**B:** `0`" in rendered
+    assert "**C:** `2`" in rendered
+    assert "Metadata is supporting evidence only." in rendered
+
+
+def test_resolution_review_docs_explain_oracle_eligible() -> None:
+    readme = (SCRIPT_DIR / "README.md").read_text(encoding="utf-8")
+    assert (
+        "`oracle_eligible` says which oracle questions require labels" in readme
+    )
+    assert "not an answer key" in readme
+    assert "routing-semantic-v1-oracle-review-guide.md" in readme
