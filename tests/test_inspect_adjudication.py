@@ -272,6 +272,15 @@ def test_synthetic_qualification_view_never_uses_real_case_ids(tmp_path: Path):
     assert not any(item.startswith("rsv1-") for item in ids)
 
 
+def test_direct_wrapper_container_user_matches_host_uid_gid(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(inspect_runtime.os, "getuid", lambda: 1234)
+    monkeypatch.setattr(inspect_runtime.os, "getgid", lambda: 5678)
+
+    assert inspect_runtime._direct_wrapper_container_user() == "1234:5678"
+
+
 def test_direct_and_inspect_modules_share_prompt_and_frozen_identities():
     direct = json.loads(
         (
