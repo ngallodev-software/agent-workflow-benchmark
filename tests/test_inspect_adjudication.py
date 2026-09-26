@@ -81,6 +81,17 @@ def test_json_completion_accepts_plain_and_fenced_json():
     )
 
 
+def test_sample_retry_count_uses_evalsample_error_retries_contract():
+    class Sample:
+        error_retries = [object(), object()]
+
+    class CleanSample:
+        error_retries = None
+
+    assert inspect_runtime._sample_retry_count(Sample()) == 2
+    assert inspect_runtime._sample_retry_count(CleanSample()) == 0
+
+
 def test_wrap_pass_preserves_existing_adjudication_contract(tmp_path: Path):
     view_path = _authoring_view(tmp_path)
     output = _valid_output(view_path)
