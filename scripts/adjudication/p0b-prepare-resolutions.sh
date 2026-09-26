@@ -93,6 +93,19 @@ decision_seams = {
     for item in authoring.get("decision_seams", [])
 }
 
+oracle_questions = {
+    "routing.task_class": "What is the primary requested deliverable of this case?",
+    "routing.interaction_required": (
+        "Is a material user decision, authorization, or preference missing from "
+        "the supplied state and required before the requested action can be "
+        "completed responsibly?"
+    ),
+    "routing.semantic_risk": (
+        "What is the consequence of acting on a materially wrong interpretation "
+        "of this request?"
+    ),
+}
+
 conflicts = []
 for case in dispute.get("cases", []):
     case_id = str(case["case_id"])
@@ -123,8 +136,13 @@ for case in dispute.get("cases", []):
             {
                 "case_id": case_id,
                 "decision_id": decision_id,
+                "oracle_question": oracle_questions.get(
+                    decision_id,
+                    f"What is the correct frozen-oracle label for {decision_id}?",
+                ),
                 "task": source.get("task"),
                 "metadata": source.get("metadata"),
+                "oracle_eligible": source.get("oracle_eligible"),
                 "decision_seam": seam,
                 "allowed_labels": allowed,
                 "votes": {"a": a, "b": b, "c": c},
@@ -171,6 +189,8 @@ print(f"resolutions: {resolutions_path}")
 print(f"review: {review_path}")
 PY
 
+bash "$SCRIPT_DIR/p0b-render-resolution-review.sh"
+
 conflicts="$("$PYTHON" - "$RESOLUTIONS" <<'PY'
 import json
 import sys
@@ -184,8 +204,9 @@ if [[ "$conflicts" -eq 0 ]]; then
 else
   echo
   echo "$conflicts three-way conflict(s) require recorded adjudication."
-  echo "Review: $RESOLUTION_REVIEW"
-  echo "Edit:   $RESOLUTIONS"
+  echo "Human review: $RESOLUTION_REVIEW_MD"
+  echo "Machine review: $RESOLUTION_REVIEW"
+  echo "Edit: $RESOLUTIONS"
   echo
   echo "For each record, choose either:"
   echo "  resolved   -> add a valid label, replace the TODO rationale, and record participants"
