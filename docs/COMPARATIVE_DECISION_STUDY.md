@@ -127,6 +127,34 @@ The current preregistered study is routing-semantic-v1. It freezes:
 - independent blinded oracle requirements;
 - batch/request accounting that counts one provider call once.
 
+## Post-oracle phase scripts
+
+After P0A/P0B complete and the independent oracle is frozen, use the repository-owned phase scripts under `scripts/decision-study/`.
+
+P1 development instrumentation smoke:
+
+~~~bash
+bash scripts/decision-study/p1-all.sh
+~~~
+
+This deterministically derives a small development-only subset from the exact frozen corpus, records the source corpus hash and selected case IDs, runs live comparative inference with no oracle argument, and verifies the persistence/accounting/privacy invariants before P2.
+
+P2 full preregistered run and post-inference oracle join:
+
+~~~bash
+bash scripts/decision-study/p2-all.sh
+~~~
+
+`p2-run-full.sh` refuses to start without a passing P1 verification artifact and runs all 120 cases without passing the oracle to inference. `p2-report.sh` joins the frozen oracle only after inference has completed.
+
+P3 sanitized publication preparation:
+
+~~~bash
+bash scripts/decision-study/p3-publish-prepare.sh
+~~~
+
+See `scripts/decision-study/README.md` for path overrides, repeat-run handling, and exact verification rules.
+
 ## Public artifact
 
 decision-study-publish-prepare creates a public-safe evidence tree with the corpus, frozen oracle, machine-readable study report, Markdown report, neutral observations, provider-request summaries, exclusions, outcomes, hashes, and a publication manifest.
