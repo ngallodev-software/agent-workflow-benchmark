@@ -15,7 +15,7 @@ These scripts make the `routing-semantic-v1` P0A/P0B oracle procedure reproducib
 - `p0b-run-c.sh` — run and validate C only when `requires_c=true`.
 - `p0b-freeze.sh` — freeze the oracle, optionally using `RESOLUTIONS=/path/to/file.json`.
 - `p0b-validate-oracle.sh` — validate the final oracle against the frozen corpus.
-- `run-all.sh` — end-to-end driver. It creates P0A only if no qualification exists; otherwise it verifies and preserves the existing qualification.
+- `run-all.sh` — end-to-end driver. It creates P0A when missing, retries an incomplete/invalid P0A after archiving it, and verifies/preserves an existing passing qualification.
 
 ## Model selection
 
