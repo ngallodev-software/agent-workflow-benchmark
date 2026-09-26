@@ -12,10 +12,14 @@ if [[ ! -f "$QUALIFICATION" ]]; then
   echo
   echo "No P0A qualification exists; running P0A first."
   "$SCRIPT_DIR/p0a-qualify.sh"
+elif aw_qualification_model >/dev/null 2>&1; then
+  echo
+  echo "Existing passing P0A qualification found; verifying without regenerating it."
+  "$SCRIPT_DIR/verify-qualification.sh"
 else
   echo
-  echo "Existing P0A qualification found; verifying without regenerating it."
-  "$SCRIPT_DIR/verify-qualification.sh"
+  echo "Existing P0A qualification is incomplete or invalid; archiving and rerunning P0A."
+  "$SCRIPT_DIR/p0a-qualify.sh"
 fi
 
 echo
