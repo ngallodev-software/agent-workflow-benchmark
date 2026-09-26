@@ -412,6 +412,7 @@ def _inspect_sandbox_spec() -> Any:
         cpus=1.0,
         read_only=True,
         cap_drop=["ALL"],
+        cap_add=["CHOWN", "FOWNER"],
         security_opt=["no-new-privileges:true"],
         working_dir="/workspace",
         tmpfs=[
