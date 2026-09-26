@@ -131,6 +131,26 @@ Or run the full procedure from the current qualification state:
 bash scripts/adjudication/run-all.sh
 ~~~
 
+## Script execution and C detection
+
+All `.sh` files in this directory are committed with executable mode. A normal
+Git clone/pull should therefore allow either form:
+
+~~~bash
+./scripts/adjudication/p0b-run-c.sh
+bash scripts/adjudication/p0b-run-c.sh
+~~~
+
+The scripts also invoke one another through `bash`, so the second form remains
+usable on filesystems or archive transfers that do not preserve Unix execute
+bits.
+
+After `p0b-compute-disputes.sh`, C is required whenever the generated dispute
+view contains one or more entries in its `cases` array. The `requires_c`
+value printed by the dispute-export command is a command result; it is not a
+field in the persisted dispute-view JSON. The staged scripts therefore inspect
+the persisted `cases` array directly.
+
 ## Output safety
 
 The scripts refuse to overwrite an existing non-empty `ORACLE_RUN`. To repeat P0B, choose a new private output root, for example:
