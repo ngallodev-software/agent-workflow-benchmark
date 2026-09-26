@@ -306,7 +306,8 @@ The command refuses to execute if:
 - the qualification is absent;
 - `qualified` is false;
 - qualification module identity differs;
-- qualification runtime-lock SHA differs.
+- qualification runtime-lock SHA differs;
+- requested A/B/C model differs from the model recorded by P0A IA-2.
 
 A and B are separate Inspect samples and therefore receive separate sandbox instances.
 
