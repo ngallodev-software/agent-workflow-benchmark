@@ -35,6 +35,11 @@ echo
 bash "$SCRIPT_DIR/p0b-run-c.sh"
 
 echo
+if [[ "$(aw_dispute_requires_c)" == "true" && ! -f "$RESOLUTIONS" ]]; then
+  bash "$SCRIPT_DIR/p0b-prepare-resolutions.sh"
+fi
+
+echo
 bash "$SCRIPT_DIR/p0b-freeze.sh"
 
 echo

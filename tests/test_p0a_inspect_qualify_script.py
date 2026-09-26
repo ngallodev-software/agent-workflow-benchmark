@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -202,6 +205,7 @@ def test_internal_script_chaining_does_not_require_execute_bits() -> None:
             "p0b-validate-ab.sh",
             "p0b-compute-disputes.sh",
             "p0b-run-c.sh",
+            "p0b-prepare-resolutions.sh",
             "p0b-freeze.sh",
             "p0b-validate-oracle.sh",
         ):
@@ -215,3 +219,148 @@ def test_adjudication_shell_scripts_are_committed_executable() -> None:
         assert mode & stat.S_IXUSR, f"{script} is not executable by owner"
         assert mode & stat.S_IXGRP, f"{script} is not executable by group"
         assert mode & stat.S_IXOTH, f"{script} is not executable by others"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_prepare_resolutions_emits_only_genuine_three_way_conflicts(
+    tmp_path: Path,
+) -> None:
+    oracle_run = tmp_path / "oracle-run"
+    (oracle_run / "a" / "output").mkdir(parents=True)
+    (oracle_run / "b" / "output").mkdir(parents=True)
+    (oracle_run / "c" / "output").mkdir(parents=True)
+
+    authoring = tmp_path / "authoring.json"
+    authoring.write_text(
+        json.dumps(
+            {
+                "study_id": "routing-semantic-v1",
+                "dataset_version": "routing-semantic-corpus-v1.0.0",
+                "decision_seams": [
+                    {
+                        "decision_id": "routing.semantic_risk",
+                        "oracle_type": "ordinal",
+                        "levels": [0, 1, 2],
+                    }
+                ],
+                "cases": [
+                    {
+                        "case_id": "rsv1-050",
+                        "task": "Synthetic semantic-risk conflict",
+                        "metadata": {"fixture": True},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dispute = oracle_run / "oracle-disputes-for-c.json"
+    dispute.write_text(
+        json.dumps(
+            {
+                "source_authoring_view_sha256": _sha256(authoring),
+                "protocol_version": "routing-semantic-oracle-v1.0.0",
+                "cases": [
+                    {
+                        "case_id": "rsv1-050",
+                        "disputed_decision_ids": ["routing.semantic_risk"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def write_pass(path: Path, input_sha: str, label: int) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "input_view_sha256": input_sha,
+                    "records": [
+                        {
+                            "case_id": "rsv1-050",
+                            "labels": {"routing.semantic_risk": label},
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    write_pass(
+        oracle_run / "a" / "output" / "adjudication.json",
+        _sha256(authoring),
+        0,
+    )
+    write_pass(
+        oracle_run / "b" / "output" / "adjudication.json",
+        _sha256(authoring),
+        1,
+    )
+    write_pass(
+        oracle_run / "c" / "output" / "adjudication.json",
+        _sha256(dispute),
+        2,
+    )
+
+    resolutions = oracle_run / "resolutions.json"
+    review = oracle_run / "resolution-review.json"
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": sys.executable,
+            "PRIVATE_ROOT": str(tmp_path / "private"),
+            "ORACLE_RUN": str(oracle_run),
+            "ORACLE_VIEW": str(authoring),
+            "DISPUTE_VIEW": str(dispute),
+            "RESOLUTIONS": str(resolutions),
+            "RESOLUTION_REVIEW": str(review),
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(SCRIPT_DIR / "p0b-prepare-resolutions.sh")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    resolution_value = json.loads(resolutions.read_text(encoding="utf-8"))
+    assert resolution_value["records"] == [
+        {
+            "case_id": "rsv1-050",
+            "decision_id": "routing.semantic_risk",
+            "status": "unresolved",
+            "rationale": (
+                "TODO: record the adjudication rationale for this "
+                "three-way conflict."
+            ),
+            "participants": [],
+        }
+    ]
+
+    review_value = json.loads(review.read_text(encoding="utf-8"))
+    conflict = review_value["three_way_conflicts"][0]
+    assert conflict["votes"] == {"a": 0, "b": 1, "c": 2}
+    assert conflict["allowed_labels"] == [0, 1, 2]
+    assert conflict["task"] == "Synthetic semantic-risk conflict"
+
+
+def test_freeze_script_gates_unreviewed_three_way_resolution_templates() -> None:
+    text = (SCRIPT_DIR / "p0b-freeze.sh").read_text(encoding="utf-8")
+    assert "p0b-prepare-resolutions.sh" in text
+    assert "TODO rationale text" in text
+    assert "ALLOW_UNRESOLVED_RESOLUTIONS" in text
+
+
+def test_master_runner_includes_three_way_resolution_stage() -> None:
+    text = (SCRIPT_DIR / "run-all.sh").read_text(encoding="utf-8")
+    assert text.index("p0b-run-c.sh") < text.index("p0b-prepare-resolutions.sh")
+    assert text.index("p0b-prepare-resolutions.sh") < text.index("p0b-freeze.sh")

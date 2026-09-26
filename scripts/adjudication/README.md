@@ -12,8 +12,9 @@ These scripts make the `routing-semantic-v1` P0A/P0B oracle procedure reproducib
 - `p0b-run-ab.sh` — verify P0A, set up paths/model, verify frozen inputs, then start real A/B.
 - `p0b-validate-ab.sh` — validate both authoritative A/B passes.
 - `p0b-compute-disputes.sh` — produce the blinded dispute view for C.
-- `p0b-run-c.sh` — run and validate C only when `requires_c=true`.
-- `p0b-freeze.sh` — freeze the oracle, optionally using `RESOLUTIONS=/path/to/file.json`.
+- `p0b-run-c.sh` — run and validate C only when the persisted dispute view contains cases.
+- `p0b-prepare-resolutions.sh` — identify genuine three-way A/B/C conflicts and create private resolution/review artifacts.
+- `p0b-freeze.sh` — prepare/check three-way resolutions when needed, then freeze the oracle.
 - `p0b-validate-oracle.sh` — validate the final oracle against the frozen corpus.
 - `run-all.sh` — end-to-end driver. It creates P0A when missing, retries an incomplete/invalid P0A after archiving it, and verifies/preserves an existing passing qualification.
 
@@ -150,6 +151,58 @@ view contains one or more entries in its `cases` array. The `requires_c`
 value printed by the dispute-export command is a command result; it is not a
 field in the persisted dispute-view JSON. The staged scripts therefore inspect
 the persisted `cases` array directly.
+
+## Three-way conflicts after C
+
+If A, B, and C all choose different labels for the same decision seam, there is
+no two-of-three majority. The oracle contract requires a recorded adjudication
+resolution rather than silently choosing one model's answer.
+
+Prepare the review artifacts with:
+
+~~~bash
+bash scripts/adjudication/p0b-prepare-resolutions.sh
+~~~
+
+This writes private artifacts under `$ORACLE_RUN`:
+
+~~~text
+resolutions.json
+resolution-review.json
+~~~
+
+`resolution-review.json` contains each genuine three-way conflict, including
+the source task, decision-seam contract, allowed labels, and the A/B/C votes.
+
+`resolutions.json` is the schema-valid artifact consumed by oracle freeze. Each
+generated record starts as:
+
+~~~json
+{
+  "case_id": "...",
+  "decision_id": "...",
+  "status": "unresolved",
+  "rationale": "TODO: record the adjudication rationale for this three-way conflict.",
+  "participants": []
+}
+~~~
+
+After human review, either:
+
+- change `status` to `resolved`, add the chosen valid `label`, replace the
+  TODO with the adjudication rationale, and record participants; or
+- intentionally leave `status: unresolved`, replace the TODO with the reason
+  the oracle conflict remains unresolved, and record participants.
+
+By default `p0b-freeze.sh` refuses to freeze while TODO text remains and also
+refuses explicit unresolved conflicts. To intentionally preserve unresolved
+oracle conflicts, set:
+
+~~~bash
+ALLOW_UNRESOLVED_RESOLUTIONS=1 bash scripts/adjudication/p0b-freeze.sh
+~~~
+
+Do not use that override merely to bypass adjudication.
 
 ## Output safety
 
