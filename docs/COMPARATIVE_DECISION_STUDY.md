@@ -147,19 +147,21 @@ bash scripts/decision-study/p2-all.sh
 
 `p2-run-full.sh` refuses to start without a passing P1 verification artifact and runs all 120 cases without passing the oracle to inference. `p2-report.sh` joins the frozen oracle only after inference has completed.
 
-P3 sanitized publication preparation:
+P3 sanitized publication preparation and verification:
 
 ~~~bash
-bash scripts/decision-study/p3-publish-prepare.sh
+bash scripts/decision-study/p3-all.sh
 ~~~
 
 See `scripts/decision-study/README.md` for path overrides, repeat-run handling, and exact verification rules.
 
 ## Public artifact
 
-decision-study-publish-prepare creates a public-safe evidence tree with the corpus, frozen oracle, machine-readable study report, Markdown report, neutral observations, provider-request summaries, exclusions, outcomes, hashes, and a publication manifest.
+decision-study-publish-prepare creates a public-safe evidence tree with the public-safe corpus, a redacted projection of the frozen oracle, machine-readable study report, Markdown report, neutral observations, provider-request summaries, exclusions, outcomes, hashes, and a publication manifest.
 
-Raw TypeSafe HTTP request/response audit logs are not copied.
+The public oracle projection retains final labels and per-seam resolution status/method, but removes adjudicator identities, individual A/B/C votes, pass hashes, recorded-discussion rationale, and participant identities. Private Inspect reasoning-summary artifacts and raw TypeSafe HTTP request/response audit logs are not copied.
+
+The repository-owned P3 verifier then independently checks the exact file allowlist, SHA manifest integrity, 120-case/360-observation full-study identity, zero exclusions, public oracle projection, and evidence privacy flags before the bundle is considered locally verified.
 
 A development run below the sample threshold is rendered as study_eligible: false; it remains useful for instrumentation validation but is not a generalized effectiveness result.
 
@@ -173,7 +175,7 @@ Safe to render now:
 - The benchmark and normal Agent-Workflow runtime reuse the same receipt-to-evidence conversion.
 - Publication eligibility is machine-readable and does not depend on whether Jev wins.
 
-Do not render claims that Jev improves routing correctness, quality, latency, or cost until the full independently labeled study is complete.
+The full independently labeled P2 study is complete. Public outcome claims should be derived only from a verified P3 sanitized publication bundle, not copied directly from private run/oracle artifacts.
 
 
 ## Frozen corpus and oracle handoff
