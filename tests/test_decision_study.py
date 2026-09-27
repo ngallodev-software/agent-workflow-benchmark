@@ -247,3 +247,58 @@ def test_explicit_unresolved_oracle_conflict_validates_and_reports_distinct_reas
     report = json.loads((run / "decision-study-report.json").read_text(encoding="utf-8"))
     assert report["exclusions"]["reason_counts"]["oracle_conflict_unresolved"] == 1
     assert report["seams"]["routing.semantic-risk/v1"]["counts"]["oracle_eligible"] == 0
+
+
+def test_report_surfaces_probability_normalization_without_rerunning_inference(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    corpus = tmp_path / "corpus.json"
+    oracle = tmp_path / "oracle.json"
+    corpus.write_text(json.dumps(_corpus()), encoding="utf-8")
+    oracle.write_text(json.dumps(_oracle()), encoding="utf-8")
+
+    def subnormalized_advice(*args, **kwargs):
+        value = _advice(*args, **kwargs)
+        value["decision_receipts"]["routing.task_class"]["semantic"]["distribution"] = {
+            "implementation": 0.03,
+            "diagnosis": 0.02,
+            "review": 0.89,
+            "documentation": 0.03,
+            "other": 0.02,
+        }
+        return value
+
+    monkeypatch.setattr(
+        decision_study,
+        "require_decision_runtime_ready",
+        lambda settings: {"ready": True},
+    )
+    monkeypatch.setattr(
+        decision_study,
+        "advise_routing_with_policy",
+        subnormalized_advice,
+    )
+    settings = replace(
+        defaults(tmp_path / "missing.toml"),
+        decision_mode="comparative",
+    )
+
+    run = tmp_path / "run"
+    decision_study.run_decision_study(settings, corpus, run)
+    decision_study.report_decision_study(run, oracle)
+
+    report = json.loads(
+        (run / "decision-study-report.json").read_text(encoding="utf-8")
+    )
+    normalization = report["seams"]["routing.task-class/v1"]["calibration"][
+        "probability_normalization"
+    ]
+    assert normalization["applied"] is True
+    assert normalization["normalized_vectors"] == 1
+    assert normalization["total_vectors"] == 1
+    assert normalization["max_absolute_mass_deviation"] == pytest.approx(0.01)
+
+    markdown = (run / "decision-study-report.md").read_text(encoding="utf-8")
+    assert "normalized 1/1" in markdown
+    assert "persisted raw evidence is unchanged" in markdown

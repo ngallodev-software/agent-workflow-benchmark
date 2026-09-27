@@ -8,6 +8,8 @@ import stat
 import subprocess
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = ROOT / "scripts" / "decision-study"
@@ -173,7 +175,7 @@ def test_p1_verifier_checks_persisted_evidence_contract(tmp_path: Path) -> None:
             {
                 "implementation": 0.1,
                 "diagnosis": 0.1,
-                "review": 0.6,
+                "review": 0.59,
                 "documentation": 0.1,
                 "other": 0.1,
             },
@@ -239,6 +241,15 @@ def test_p1_verifier_checks_persisted_evidence_contract(tmp_path: Path) -> None:
     assert verification["checks"]["oracle_absent_during_inference"] is True
     assert verification["checks"]["one_request_per_observed_case"] is True
     assert verification["checks"]["semantic_probability_evidence_persisted"] is True
+    assert (
+        verification["checks"]["multiclass_probability_masses_normalizable"]
+        is True
+    )
+    assert verification["probability_mass"]["multiclass_vectors"] == 2
+    assert verification["probability_mass"]["normalization_needed_vectors"] == 1
+    assert verification["probability_mass"][
+        "max_absolute_mass_deviation"
+    ] == pytest.approx(0.01)
 
 
 def test_p1_all_orders_prepare_run_verify() -> None:
