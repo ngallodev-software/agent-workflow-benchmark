@@ -497,7 +497,28 @@ def _render_report(report: Mapping[str, Any], *, oracle_version: str) -> str:
         else:
             candidate_text = control_text = "n/a"
         calibration = seam.get("calibration", {})
-        calibration_text = "eligible" if calibration.get("eligible") else "unavailable"
+        if calibration.get("eligible"):
+            normalization = calibration.get("probability_normalization", {})
+            if (
+                isinstance(normalization, Mapping)
+                and normalization.get("applied") is True
+            ):
+                normalized = int(normalization.get("normalized_vectors", 0))
+                total = int(normalization.get("total_vectors", 0))
+                deviation = normalization.get("max_absolute_mass_deviation")
+                deviation_text = (
+                    f", max mass Δ={float(deviation):.6g}"
+                    if isinstance(deviation, (int, float))
+                    and not isinstance(deviation, bool)
+                    else ""
+                )
+                calibration_text = (
+                    f"eligible; normalized {normalized}/{total}{deviation_text}"
+                )
+            else:
+                calibration_text = "eligible"
+        else:
+            calibration_text = "unavailable"
         lines.append(
             f"| {feature_id} | {n} | {candidate_text} | {control_text} | {calibration_text} |"
         )
@@ -508,6 +529,8 @@ def _render_report(report: Mapping[str, Any], *, oracle_version: str) -> str:
             "",
             "Agreement is not correctness; correctness in this report comes only from the separately frozen oracle. "
             "Provider latency/token evidence is counted once per batched request rather than once per decision seam.",
+            "",
+            "For Choice/Score calibration, finite nonnegative provider probability masses are normalized to unit sum only in the derived calibration calculation when needed; persisted raw evidence is unchanged and the per-seam table reports normalization use.",
             "",
             "A non-eligible development sample is useful for instrumentation validation but is not a generalized effectiveness claim.",
             "",
