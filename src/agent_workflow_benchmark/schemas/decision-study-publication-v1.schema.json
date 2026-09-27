@@ -12,7 +12,32 @@
     "prepared_at": {"type": "string", "minLength": 1},
     "study_eligible": {"type": "boolean"},
     "files": {"type": "object"},
-    "limitations": {"type": "array", "items": {"type": "string"}}
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "oracle_projection": {"const": "public-labels-resolution-method/v1"},
+        "raw_provider_http_included": {"const": false},
+        "reasoning_summaries_included": {"const": false},
+        "private_adjudicator_votes_included": {"const": false},
+        "human_resolution_rationale_included": {"const": false},
+        "human_participant_identity_included": {"const": false},
+        "checks": {
+          "type": "object",
+          "additionalProperties": {"type": "boolean"}
+        }
+      },
+      "required": [
+        "oracle_projection",
+        "raw_provider_http_included",
+        "reasoning_summaries_included",
+        "private_adjudicator_votes_included",
+        "human_resolution_rationale_included",
+        "human_participant_identity_included",
+        "checks"
+      ]
+    }
   },
-  "required": ["schema", "study_id", "study_version", "dataset_version", "oracle_version", "prepared_at", "study_eligible", "files", "limitations"]
+  "required": ["schema", "study_id", "study_version", "dataset_version", "oracle_version", "prepared_at", "study_eligible", "files", "limitations", "privacy"]
 }
