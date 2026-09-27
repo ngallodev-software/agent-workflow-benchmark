@@ -17,6 +17,7 @@ ds_require_file "$P1_RUN/exclusions.jsonl"
 "$PYTHON" -   "$SOURCE_CORPUS"   "$P1_SELECTION"   "$P1_CORPUS"   "$P1_RUN"   "$P1_VERIFICATION"   "$DS_EXPECTED_CORPUS_SHA256"   "${TYPESAFE_API_KEY:-}" <<'PY'
 import hashlib
 import json
+import math
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -96,6 +97,7 @@ for req in requests:
 
 by_case=defaultdict(list)
 successful_semantic_types=set()
+multiclass_masses=[]
 for obs in observations:
     case_id=obs["input"]["case_id"]
     by_case[case_id].append(obs)
@@ -120,6 +122,16 @@ for obs in observations:
         elif semantic_type in {"choice","score"}:
             probabilities=result.get("probabilities")
             assert isinstance(probabilities, dict) and probabilities
+            values=[
+                float(value)
+                for value in probabilities.values()
+                if isinstance(value, (int,float)) and not isinstance(value, bool)
+            ]
+            assert len(values) == len(probabilities)
+            assert all(math.isfinite(value) and 0.0 <= value <= 1.0 for value in values)
+            mass=math.fsum(values)
+            assert math.isfinite(mass) and mass > 0.0
+            multiclass_masses.append(mass)
 
 expected_features={
     "routing.task-class/v1",
@@ -136,6 +148,9 @@ assert set(by_case).isdisjoint(excluded_ids)
 assert set(by_case) | excluded_ids == set(selected_ids)
 assert len(requests) == len(by_case)
 assert successful_semantic_types == {"choice","noul","score"}, successful_semantic_types
+assert multiclass_masses
+normalized_multiclass_vectors=sum(abs(mass-1.0) > 1e-12 for mass in multiclass_masses)
+max_multiclass_mass_deviation=max(abs(mass-1.0) for mass in multiclass_masses)
 
 encoded_observations=(run/"observations.jsonl").read_text(encoding="utf-8")
 for case in smoke["cases"]:
@@ -168,12 +183,19 @@ verification={
         "three_observations_per_observed_case": True,
         "unique_request_ids": True,
         "semantic_probability_evidence_persisted": True,
+        "multiclass_probability_masses_normalizable": True,
         "failures_explicit": True,
         "oracle_absent_during_inference": True,
         "privacy_boundary_preserved": True,
         "request_level_usage_not_tripled": True,
         "question_set_routing_v2": True,
         "projector_routing_state_v2": True,
+    },
+    "probability_mass": {
+        "multiclass_vectors": len(multiclass_masses),
+        "normalization_needed_vectors": normalized_multiclass_vectors,
+        "max_absolute_mass_deviation": max_multiclass_mass_deviation,
+        "rule": "finite nonnegative positive masses are normalizable to unit sum for calibration; raw persisted evidence remains unchanged",
     },
 }
 tmp=verification_path.with_name(verification_path.name+".tmp")
