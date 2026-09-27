@@ -60,6 +60,7 @@ export P2_RUN="${P2_RUN:-$P2_ROOT/run}"
 
 export P3_ROOT="${P3_ROOT:-$DECISION_STUDY_ROOT/p3-publication}"
 export P3_PUBLIC="${P3_PUBLIC:-$P3_ROOT/public}"
+export P3_VERIFICATION="${P3_VERIFICATION:-$P3_ROOT/verification.json}"
 
 mkdir -p "$DECISION_STUDY_ROOT"
 chmod 700 "$DECISION_STUDY_ROOT"
