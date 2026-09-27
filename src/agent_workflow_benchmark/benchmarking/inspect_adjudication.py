@@ -23,10 +23,13 @@ from .adjudication_module import validate_abc_adjudication_module
 from .schema_contracts import validate_instance
 from .oracle_adjudication import (
     ADJUDICATION_PASS_SCHEMA,
+    ADJUDICATION_PASS_SCHEMA_V2,
+    _adjudication_pass_schema,
     _decision_specs,
     _load_view,
     _study_spec,
     _validate_label,
+    _validate_justification,
     export_oracle_dispute_view,
     freeze_oracle_bundle,
     validate_adjudication_pass,
@@ -356,6 +359,7 @@ def _wrap_pass(
     view, expected, view_sha256 = _load_view(Path(view_path), study=study)
     spec = _study_spec(study)
     decisions = _decision_specs(spec)
+    pass_schema = _adjudication_pass_schema(spec)
     records = output.get("records")
     if not isinstance(records, list):
         raise WorkflowError("Inspect adjudicator output must contain a records array")
@@ -377,7 +381,31 @@ def _wrap_pass(
             )
         for decision_id, label in labels.items():
             _validate_label(str(decision_id), label, decisions=decisions)
-        by_case[case_id] = {"case_id": case_id, "labels": dict(labels)}
+        wrapped = {"case_id": case_id, "labels": dict(labels)}
+        if pass_schema == ADJUDICATION_PASS_SCHEMA_V2:
+            justifications = raw.get("justifications")
+            if not isinstance(justifications, Mapping):
+                raise WorkflowError(
+                    f"Inspect adjudication justifications for {case_id} must be an object"
+                )
+            if set(justifications) != wanted:
+                raise WorkflowError(
+                    f"Inspect adjudication justifications for {case_id} do not match required seams"
+                )
+            normalized_justifications: dict[str, dict[str, Any]] = {}
+            for decision_id, justification in justifications.items():
+                _validate_justification(
+                    str(decision_id), justification, case_id=case_id
+                )
+                normalized_justifications[str(decision_id)] = {
+                    "decisive_case_evidence": list(
+                        justification["decisive_case_evidence"]
+                    ),
+                    "rubric_rule": str(justification["rubric_rule"]),
+                    "ambiguity": str(justification["ambiguity"]),
+                }
+            wrapped["justifications"] = normalized_justifications
+        by_case[case_id] = wrapped
 
     if set(by_case) != set(expected):
         missing = sorted(set(expected) - set(by_case))
@@ -387,7 +415,7 @@ def _wrap_pass(
         )
 
     return {
-        "schema": ADJUDICATION_PASS_SCHEMA,
+        "schema": pass_schema,
         "study_id": view["study_id"],
         "dataset_version": view["dataset_version"],
         "protocol_version": spec["oracle_policy"]["protocol_version"],
@@ -398,6 +426,11 @@ def _wrap_pass(
             "independent": True,
             "treatment_outputs_seen": False,
             "other_adjudicator_labels_seen": False,
+            **(
+                {"other_adjudicator_justifications_seen": False}
+                if pass_schema == ADJUDICATION_PASS_SCHEMA_V2
+                else {}
+            ),
         },
         "records": [by_case[case_id] for case_id in expected],
     }
