@@ -273,3 +273,23 @@ def test_p2_requires_p1_and_keeps_oracle_out_of_inference_command() -> None:
     )
     assert "ORACLE" not in command_line
     assert 'decision-study-report "$P2_RUN" "$FROZEN_ORACLE"' in report
+
+
+def test_p3_all_orders_prepare_then_verify() -> None:
+    text = (SCRIPT_DIR / "p3-all.sh").read_text(encoding="utf-8")
+    positions = [
+        text.index("p3-publish-prepare.sh"),
+        text.index("p3-verify-public.sh"),
+    ]
+    assert positions == sorted(positions)
+
+
+def test_p3_verifier_enforces_full_study_and_privacy_boundary() -> None:
+    text = (SCRIPT_DIR / "p3-verify-public.sh").read_text(encoding="utf-8")
+    assert 'len(corpus["cases"]) == 120' in text
+    assert "len(requests) == 120" in text
+    assert "len(observations) == 360" in text
+    assert "len(outcomes) == 360" in text
+    assert "len(exclusions) == 0" in text
+    assert "no_private_adjudicator_votes" in text
+    assert "no_reasoning_summaries" in text
