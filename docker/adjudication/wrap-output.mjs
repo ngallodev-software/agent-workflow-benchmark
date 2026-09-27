@@ -23,6 +23,35 @@ function sameSet(left, right) {
   return true;
 }
 
+function validateJustification(caseId, decisionId, value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(`justification must be an object for ${caseId}:${decisionId}`);
+  }
+  const evidence = value.decisive_case_evidence;
+  if (
+    !Array.isArray(evidence) ||
+    evidence.length < 1 ||
+    evidence.length > 3 ||
+    evidence.some((item) => typeof item !== "string" || !item.trim() || item.length > 320)
+  ) {
+    fail(
+      `justification decisive_case_evidence must contain 1-3 non-empty <=320-char strings for ${caseId}:${decisionId}`
+    );
+  }
+  if (
+    typeof value.rubric_rule !== "string" ||
+    !value.rubric_rule.trim() ||
+    value.rubric_rule.length > 320
+  ) {
+    fail(`justification rubric_rule must be a non-empty <=320-char string for ${caseId}:${decisionId}`);
+  }
+  const ambiguities = new Set(["none", "material", "insufficient_evidence"]);
+  if (!ambiguities.has(value.ambiguity)) {
+    fail(`invalid justification ambiguity for ${caseId}:${decisionId}`);
+  }
+}
+
+
 function validateLabel(decisionId, value) {
   if (decisionId === "routing.task_class") {
     const allowed = new Set([
@@ -54,6 +83,17 @@ function validateLabel(decisionId, value) {
 
 const output = readJson(MODEL_OUTPUT);
 const metadata = readJson(METADATA);
+const passSchema =
+  metadata.adjudication_pass_schema ||
+  "agent-workflow-benchmark/decision-study-adjudication-pass/v1";
+const passV2 =
+  passSchema === "agent-workflow-benchmark/decision-study-adjudication-pass/v2";
+if (
+  passSchema !== "agent-workflow-benchmark/decision-study-adjudication-pass/v1" &&
+  !passV2
+) {
+  fail(`unsupported adjudication pass schema: ${JSON.stringify(passSchema)}`);
+}
 
 if (!output || typeof output !== "object" || Array.isArray(output)) {
   fail("top-level result must be an object");
@@ -97,16 +137,45 @@ for (const expected of metadata.expected_records) {
     );
   }
   const labels = {};
+  const justifications = {};
+  if (passV2) {
+    if (
+      !record.justifications ||
+      typeof record.justifications !== "object" ||
+      Array.isArray(record.justifications)
+    ) {
+      fail(`justifications must be an object for ${expected.case_id}`);
+    }
+    const actualJustificationIds = new Set(Object.keys(record.justifications));
+    if (!sameSet(actualJustificationIds, expectedDecisionIds)) {
+      fail(
+        `justification seam set mismatch for ${expected.case_id}; expected ` +
+        `${JSON.stringify(expected.decision_ids)}, got ` +
+        `${JSON.stringify(Object.keys(record.justifications))}`
+      );
+    }
+  }
   for (const decisionId of expected.decision_ids) {
     const value = record.labels[decisionId];
     validateLabel(decisionId, value);
     labels[decisionId] = value;
+    if (passV2) {
+      const justification = record.justifications[decisionId];
+      validateJustification(expected.case_id, decisionId, justification);
+      justifications[decisionId] = {
+        decisive_case_evidence: [...justification.decisive_case_evidence],
+        rubric_rule: justification.rubric_rule,
+        ambiguity: justification.ambiguity,
+      };
+    }
   }
-  finalRecords.push({ case_id: expected.case_id, labels });
+  const finalRecord = { case_id: expected.case_id, labels };
+  if (passV2) finalRecord.justifications = justifications;
+  finalRecords.push(finalRecord);
 }
 
 const adjudication = {
-  schema: "agent-workflow-benchmark/decision-study-adjudication-pass/v1",
+  schema: passSchema,
   study_id: metadata.study_id,
   dataset_version: metadata.dataset_version,
   protocol_version: metadata.protocol_version,
@@ -117,6 +186,7 @@ const adjudication = {
     independent: true,
     treatment_outputs_seen: false,
     other_adjudicator_labels_seen: false,
+    ...(passV2 ? { other_adjudicator_justifications_seen: false } : {}),
   },
   records: finalRecords,
 };
