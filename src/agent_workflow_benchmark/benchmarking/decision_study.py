@@ -671,6 +671,215 @@ def report_decision_study(
     }
 
 
+def _public_oracle_projection(oracle: Mapping[str, Any]) -> dict[str, Any]:
+    records: list[dict[str, Any]] = []
+    for raw in oracle.get("records", []):
+        if not isinstance(raw, Mapping):
+            raise WorkflowError("oracle record must be an object")
+        provenance = raw.get("provenance", {})
+        public_provenance: dict[str, Any] = {}
+        if isinstance(provenance, Mapping):
+            for key in ("protocol_version", "authoring_view_sha256", "frozen_at"):
+                if key in provenance:
+                    public_provenance[key] = provenance[key]
+        public_provenance["public_projection"] = (
+            "labels plus resolution status/method only; adjudicator identities, "
+            "individual votes, pass hashes, discussion rationale, and participants removed"
+        )
+
+        adjudication: dict[str, Any] = {}
+        raw_adjudication = raw.get("adjudication", {})
+        if isinstance(raw_adjudication, Mapping):
+            for decision_id, detail in raw_adjudication.items():
+                if not isinstance(detail, Mapping):
+                    continue
+                adjudication[str(decision_id)] = {
+                    key: detail[key]
+                    for key in ("status", "method")
+                    if key in detail
+                }
+
+        record = {
+            "schema": comparative.DECISION_STUDY_ORACLE_SCHEMA,
+            "case_id": raw["case_id"],
+            "dataset_version": raw["dataset_version"],
+            "labels": dict(raw.get("labels", {})),
+            "provenance": public_provenance,
+            "adjudication": adjudication,
+            "frozen": True,
+        }
+        comparative.validate_record(record, comparative.DECISION_STUDY_ORACLE_SCHEMA)
+        records.append(record)
+
+    projected = {
+        "schema": comparative.DECISION_STUDY_ORACLE_BUNDLE_SCHEMA,
+        "study_id": oracle["study_id"],
+        "dataset_version": oracle["dataset_version"],
+        "oracle_version": oracle["oracle_version"],
+        "frozen": True,
+        "records": records,
+    }
+    comparative.validate_decision_study_oracle_bundle(
+        projected,
+        expected_study_id=str(oracle["study_id"]),
+        expected_dataset_version=str(oracle["dataset_version"]),
+    )
+    return projected
+
+
+def _walk_json_keys(value: Any, *, path: str = "$") -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            current = f"{path}.{key}"
+            found.append((current, str(key)))
+            found.extend(_walk_json_keys(item, path=current))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(_walk_json_keys(item, path=f"{path}[{index}]"))
+    return found
+
+
+def _verify_publication_privacy(destination: Path) -> dict[str, Any]:
+    destination = Path(destination)
+    expected_files = {
+        "README.md",
+        "study-spec.json",
+        "datasets/corpus.json",
+        "datasets/oracle.json",
+        "metrics/decision-study-report.json",
+        "analysis/decision-study-report.md",
+        "evidence/run-manifest.json",
+        "evidence/observations.jsonl",
+        "evidence/provider-requests.jsonl",
+        "evidence/exclusions.jsonl",
+        "evidence/outcomes.jsonl",
+    }
+    actual_files = {
+        item.relative_to(destination).as_posix()
+        for item in destination.rglob("*")
+        if item.is_file()
+    }
+    if actual_files != expected_files:
+        raise WorkflowError(
+            "publication file set mismatch; "
+            f"missing={sorted(expected_files - actual_files)} "
+            f"extra={sorted(actual_files - expected_files)}"
+        )
+
+    for item in destination.rglob("*"):
+        if item.is_symlink():
+            raise WorkflowError(
+                f"refusing publication symlink: {item.relative_to(destination)}"
+            )
+
+    forbidden_keys = {
+        "reasoning_summary",
+        "reasoning_summaries",
+        "redacted_reasoning",
+        "participants",
+        "rationale",
+        "adjudicators",
+        "pass_sha256",
+        "pass_completed_at",
+        "c_dispute_view_sha256",
+        "resolutions_sha256",
+    }
+    host_markers = ("/home/", "/Users/", "/lump/", "C:\\Users\\")
+    secret = os.environ.get("TYPESAFE_API_KEY")
+    secret_bytes = secret.encode("utf-8") if secret else None
+
+    for item in destination.rglob("*"):
+        if not item.is_file():
+            continue
+        raw = item.read_bytes()
+        relative = item.relative_to(destination).as_posix()
+        if secret_bytes and secret_bytes in raw:
+            raise WorkflowError(
+                f"refusing publication: TYPESAFE_API_KEY appears in {relative}"
+            )
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise WorkflowError(
+                f"refusing non-text publication artifact: {relative}"
+            ) from exc
+        for marker in host_markers:
+            if marker in text:
+                raise WorkflowError(
+                    f"refusing publication: host-local path marker {marker!r} appears in {relative}"
+                )
+
+        if item.suffix == ".json":
+            values = [json.loads(text)]
+        elif item.suffix == ".jsonl":
+            values = [
+                json.loads(line)
+                for line in text.splitlines()
+                if line.strip()
+            ]
+        else:
+            values = []
+
+        for value in values:
+            for key_path, key in _walk_json_keys(value):
+                if key.strip().lower() in forbidden_keys:
+                    raise WorkflowError(
+                        f"refusing publication: private key {key!r} at {relative}:{key_path}"
+                    )
+
+    observations = _jsonl(destination / "evidence/observations.jsonl")
+    for observation in observations:
+        privacy = observation.get("privacy", {})
+        input_value = observation.get("input", {})
+        if (
+            not isinstance(privacy, Mapping)
+            or privacy.get("raw_content_stored") is not False
+            or privacy.get("secret_values_stored") is not False
+            or not isinstance(input_value, Mapping)
+            or input_value.get("raw_input_persisted") is not False
+        ):
+            raise WorkflowError("publication observation violates privacy contract")
+
+    requests = _jsonl(destination / "evidence/provider-requests.jsonl")
+    for request in requests:
+        privacy = request.get("privacy", {})
+        if (
+            not isinstance(privacy, Mapping)
+            or privacy.get("raw_content_stored") is not False
+            or privacy.get("secret_values_stored") is not False
+        ):
+            raise WorkflowError("publication provider-request violates privacy contract")
+
+    public_oracle = comparative.validate_decision_study_oracle_bundle(
+        _read_json_object(destination / "datasets/oracle.json")
+    )
+    for record in public_oracle["records"]:
+        provenance = record.get("provenance", {})
+        if not isinstance(provenance, Mapping) or "public_projection" not in provenance:
+            raise WorkflowError("publication oracle is not the public projection")
+        adjudication = record.get("adjudication", {})
+        if isinstance(adjudication, Mapping):
+            for detail in adjudication.values():
+                if isinstance(detail, Mapping) and (
+                    set(detail) - {"status", "method"}
+                ):
+                    raise WorkflowError(
+                        "publication oracle contains private adjudication detail"
+                    )
+
+    return {
+        "exact_file_allowlist": True,
+        "no_symlinks": True,
+        "no_host_local_paths": True,
+        "no_private_adjudication_keys": True,
+        "observation_privacy_flags": True,
+        "provider_request_privacy_flags": True,
+        "oracle_public_projection": True,
+        "typesafe_api_key_scan": bool(secret),
+    }
+
+
 def prepare_decision_study_publication(
     run: Path,
     oracle_path: Path,
@@ -700,7 +909,6 @@ def prepare_decision_study_publication(
     paths = {
         "study-spec.json": run / _STUDY_SPEC,
         "datasets/corpus.json": run / _CORPUS,
-        "datasets/oracle.json": Path(oracle_path),
         "metrics/decision-study-report.json": run / _REPORT,
         "analysis/decision-study-report.md": run / _REPORT_MD,
         "evidence/run-manifest.json": run / _RUN,
@@ -714,6 +922,11 @@ def prepare_decision_study_publication(
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
 
+    public_oracle = _public_oracle_projection(oracle)
+    oracle_target = destination / "datasets/oracle.json"
+    oracle_target.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(oracle_target, public_oracle)
+
     status = (
         "eligible full-study evidence"
         if report_result["study_eligible"]
@@ -723,7 +936,9 @@ def prepare_decision_study_publication(
 
 **Status:** {status}
 
-This directory was produced by the benchmark decision-study publication pipeline. The inference corpus was executed before the separate frozen oracle was loaded. Raw TypeSafe HTTP request/response logs are not part of this public tree.
+This directory was produced by the benchmark decision-study publication pipeline. The inference corpus was executed before the separate frozen oracle was loaded. Raw TypeSafe HTTP request/response logs and private Inspect reasoning-summary artifacts are not part of this public tree.
+
+The published oracle is a privacy-preserving projection: final frozen labels plus per-seam resolution status/method are retained, while adjudicator identities, individual A/B/C votes, pass hashes, recorded-discussion rationale, and participant identities are removed.
 
 ~~~mermaid
 flowchart LR
@@ -743,14 +958,7 @@ The report does not treat deterministic/semantic agreement as correctness. Corre
 """
     atomic_write_bytes(destination / "README.md", readme.encode("utf-8"))
 
-    secret = os.environ.get("TYPESAFE_API_KEY")
-    if secret:
-        needle = secret.encode("utf-8")
-        for item in destination.rglob("*"):
-            if item.is_file() and needle in item.read_bytes():
-                raise WorkflowError(
-                    f"refusing publication: TYPESAFE_API_KEY appears in {item.relative_to(destination)}"
-                )
+    privacy_checks = _verify_publication_privacy(destination)
 
     inventory = file_inventory(destination)
     publication = {
@@ -763,6 +971,15 @@ The report does not treat deterministic/semantic agreement as correctness. Corre
         "study_eligible": bool(report_result["study_eligible"]),
         "files": {item["path"]: item["sha256"] for item in inventory},
         "limitations": list(report["limitations"]),
+        "privacy": {
+            "oracle_projection": "public-labels-resolution-method/v1",
+            "raw_provider_http_included": False,
+            "reasoning_summaries_included": False,
+            "private_adjudicator_votes_included": False,
+            "human_resolution_rationale_included": False,
+            "human_participant_identity_included": False,
+            "checks": privacy_checks,
+        },
     }
     validate_instance(
         publication, PUBLICATION_SCHEMA, artifact="decision-study publication manifest"
