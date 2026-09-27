@@ -118,17 +118,62 @@ bash scripts/decision-study/p2-report.sh
 P2 results must be inspected for exclusions, denominators, eligibility,
 calibration, uncertainty, and limitations regardless of outcome direction.
 
-## P3 — sanitized publication preparation
+## P3 — sanitized publication preparation and verification
 
-After P2 review:
+Preferred entry point after P2 review:
 
 ~~~bash
-bash scripts/decision-study/p3-publish-prepare.sh
+bash scripts/decision-study/p3-all.sh
 ~~~
 
-This invokes the benchmark's publication pipeline and prepares a sanitized tree.
-It does not automatically push or copy the result to `benchmark-results` or a
-portfolio site. Review the resulting tree before publication.
+It executes:
+
+~~~text
+p3-publish-prepare.sh
+        |
+        v
+p3-verify-public.sh
+~~~
+
+The publication pipeline now uses a public oracle projection rather than copying
+the private frozen oracle verbatim. It retains final frozen labels and per-seam
+resolution status/method while removing:
+
+- adjudicator identities;
+- individual A/B/C votes;
+- adjudication-pass hashes/timestamps;
+- recorded-discussion rationale;
+- participant identities;
+- private reasoning-summary artifacts.
+
+The prepare step also fails closed on unexpected files, symlinks, host-local
+path markers, private adjudication keys, privacy-flag violations, and the live
+`TYPESAFE_API_KEY` value when present.
+
+The verification step independently requires:
+
+- the exact publication file allowlist;
+- valid `MANIFEST.sha256`;
+- a study-eligible 120-case cohort;
+- 120 public oracle records;
+- 120 provider requests;
+- 360 observations;
+- 360 oracle outcomes;
+- 0 exclusions;
+- 120 oracle-eligible observations per seam;
+- the public oracle projection contract;
+- no reasoning-summary/private human-adjudication fields.
+
+A successful verification writes, outside the public tree:
+
+~~~text
+$P3_ROOT/verification.json
+~~~
+
+with `status: "pass"`.
+
+P3 does not automatically push or copy the result to `benchmark-results` or a
+portfolio site. Publication remains a separate reviewed action.
 
 ## Frozen identities
 

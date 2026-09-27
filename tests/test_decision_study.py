@@ -302,3 +302,128 @@ def test_report_surfaces_probability_normalization_without_rerunning_inference(
     markdown = (run / "decision-study-report.md").read_text(encoding="utf-8")
     assert "normalized 1/1" in markdown
     assert "persisted raw evidence is unchanged" in markdown
+
+
+def test_publication_redacts_private_oracle_adjudication_and_records_privacy(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    corpus = tmp_path / "corpus.json"
+    oracle = tmp_path / "oracle.json"
+    corpus.write_text(json.dumps(_corpus()), encoding="utf-8")
+
+    oracle_value = _oracle()
+    record = oracle_value["records"][0]
+    record["provenance"] = {
+        "protocol_version": "routing-semantic-oracle-v1.0.0",
+        "authoring_view_sha256": "a" * 64,
+        "adjudicators": {"a": "codex-a", "b": "codex-b", "c": "codex-c"},
+        "pass_sha256": {"a": "b" * 64, "b": "c" * 64, "c": "d" * 64},
+        "pass_completed_at": {
+            "a": "2026-09-26T00:00:00Z",
+            "b": "2026-09-26T00:00:01Z",
+            "c": "2026-09-26T00:00:02Z",
+        },
+        "resolutions_sha256": "e" * 64,
+        "frozen_at": "2026-09-26T00:00:03Z",
+    }
+    record["adjudication"] = {
+        "routing.task_class": {
+            "status": "resolved",
+            "method": "a_b_agreement",
+            "a": "review",
+            "b": "review",
+        },
+        "routing.interaction_required": {
+            "status": "resolved",
+            "method": "two_of_three_majority",
+            "a": False,
+            "b": True,
+            "c": True,
+        },
+        "routing.semantic_risk": {
+            "status": "resolved",
+            "method": "recorded_discussion",
+            "a": 0,
+            "b": 1,
+            "c": 2,
+            "rationale": "private human resolution rationale",
+            "participants": ["Private Reviewer"],
+        },
+    }
+    oracle.write_text(json.dumps(oracle_value), encoding="utf-8")
+
+    monkeypatch.setattr(
+        decision_study,
+        "require_decision_runtime_ready",
+        lambda settings: {"ready": True},
+    )
+    monkeypatch.setattr(
+        decision_study,
+        "advise_routing_with_policy",
+        _advice,
+    )
+    settings = replace(
+        defaults(tmp_path / "missing.toml"),
+        decision_mode="comparative",
+    )
+
+    run = tmp_path / "run"
+    decision_study.run_decision_study(settings, corpus, run)
+    destination = tmp_path / "public"
+    result = decision_study.prepare_decision_study_publication(
+        run,
+        oracle,
+        destination,
+    )
+    assert result["study_eligible"] is False
+
+    published_oracle = json.loads(
+        (destination / "datasets/oracle.json").read_text(encoding="utf-8")
+    )
+    published_record = published_oracle["records"][0]
+    assert published_record["labels"] == record["labels"]
+    assert published_record["provenance"] == {
+        "protocol_version": "routing-semantic-oracle-v1.0.0",
+        "authoring_view_sha256": "a" * 64,
+        "frozen_at": "2026-09-26T00:00:03Z",
+        "public_projection": (
+            "labels plus resolution status/method only; adjudicator identities, "
+            "individual votes, pass hashes, discussion rationale, and participants removed"
+        ),
+    }
+    assert published_record["adjudication"] == {
+        "routing.task_class": {
+            "status": "resolved",
+            "method": "a_b_agreement",
+        },
+        "routing.interaction_required": {
+            "status": "resolved",
+            "method": "two_of_three_majority",
+        },
+        "routing.semantic_risk": {
+            "status": "resolved",
+            "method": "recorded_discussion",
+        },
+    }
+
+    encoded = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in destination.rglob("*")
+        if path.is_file()
+    )
+    assert "Private Reviewer" not in encoded
+    assert "private human resolution rationale" not in encoded
+    assert '"codex-a"' not in encoded
+
+    publication = json.loads(
+        (destination / "publication.json").read_text(encoding="utf-8")
+    )
+    assert publication["privacy"]["oracle_projection"] == (
+        "public-labels-resolution-method/v1"
+    )
+    assert publication["privacy"]["reasoning_summaries_included"] is False
+    assert publication["privacy"]["private_adjudicator_votes_included"] is False
+    assert publication["privacy"]["human_resolution_rationale_included"] is False
+    assert publication["privacy"]["human_participant_identity_included"] is False
+    assert publication["privacy"]["checks"]["oracle_public_projection"] is True
