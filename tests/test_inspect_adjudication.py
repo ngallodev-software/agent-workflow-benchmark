@@ -639,3 +639,18 @@ def test_v2_adjudication_completion_never_reuses_pre_tool_assistant_text():
 
     assert text == ""
     assert source == "model_output.completion"
+
+
+def test_v2_preflight_force_recreates_generated_root(tmp_path: Path):
+    root = tmp_path / "routing-semantic-v2-evidence-preflight"
+    root.mkdir()
+    stale = root / "stale.txt"
+    stale.write_text("old", encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="directory already exists"):
+        inspect_runtime._prepare_v2_preflight_root(root, force=False)
+
+    inspect_runtime._prepare_v2_preflight_root(root, force=True)
+
+    assert root.is_dir()
+    assert list(root.iterdir()) == []
