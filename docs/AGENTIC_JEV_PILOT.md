@@ -59,7 +59,7 @@ The lock binds:
 - host-tool receipt contract;
 - Docker identity.
 
-The qualification and run both assert the same lock.
+The qualification and run both assert the same lock. Loading the lock rechecks the current Inspect AI / Inspect SWE versions, Codex platform, Docker/Compose identity, host-tool implementation SHA, TypeSafe SDK version, skill SHA, and task-manifest SHA before execution.
 
 ## Tool qualification
 
