@@ -1,6 +1,6 @@
 # Agent-Workflow Benchmark
 
-![Version](https://img.shields.io/badge/version-0.5.1-blue)
+![Version](https://img.shields.io/badge/version-0.5.2-blue)
 ![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.11%2C%3C0.12-2ea44f)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -105,7 +105,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.5.1` declares `agent-workflow>=0.11.11,<0.12` and `agent-workflow-comparative-eval==0.3.0`. Agent-Workflow `0.11.11` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.5.2` declares `agent-workflow>=0.11.11,<0.12` and `agent-workflow-comparative-eval==0.3.0`. Agent-Workflow `0.11.11` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
 
 ## Main workflow
 
