@@ -519,6 +519,11 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
             "IA-10": {"status": "pass"},
             "IA-11": {"status": "pass"},
         },
+        "completion_sources": {
+            "A": "model_output.completion",
+            "B": "model_output.completion",
+            "C": "messages.terminal_assistant",
+        },
         "artifacts": {"view": "/private/view.json"},
         "real_cohort_ready": False,
         "blocking_reason": "real cohort identities are not frozen",
@@ -547,3 +552,72 @@ def test_v2_adjudicator_identity_is_frozen_to_deepseek_flash():
             "openai-api/codex-lb/deepseek-flash",
             {"responses_api": True, "reasoning_effort": "high"},
         )
+
+
+class _FakeAssistantMessage:
+    role = "assistant"
+    source = "generate"
+    tool_calls = None
+
+    def __init__(self, text: str):
+        self.text = text
+
+
+class _FakeToolCallingAssistantMessage(_FakeAssistantMessage):
+    tool_calls = [object()]
+
+
+class _FakeSampleWithTerminalMessage:
+    def __init__(self, *, completion: str, messages: list[object]):
+        self.output = type("Output", (), {"completion": completion})()
+        self.messages = messages
+
+
+def test_v2_adjudication_completion_falls_back_to_terminal_assistant_message():
+    expected = '{"records":[]}'
+    sample = _FakeSampleWithTerminalMessage(
+        completion="",
+        messages=[
+            _FakeToolCallingAssistantMessage("not terminal"),
+            _FakeAssistantMessage(expected),
+        ],
+    )
+
+    text, source = inspect_runtime._sample_adjudication_completion(
+        sample,
+        study="routing-semantic-v2",
+    )
+
+    assert text == expected
+    assert source == "messages.terminal_assistant"
+    assert inspect_runtime._json_completion(text) == {"records": []}
+
+
+def test_v2_adjudication_completion_prefers_nonempty_model_output():
+    sample = _FakeSampleWithTerminalMessage(
+        completion='{"records":[]}',
+        messages=[_FakeAssistantMessage('{"records":[{"case_id":"other"}]}')],
+    )
+
+    text, source = inspect_runtime._sample_adjudication_completion(
+        sample,
+        study="routing-semantic-v2",
+    )
+
+    assert text == '{"records":[]}'
+    assert source == "model_output.completion"
+
+
+def test_v1_adjudication_completion_preserves_historical_output_only_contract():
+    sample = _FakeSampleWithTerminalMessage(
+        completion="",
+        messages=[_FakeAssistantMessage('{"records":[]}')],
+    )
+
+    text, source = inspect_runtime._sample_adjudication_completion(
+        sample,
+        study="routing-semantic-v1",
+    )
+
+    assert text == ""
+    assert source == "model_output.completion"
