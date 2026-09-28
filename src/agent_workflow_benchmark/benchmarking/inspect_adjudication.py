@@ -342,6 +342,18 @@ def _repo_root(module_path: Path) -> Path:
     raise WorkflowError(f"unable to locate benchmark repository root from {module_path}")
 
 
+def _v2_prompt_template_path() -> Path:
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "adjudication"
+        / "START_PROMPT.v2.template.md"
+    )
+    if not path.is_file():
+        raise WorkflowError(f"missing packaged v2 adjudicator prompt template: {path}")
+    return path
+
+
 def _render_prompt(template_path: Path, adjudicator_id: str) -> str:
     try:
         template = Path(template_path).read_text(encoding="utf-8")
@@ -1656,12 +1668,7 @@ def run_v2_evidence_preflight(
     protocol_path = root / "synthetic-v2-protocol.md"
     view = _synthetic_v2_evidence_view(view_path)
     _synthetic_v2_protocol(protocol_path)
-    prompt_template = (
-        Path(__file__).resolve().parents[3]
-        / "docker"
-        / "adjudication"
-        / "START_PROMPT.v2.template.md"
-    )
+    prompt_template = _v2_prompt_template_path()
 
     from inspect_ai.dataset import Sample
 

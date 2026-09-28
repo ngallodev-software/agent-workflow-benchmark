@@ -561,6 +561,16 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
     )
 
 
+def test_v2_preflight_prompt_is_packaged_and_matches_docker_source():
+    packaged = inspect_runtime._v2_prompt_template_path()
+    docker_source = ROOT / "docker" / "adjudication" / "START_PROMPT.v2.template.md"
+
+    assert packaged.is_file()
+    assert packaged.read_text(encoding="utf-8") == docker_source.read_text(
+        encoding="utf-8"
+    )
+
+
 def test_v2_preflight_model_args_default_is_shell_safe():
     script = (
         ROOT / "scripts" / "adjudication" / "v2-evidence-preflight.sh"
