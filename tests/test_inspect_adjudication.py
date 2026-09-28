@@ -654,3 +654,20 @@ def test_v2_preflight_force_recreates_generated_root(tmp_path: Path):
 
     assert root.is_dir()
     assert list(root.iterdir()) == []
+
+
+def test_v2_preflight_failure_message_names_failed_gates_and_artifact(tmp_path: Path):
+    destination = tmp_path / "preflight.json"
+    record = {
+        "gates": {
+            "IA-9": {"status": "pass"},
+            "IA-10": {"status": "fail"},
+            "IA-11": {"status": "pass"},
+        }
+    }
+
+    message = inspect_runtime._v2_preflight_failure_message(record, destination)
+
+    assert "IA-10" in message
+    assert "IA-9" not in message
+    assert str(destination) in message
