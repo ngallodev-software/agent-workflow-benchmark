@@ -426,26 +426,40 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
-def _usage_request_count(value: Any) -> int | None:
-    normalized = _jsonable(value)
-    if isinstance(normalized, Mapping):
-        direct = normalized.get("requests")
-        if isinstance(direct, int) and not isinstance(direct, bool):
-            return direct
-        counts = [
-            result
-            for item in normalized.values()
-            if (result := _usage_request_count(item)) is not None
-        ]
-        return sum(counts) if counts else None
-    if isinstance(normalized, list):
-        counts = [
-            result
-            for item in normalized
-            if (result := _usage_request_count(item)) is not None
-        ]
-        return sum(counts) if counts else None
-    return None
+def _sample_model_request_counts(sample: Any) -> tuple[int | None, int | None]:
+    """Count logical model calls and provider requests from Inspect events.
+
+    ModelUsage is a token/cost aggregate and does not carry request counts in
+    the pinned Inspect contract. ModelEvent is the authoritative per-call
+    evidence surface. A cache read is still a logical model call but does not
+    reach the provider; retries add provider requests beyond the initial
+    attempt.
+    """
+    events = getattr(sample, "events", None)
+    if events is None:
+        return None, None
+
+    model_events = [
+        event for event in events if getattr(event, "event", None) == "model"
+    ]
+    model_call_count = len(model_events)
+    provider_request_count = 0
+
+    for event in model_events:
+        if getattr(event, "cache", None) == "read":
+            continue
+        retries = getattr(event, "retries", None)
+        if retries is None:
+            retries = 0
+        if (
+            not isinstance(retries, int)
+            or isinstance(retries, bool)
+            or retries < 0
+        ):
+            return model_call_count, None
+        provider_request_count += 1 + retries
+
+    return model_call_count, provider_request_count
 
 
 def _sample_usage_provenance(sample: Any) -> dict[str, Any]:
@@ -459,11 +473,11 @@ def _sample_usage_provenance(sample: Any) -> dict[str, Any]:
         if getattr(sample, "model_usage", None) is not None
         else None
     )
-    model_call_count = _usage_request_count(aggregate_usage)
+    model_call_count, provider_request_count = _sample_model_request_counts(sample)
     return {
         "final_output_usage": final_usage,
         "aggregate_session_usage": aggregate_usage,
-        "provider_request_count": model_call_count,
+        "provider_request_count": provider_request_count,
         "model_call_count": model_call_count,
     }
 
