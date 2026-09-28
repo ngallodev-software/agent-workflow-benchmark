@@ -7,6 +7,7 @@ import os
 import platform
 import re
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -349,6 +350,100 @@ def _sample_retry_count(sample: Any) -> int:
     return len(sample.error_retries or [])
 
 
+def _jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, Mapping):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    if hasattr(value, "model_dump"):
+        try:
+            return _jsonable(value.model_dump(mode="json"))
+        except TypeError:
+            return _jsonable(value.model_dump())
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+def _usage_request_count(value: Any) -> int | None:
+    normalized = _jsonable(value)
+    if isinstance(normalized, Mapping):
+        direct = normalized.get("requests")
+        if isinstance(direct, int) and not isinstance(direct, bool):
+            return direct
+        counts = [
+            result
+            for item in normalized.values()
+            if (result := _usage_request_count(item)) is not None
+        ]
+        return sum(counts) if counts else None
+    if isinstance(normalized, list):
+        counts = [
+            result
+            for item in normalized
+            if (result := _usage_request_count(item)) is not None
+        ]
+        return sum(counts) if counts else None
+    return None
+
+
+def _sample_usage_provenance(sample: Any) -> dict[str, Any]:
+    final_usage = (
+        _jsonable(sample.output.usage)
+        if getattr(getattr(sample, "output", None), "usage", None) is not None
+        else None
+    )
+    aggregate_usage = (
+        _jsonable(getattr(sample, "model_usage", None))
+        if getattr(sample, "model_usage", None) is not None
+        else None
+    )
+    model_call_count = _usage_request_count(aggregate_usage)
+    return {
+        "final_output_usage": final_usage,
+        "aggregate_session_usage": aggregate_usage,
+        "provider_request_count": model_call_count,
+        "model_call_count": model_call_count,
+    }
+
+
+def _reasoning_summary_stats(sample: Any) -> dict[str, Any]:
+    summaries: list[str] = []
+
+    def walk(value: Any) -> None:
+        normalized = _jsonable(value)
+        if isinstance(normalized, Mapping):
+            summary = normalized.get("summary")
+            reasoning_marker = (
+                "reasoning" in normalized
+                or str(normalized.get("type", "")).lower().startswith("reason")
+            )
+            if reasoning_marker and isinstance(summary, str) and summary.strip():
+                summaries.append(summary)
+            elif reasoning_marker and isinstance(summary, list):
+                for item in summary:
+                    if isinstance(item, str) and item.strip():
+                        summaries.append(item)
+                    elif isinstance(item, Mapping):
+                        text = item.get("text")
+                        if isinstance(text, str) and text.strip():
+                            summaries.append(text)
+            for item in normalized.values():
+                walk(item)
+        elif isinstance(normalized, list):
+            for item in normalized:
+                walk(item)
+
+    walk(getattr(sample, "messages", None) or [])
+    return {
+        "observed": bool(summaries),
+        "items": len(summaries),
+        "characters": sum(len(item) for item in summaries),
+    }
+
+
 def _wrap_pass(
     view_path: Path,
     output: Mapping[str, Any],
@@ -624,11 +719,8 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
-            "model_usage": (
-                sample.output.usage.model_dump(mode="json")
-                if getattr(sample.output, "usage", None) is not None
-                else None
-            ),
+            **_sample_usage_provenance(sample),
+            "reasoning_summary": _reasoning_summary_stats(sample),
             "pass_sha256": sha256_file(pass_path),
         }
         atomic_write_json(role_dir / "inspect-provenance.json", provenance)
@@ -721,11 +813,8 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_total_time": result_sample.total_time,
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
-        "model_usage": (
-            result_sample.output.usage.model_dump(mode="json")
-            if getattr(result_sample.output, "usage", None) is not None
-            else None
-        ),
+        **_sample_usage_provenance(result_sample),
+        "reasoning_summary": _reasoning_summary_stats(result_sample),
         "pass_sha256": sha256_file(pass_path),
     }
     atomic_write_json(role_dir / "inspect-provenance.json", provenance)
