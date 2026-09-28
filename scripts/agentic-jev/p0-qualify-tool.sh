@@ -24,6 +24,7 @@ result = run_agentic_jev_tool_qualification(
 )
 print("Agent-directed Jev tool qualification: PASS")
 print("model:", result["model"])
+print("reasoning_effort:", result["reasoning_effort"])
 print("codex:", result["codex_version"])
 print("skill_sha256:", result["skill_sha256"])
 print("receipt_summary:", result["receipt_summary"])

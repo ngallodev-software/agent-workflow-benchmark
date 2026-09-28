@@ -28,8 +28,10 @@ export AGENTIC_JEV_QUAL_ROOT="${AGENTIC_JEV_QUAL_ROOT:-$AGENTIC_JEV_ROOT/tool-qu
 export AGENTIC_JEV_QUALIFICATION="${AGENTIC_JEV_QUALIFICATION:-$AGENTIC_JEV_QUAL_ROOT/qualification.json}"
 export AGENTIC_JEV_RUN="${AGENTIC_JEV_RUN:-$AGENTIC_JEV_ROOT/pilot-run}"
 
-# Explicit treatment identity. No hidden coding-model default.
-export AGENTIC_JEV_MODEL="${AGENTIC_JEV_MODEL:-}"
+# Frozen coding-agent treatment identity for agentic-jev-pilot-v1.
+# Reasoning effort is an Inspect generation option, not a provider model_arg.
+export AGENTIC_JEV_MODEL="${AGENTIC_JEV_MODEL:-openai-api/codex-lb/gpt-6-luna}"
+export AGENTIC_JEV_REASONING_EFFORT="${AGENTIC_JEV_REASONING_EFFORT:-high}"
 export AGENTIC_JEV_MODEL_ARGS_JSON="${AGENTIC_JEV_MODEL_ARGS_JSON:-{\"responses_api\":true}}"
 # Empty means TypeSafe selects its configured/default System One model.
 export AGENTIC_JEV_JEV_MODEL="${AGENTIC_JEV_JEV_MODEL:-}"

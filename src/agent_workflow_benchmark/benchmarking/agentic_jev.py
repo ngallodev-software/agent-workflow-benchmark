@@ -21,6 +21,10 @@ from .schema_contracts import validate_instance
 
 TOOL_RECEIPT_SCHEMA = "agent-workflow-benchmark/agentic-jev-tool-receipt/v1"
 PILOT_STUDY_ID = "agentic-jev-pilot-v1"
+PILOT_AGENT_MODEL = "openai-api/codex-lb/gpt-6-luna"
+PILOT_AGENT_REASONING_EFFORT = "high"
+PILOT_CODEX_MODEL_CONFIG = "gpt-6-luna"
+PILOT_CODEX_MIN_VERSION = (0, 155, 0)
 SKILL_UPSTREAM_COMMIT = "65a39f393687675ce170e6094757de20370365b9"
 SKILL_UPSTREAM_RELEASE = "v0.5.7"
 TYPESAFE_SDK_VERSION = "0.6.0"
@@ -113,6 +117,17 @@ def _safe(value: Any, *, key: str = "", depth: int = 0) -> Any:
 
 def _sha256_json(value: object) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _codex_version_tuple(value: str) -> tuple[int, int, int]:
+    raw = str(value).strip().removeprefix("v")
+    parts = raw.split(".")
+    if len(parts) < 3:
+        raise WorkflowError(f"invalid resolved Codex CLI version: {value!r}")
+    try:
+        return tuple(int(part) for part in parts[:3])
+    except ValueError as exc:
+        raise WorkflowError(f"invalid resolved Codex CLI version: {value!r}") from exc
 
 
 def _typesafe_sdk_version() -> str | None:
@@ -559,6 +574,7 @@ def build_agentic_jev_solver(
 
     return codex_cli(
         version=codex_version,
+        model_config=PILOT_CODEX_MODEL_CONFIG,
         skills=skills,
         bridged_tools=bridged_tools,
         web_search="disabled",
@@ -584,6 +600,13 @@ def pilot_treatment_manifest() -> dict[str, object]:
     return {
         "schema": "agent-workflow-benchmark/agentic-jev-treatment/v1",
         "study_id": PILOT_STUDY_ID,
+        "agent": {
+            "model": PILOT_AGENT_MODEL,
+            "reasoning_effort": PILOT_AGENT_REASONING_EFFORT,
+            "responses_api": True,
+            "codex_model_config": PILOT_CODEX_MODEL_CONFIG,
+            "codex_min_version": ".".join(str(item) for item in PILOT_CODEX_MIN_VERSION),
+        },
         "skill": {
             "upstream_repository": "typesafe-ai/skills",
             "upstream_commit": SKILL_UPSTREAM_COMMIT,
@@ -746,6 +769,7 @@ def create_agentic_jev_runtime_lock(
     destination: Path,
     tasks_path: Path,
     agent_model: str,
+    agent_reasoning_effort: str,
     agent_model_args: Mapping[str, Any] | None = None,
     jev_model: str | None = None,
     force: bool = False,
@@ -774,8 +798,42 @@ def create_agentic_jev_runtime_lock(
             f"typesafe-sdk=={TYPESAFE_SDK_VERSION}; observed {observed}"
         )
     model = str(agent_model).strip()
-    if not model:
-        raise WorkflowError("agentic Jev runtime lock requires an explicit agent model")
+    if model != PILOT_AGENT_MODEL:
+        raise WorkflowError(
+            "agentic Jev pilot model is frozen to "
+            f"{PILOT_AGENT_MODEL}; observed {model or 'empty'}"
+        )
+    reasoning_effort = str(agent_reasoning_effort).strip()
+    if reasoning_effort != PILOT_AGENT_REASONING_EFFORT:
+        raise WorkflowError(
+            "agentic Jev pilot reasoning effort is frozen to "
+            f"{PILOT_AGENT_REASONING_EFFORT}; observed {reasoning_effort or 'empty'}"
+        )
+    model_args = dict(agent_model_args or {})
+    if model_args.get("responses_api") is not True:
+        raise WorkflowError(
+            "agentic Jev pilot requires model_args.responses_api=true"
+        )
+    forbidden_reasoning_keys = {
+        "reasoning",
+        "reasoning_effort",
+        "reasoningEffort",
+    }
+    if forbidden_reasoning_keys.intersection(model_args):
+        raise WorkflowError(
+            "agentic Jev reasoning effort must be supplied through Inspect "
+            "generation config, not model_args"
+        )
+
+    codex_cli = resolve_latest_codex_cli()
+    resolved_codex_version = str(codex_cli["resolved"])
+    if _codex_version_tuple(resolved_codex_version) < PILOT_CODEX_MIN_VERSION:
+        minimum = ".".join(str(item) for item in PILOT_CODEX_MIN_VERSION)
+        raise WorkflowError(
+            "agentic Jev pilot requires Codex CLI "
+            f">={minimum} for {PILOT_CODEX_MODEL_CONFIG}; "
+            f"resolved {resolved_codex_version}"
+        )
 
     record = {
         "schema": "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
@@ -783,9 +841,11 @@ def create_agentic_jev_runtime_lock(
         "study_id": PILOT_STUDY_ID,
         "inspect_ai_version": INSPECT_AI_VERSION,
         "inspect_swe_version": INSPECT_SWE_VERSION,
-        "codex_cli": resolve_latest_codex_cli(),
+        "codex_cli": codex_cli,
+        "codex_model_config": PILOT_CODEX_MODEL_CONFIG,
         "agent_model": model,
-        "agent_model_args": dict(agent_model_args or {}),
+        "agent_reasoning_effort": reasoning_effort,
+        "agent_model_args": model_args,
         "jev_model": jev_model,
         "skill": {
             "upstream_commit": SKILL_UPSTREAM_COMMIT,
@@ -842,6 +902,24 @@ def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
         artifact=str(path),
     )
     _require_inspect_dependencies()
+    if value["codex_model_config"] != PILOT_CODEX_MODEL_CONFIG:
+        raise WorkflowError(
+            "agentic Jev runtime lock Codex model config no longer matches pilot"
+        )
+    if _codex_version_tuple(str(value["codex_cli"]["resolved"])) < PILOT_CODEX_MIN_VERSION:
+        raise WorkflowError(
+            "agentic Jev runtime lock Codex CLI is too old for GPT-6 Luna"
+        )
+    if value["agent_model"] != PILOT_AGENT_MODEL:
+        raise WorkflowError("agentic Jev runtime lock model no longer matches pilot")
+    if value["agent_reasoning_effort"] != PILOT_AGENT_REASONING_EFFORT:
+        raise WorkflowError(
+            "agentic Jev runtime lock reasoning effort no longer matches pilot"
+        )
+    if value["agent_model_args"].get("responses_api") is not True:
+        raise WorkflowError(
+            "agentic Jev runtime lock no longer requires Responses API"
+        )
     if value["codex_cli"]["platform"] != _sandbox_platform():
         raise WorkflowError(
             "agentic Jev runtime lock Codex platform no longer matches the host"
@@ -896,6 +974,7 @@ def run_agentic_jev_tool_qualification(
     runtime_lock = load_agentic_jev_runtime_lock(runtime_lock_path)
     codex_version = str(runtime_lock["codex_cli"]["resolved"])
     model = str(runtime_lock["agent_model"])
+    reasoning_effort = str(runtime_lock["agent_reasoning_effort"])
     model_args = dict(runtime_lock["agent_model_args"])
     jev_model = runtime_lock.get("jev_model")
 
@@ -937,6 +1016,7 @@ def run_agentic_jev_tool_qualification(
         task,
         model=model,
         model_args=dict(model_args or {}),
+        reasoning_effort=reasoning_effort,
         log_dir=str(output_root / "inspect-logs"),
         log_format="eval",
         max_samples=1,
@@ -985,6 +1065,7 @@ def run_agentic_jev_tool_qualification(
         "runtime_lock_sha256": sha256_file(runtime_lock_path),
         "codex_version": codex_version,
         "model": model,
+        "reasoning_effort": reasoning_effort,
         "jev_model": jev_model,
         "skill_sha256": agentic_jev_skill_sha256(),
         "tool_functions": functions,
@@ -1034,6 +1115,7 @@ def run_agentic_jev_pilot(
     tasks = load_pilot_tasks(tasks_path)
     codex_version = str(runtime_lock["codex_cli"]["resolved"])
     model = str(runtime_lock["agent_model"])
+    reasoning_effort = str(runtime_lock["agent_reasoning_effort"])
     model_args = dict(runtime_lock["agent_model_args"])
     jev_model = runtime_lock.get("jev_model")
     if len(tasks["tasks"]) != 24:
@@ -1085,6 +1167,7 @@ def run_agentic_jev_pilot(
             task,
             model=model,
             model_args=dict(model_args or {}),
+            reasoning_effort=reasoning_effort,
             log_dir=str(arm_root / "inspect-logs"),
             log_format="eval",
             max_samples=len(samples),
@@ -1141,7 +1224,9 @@ def run_agentic_jev_pilot(
         },
         "runtime": {
             "codex_version": codex_version,
+            "codex_model_config": PILOT_CODEX_MODEL_CONFIG,
             "model": model,
+            "reasoning_effort": reasoning_effort,
             "jev_model": jev_model,
         },
         "treatment": pilot_treatment_manifest(),

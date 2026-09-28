@@ -2,6 +2,8 @@
 
 This benchmark lane tests **agent-directed Jev** using the existing Inspect AI / Inspect SWE Codex harness.
 
+The coding agent is frozen to **GPT-6 Luna** at **high** reasoning effort for every arm. The model is served through the Responses API path behind codex-lb. Reasoning effort is supplied as Inspect generation configuration, not as a provider/model-construction argument.
+
 It deliberately does not introduce a Jev-specific coding-agent harness.
 
 ## Treatment
@@ -41,16 +43,20 @@ redacted before the provider call and before persistence.
 Before qualification or pilot execution, freeze:
 
 ~~~bash
-export AGENTIC_JEV_MODEL='openai-api/codex-lb/<model-id>'
+export AGENTIC_JEV_MODEL='openai-api/codex-lb/gpt-6-luna'
+export AGENTIC_JEV_REASONING_EFFORT='high'
 export AGENTIC_JEV_MODEL_ARGS_JSON='{"responses_api":true}'
 bash scripts/agentic-jev/p0-freeze-runtime.sh
 ~~~
 
 The lock binds:
 
-- exact Codex CLI version;
+- exact Codex CLI version, requiring >= `0.155.0`;
+- Codex internal model configuration `gpt-6-luna`;
 - Inspect AI/SWE versions;
-- coding model + model args;
+- coding model `openai-api/codex-lb/gpt-6-luna`;
+- coding-agent reasoning effort `high`;
+- Responses API provider argument;
 - optional requested Jev model;
 - frozen TypeSafe skill SHA;
 - exact 24-task development manifest SHA;
@@ -60,6 +66,8 @@ The lock binds:
 - host-tool receipt contract;
 - Docker/Compose identity;
 - resolved local sandbox image identity for `python:3.12-bookworm`.
+
+All three treatment arms use the exact same Luna model, reasoning effort, Codex model configuration, and provider path. The only treatment changes across A/B/C are the frozen TypeSafe skill and live Jev availability.
 
 The qualification and run both assert the same lock. Loading the lock rechecks the current Inspect AI / Inspect SWE versions, Codex platform, Docker/Compose identity, sandbox-image identity, benchmark Inspect-harness SHA, host-tool implementation SHA, TypeSafe SDK version, skill SHA, and task-manifest SHA before execution.
 

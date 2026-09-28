@@ -24,11 +24,19 @@
       "type": "object"
     },
     "agent_model": {
-      "type": "string",
-      "minLength": 1
+      "const": "openai-api/codex-lb/gpt-6-luna"
     },
     "agent_model_args": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "responses_api": {
+          "const": true
+        }
+      },
+      "required": [
+        "responses_api"
+      ]
     },
     "jev_model": {
       "type": [
@@ -154,6 +162,12 @@
         "image_id",
         "repo_digests"
       ]
+    },
+    "agent_reasoning_effort": {
+      "const": "high"
+    },
+    "codex_model_config": {
+      "const": "gpt-6-luna"
     }
   },
   "required": [
@@ -163,7 +177,9 @@
     "inspect_ai_version",
     "inspect_swe_version",
     "codex_cli",
+    "codex_model_config",
     "agent_model",
+    "agent_reasoning_effort",
     "agent_model_args",
     "jev_model",
     "skill",

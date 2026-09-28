@@ -35,11 +35,15 @@ def test_agentic_jev_scripts_are_portable_and_executable() -> None:
 
 
 def test_agentic_pilot_requires_runtime_lock_then_live_tool_qualification() -> None:
+    env = (AGENTIC / "env.sh").read_text(encoding="utf-8")
     freeze = (AGENTIC / "p0-freeze-runtime.sh").read_text(encoding="utf-8")
     qualify = (AGENTIC / "p0-qualify-tool.sh").read_text(encoding="utf-8")
     run = (AGENTIC / "p1-run-pilot.sh").read_text(encoding="utf-8")
 
+    assert "openai-api/codex-lb/gpt-6-luna" in env
+    assert 'AGENTIC_JEV_REASONING_EFFORT="${AGENTIC_JEV_REASONING_EFFORT:-high}"' in env
     assert "AGENTIC_JEV_MODEL" in freeze
+    assert "AGENTIC_JEV_REASONING_EFFORT" in freeze
     assert "create_agentic_jev_runtime_lock" in freeze
     assert "TYPESAFE_API_KEY" in qualify or "aj_require_typesafe_key" in qualify
     assert "run_agentic_jev_tool_qualification" in qualify
