@@ -780,12 +780,27 @@ def create_agentic_jev_runtime_lock(
 
 
 def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
+    from .inspect_adjudication import (
+        _docker_identity,
+        _require_inspect_dependencies,
+        _sandbox_platform,
+    )
+
     value = _read_json_object(Path(path))
     validate_instance(
         value,
         "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
         artifact=str(path),
     )
+    _require_inspect_dependencies()
+    if value["codex_cli"]["platform"] != _sandbox_platform():
+        raise WorkflowError(
+            "agentic Jev runtime lock Codex platform no longer matches the host"
+        )
+    if value["docker"] != _docker_identity():
+        raise WorkflowError(
+            "agentic Jev runtime lock Docker/Compose identity no longer matches"
+        )
     if value["skill"]["sha256"] != agentic_jev_skill_sha256():
         raise WorkflowError("agentic Jev runtime lock skill hash does not match package")
     host_tool = value["host_tool"]
