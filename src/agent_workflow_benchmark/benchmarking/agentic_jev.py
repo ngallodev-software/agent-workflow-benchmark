@@ -14,6 +14,9 @@ from time import monotonic
 from typing import Any
 
 from agent_workflow.errors import WorkflowError
+from agent_workflow.util import atomic_write_json, sha256_file
+
+from .schema_contracts import validate_instance
 
 TOOL_RECEIPT_SCHEMA = "agent-workflow-benchmark/agentic-jev-tool-receipt/v1"
 PILOT_STUDY_ID = "agentic-jev-pilot-v1"
@@ -559,3 +562,402 @@ def pilot_treatment_manifest() -> dict[str, object]:
             "receipt_schema": TOOL_RECEIPT_SCHEMA,
         },
     }
+
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WorkflowError(f"invalid agentic Jev contract {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise WorkflowError(f"agentic Jev contract must be an object: {path}")
+    return value
+
+
+def load_pilot_tasks(path: Path) -> dict[str, Any]:
+    value = _read_json_object(Path(path))
+    validate_instance(
+        value,
+        "agent-workflow-benchmark/agentic-jev-pilot-tasks/v1",
+        artifact=str(path),
+    )
+    task_ids = [str(item["task_id"]) for item in value["tasks"]]
+    if len(task_ids) != len(set(task_ids)):
+        raise WorkflowError("agentic Jev pilot task IDs must be unique")
+    return value
+
+
+def _pilot_samples(task_contract: Mapping[str, Any]) -> list[Any]:
+    try:
+        from inspect_ai.dataset import Sample
+    except ImportError as exc:
+        raise WorkflowError(
+            "agent-directed Jev pilot requires agent-workflow-benchmark[inspect]"
+        ) from exc
+
+    samples: list[Any] = []
+    for raw in task_contract["tasks"]:
+        # Authoring tags are intentionally omitted from the sample. They exist only
+        # for post-run exploratory analysis and must not steer the coding agent.
+        samples.append(
+            Sample(
+                id=str(raw["task_id"]),
+                input=str(raw["prompt"]),
+                files={str(k): str(v) for k, v in raw["files"].items()},
+            )
+        )
+    return samples
+
+
+def _tool_call_functions(log: Any) -> list[str]:
+    result: list[str] = []
+    for sample in getattr(log, "samples", None) or []:
+        for message in getattr(sample, "messages", None) or []:
+            for call in getattr(message, "tool_calls", None) or []:
+                function = getattr(call, "function", None)
+                if isinstance(function, str):
+                    result.append(function)
+    return result
+
+
+def _receipt_values(path: Path) -> list[dict[str, Any]]:
+    if not Path(path).exists():
+        return []
+    result: list[dict[str, Any]] = []
+    for number, line in enumerate(
+        Path(path).read_text(encoding="utf-8").splitlines(), 1
+    ):
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise WorkflowError(
+                f"invalid Jev tool receipt line {number} in {path}: {exc}"
+            ) from exc
+        if not isinstance(value, dict) or value.get("schema") != TOOL_RECEIPT_SCHEMA:
+            raise WorkflowError(f"invalid Jev tool receipt at {path}:{number}")
+        result.append(value)
+    return result
+
+
+def _receipt_summary(path: Path) -> dict[str, object]:
+    receipts = _receipt_values(path)
+    primitive_counts = {name: 0 for name in sorted(_ALLOWED_PRIMITIVES)}
+    statuses: dict[str, int] = {}
+    input_tokens = output_tokens = provider_total_tokens = 0.0
+    token_records = 0
+    durations: list[float] = []
+    for receipt in receipts:
+        status = str(receipt.get("status") or "unknown")
+        statuses[status] = statuses.get(status, 0) + 1
+        counts = receipt.get("primitive_counts")
+        if isinstance(counts, Mapping):
+            for name in primitive_counts:
+                value = counts.get(name)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    primitive_counts[name] += value
+        duration = receipt.get("duration_ms")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool):
+            durations.append(float(duration))
+        response = receipt.get("response")
+        usage = response.get("usage") if isinstance(response, Mapping) else None
+        if isinstance(usage, Mapping):
+            fields = (
+                usage.get("input_tokens"),
+                usage.get("output_tokens"),
+                usage.get("provider_total_tokens"),
+            )
+            if all(
+                isinstance(item, (int, float)) and not isinstance(item, bool)
+                for item in fields
+            ):
+                input_tokens += float(fields[0])
+                output_tokens += float(fields[1])
+                provider_total_tokens += float(fields[2])
+                token_records += 1
+    return {
+        "receipts": len(receipts),
+        "statuses": statuses,
+        "primitive_counts": primitive_counts,
+        "token_records": token_records,
+        "usage": {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "provider_total_tokens": provider_total_tokens,
+        },
+        "duration_ms": {
+            "n": len(durations),
+            "total": sum(durations),
+            "min": min(durations) if durations else None,
+            "max": max(durations) if durations else None,
+        },
+    }
+
+
+def run_agentic_jev_tool_qualification(
+    *,
+    output_root: Path,
+    codex_version: str,
+    model: str,
+    model_args: Mapping[str, Any] | None = None,
+    jev_model: str | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    try:
+        import inspect_ai
+        from inspect_ai import Task
+        from inspect_ai.dataset import Sample
+    except ImportError as exc:
+        raise WorkflowError(
+            "agent-directed Jev qualification requires agent-workflow-benchmark[agentic-jev]"
+        ) from exc
+    from .inspect_adjudication import _inspect_sandbox_spec
+
+    output_root = Path(output_root)
+    result_path = output_root / "qualification.json"
+    if result_path.exists() and not force:
+        raise WorkflowError(
+            f"agent-directed Jev qualification already exists: {result_path}"
+        )
+    output_root.mkdir(parents=True, exist_ok=True)
+    receipt_path = output_root / "jev-tool-receipts.jsonl"
+    if receipt_path.exists() and force:
+        receipt_path.unlink()
+
+    solver = build_agentic_jev_solver(
+        arm_id="C-skill-plus-jev",
+        codex_version=codex_version,
+        receipt_path=receipt_path,
+        jev_model=jev_model,
+    )
+    sample = Sample(
+        id="agentic-jev-tool-smoke",
+        input=(
+            "Use the available Jev semantic tool exactly once. Give it bounded state "
+            "describing this request: 'Review the existing parser change for defects; "
+            "do not modify product behavior.' Ask one Choice question selecting the "
+            "primary work type from implementation, diagnosis, review, documentation, "
+            "or other. Then report the returned selected value and stop. Do not edit files."
+        ),
+        files={"README.md": "Synthetic agent-directed Jev qualification fixture.\n"},
+    )
+    task = Task(
+        dataset=[sample],
+        solver=solver,
+        sandbox=_inspect_sandbox_spec(),
+        checkpoint=False,
+    )
+    logs = inspect_ai.eval(
+        task,
+        model=model,
+        model_args=dict(model_args or {}),
+        log_dir=str(output_root / "inspect-logs"),
+        log_format="eval",
+        max_samples=1,
+        max_sandboxes=1,
+        max_subprocesses=2,
+        fail_on_error=True,
+        retry_on_error=0,
+        score=False,
+        display="plain",
+    )
+    if len(logs) != 1 or getattr(logs[0], "status", None) != "success":
+        raise WorkflowError("agent-directed Jev tool qualification did not complete")
+    log = logs[0]
+    samples = getattr(log, "samples", None) or []
+    if len(samples) != 1 or getattr(samples[0], "error", None):
+        raise WorkflowError("agent-directed Jev tool qualification sample failed")
+
+    functions = _tool_call_functions(log)
+    receipts = _receipt_values(receipt_path)
+    successful = [item for item in receipts if item.get("status") == "success"]
+    api_key = os.environ.get("TYPESAFE_API_KEY")
+    transcript = json.dumps(
+        [
+            getattr(message, "model_dump", lambda: {"text": str(message)})()
+            for message in (getattr(samples[0], "messages", None) or [])
+        ],
+        ensure_ascii=False,
+        default=str,
+    )
+    key_absent = not api_key or api_key not in transcript
+    qualified = (
+        any(name.endswith("jev_system_one") for name in functions)
+        and len(successful) == 1
+        and key_absent
+    )
+    record = {
+        "schema": "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
+        "study_id": PILOT_STUDY_ID,
+        "created_at": _utc(),
+        "qualified": qualified,
+        "codex_version": codex_version,
+        "model": model,
+        "jev_model": jev_model,
+        "skill_sha256": agentic_jev_skill_sha256(),
+        "tool_functions": functions,
+        "receipt_summary": _receipt_summary(receipt_path),
+        "checks": {
+            "jev_tool_called": any(
+                name.endswith("jev_system_one") for name in functions
+            ),
+            "exactly_one_successful_receipt": len(successful) == 1,
+            "api_key_absent_from_agent_transcript": key_absent,
+            "skill_snapshot_present": agentic_jev_skill_path().is_file(),
+        },
+        "inspect_log": getattr(log, "location", None),
+    }
+    atomic_write_json(result_path, record)
+    if not qualified:
+        raise WorkflowError(
+            "agent-directed Jev tool qualification failed; inspect qualification.json"
+        )
+    return {"path": str(result_path), **record}
+
+
+def run_agentic_jev_pilot(
+    *,
+    tasks_path: Path,
+    output_root: Path,
+    codex_version: str,
+    model: str,
+    model_args: Mapping[str, Any] | None = None,
+    jev_model: str | None = None,
+    qualification_path: Path | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    try:
+        import inspect_ai
+        from inspect_ai import Task
+    except ImportError as exc:
+        raise WorkflowError(
+            "agent-directed Jev pilot requires agent-workflow-benchmark[agentic-jev]"
+        ) from exc
+    from .inspect_adjudication import _inspect_sandbox_spec
+
+    tasks_path = Path(tasks_path)
+    tasks = load_pilot_tasks(tasks_path)
+    if len(tasks["tasks"]) != 24:
+        raise WorkflowError(
+            "the registered agentic Jev pilot requires exactly 24 development tasks"
+        )
+
+    if qualification_path is not None:
+        qualification = _read_json_object(Path(qualification_path))
+        if (
+            qualification.get("schema")
+            != "agent-workflow-benchmark/agentic-jev-tool-qualification/v1"
+            or qualification.get("qualified") is not True
+        ):
+            raise WorkflowError("agentic Jev tool qualification is not passing")
+        if qualification.get("skill_sha256") != agentic_jev_skill_sha256():
+            raise WorkflowError("agentic Jev qualification used a different skill snapshot")
+
+    output_root = Path(output_root)
+    manifest_path = output_root / "run-manifest.json"
+    if manifest_path.exists() and not force:
+        raise WorkflowError(f"agentic Jev pilot already exists: {manifest_path}")
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    samples = _pilot_samples(tasks)
+    arm_results: dict[str, Any] = {}
+    for arm in PILOT_ARMS:
+        arm_root = output_root / arm.arm_id
+        arm_root.mkdir(parents=True, exist_ok=True)
+        receipt_path = arm_root / "jev-tool-receipts.jsonl"
+        if receipt_path.exists() and force:
+            receipt_path.unlink()
+        solver = build_agentic_jev_solver(
+            arm_id=arm.arm_id,
+            codex_version=codex_version,
+            receipt_path=receipt_path,
+            jev_model=jev_model,
+        )
+        task = Task(
+            dataset=samples,
+            solver=solver,
+            sandbox=_inspect_sandbox_spec(),
+            checkpoint=False,
+        )
+        logs = inspect_ai.eval(
+            task,
+            model=model,
+            model_args=dict(model_args or {}),
+            log_dir=str(arm_root / "inspect-logs"),
+            log_format="eval",
+            max_samples=len(samples),
+            max_sandboxes=min(8, len(samples)),
+            max_subprocesses=max(2, min(8, len(samples))),
+            fail_on_error=False,
+            retry_on_error=0,
+            score=False,
+            display="plain",
+        )
+        if len(logs) != 1:
+            raise WorkflowError(
+                f"agentic Jev arm {arm.arm_id} expected one Inspect log"
+            )
+        log = logs[0]
+        log_samples = getattr(log, "samples", None) or []
+        statuses = {"success": 0, "error": 0}
+        for sample in log_samples:
+            if getattr(sample, "error", None):
+                statuses["error"] += 1
+            else:
+                statuses["success"] += 1
+        functions = _tool_call_functions(log)
+        jev_calls = sum(
+            1 for name in functions if name.endswith("jev_system_one")
+        )
+        receipts = _receipt_summary(receipt_path)
+        if not arm.jev_tool and (jev_calls or receipts["receipts"]):
+            raise WorkflowError(
+                f"arm {arm.arm_id} recorded Jev calls despite tool being disabled"
+            )
+        arm_results[arm.arm_id] = {
+            "typesafe_skill": arm.typesafe_skill,
+            "jev_tool": arm.jev_tool,
+            "inspect_log": getattr(log, "location", None),
+            "samples": len(log_samples),
+            "sample_status": statuses,
+            "jev_tool_calls": jev_calls,
+            "tool_receipts": receipts,
+        }
+
+    manifest = {
+        "schema": "agent-workflow-benchmark/agentic-jev-pilot-run/v1",
+        "study_id": PILOT_STUDY_ID,
+        "created_at": _utc(),
+        "development_only": True,
+        "task_manifest": {
+            "path": str(tasks_path),
+            "sha256": sha256_file(tasks_path),
+            "version": tasks["version"],
+            "tasks": len(tasks["tasks"]),
+            "authoring_tags_exposed_to_agents": False,
+        },
+        "runtime": {
+            "codex_version": codex_version,
+            "model": model,
+            "jev_model": jev_model,
+        },
+        "treatment": pilot_treatment_manifest(),
+        "qualification": (
+            {
+                "path": str(qualification_path),
+                "sha256": sha256_file(Path(qualification_path)),
+            }
+            if qualification_path is not None
+            else None
+        ),
+        "arms": arm_results,
+        "claim_boundary": {
+            "exploratory_only": True,
+            "effectiveness_claim_allowed": False,
+            "purpose": "discover candidate agent-directed Jev seams before preregistration",
+        },
+    }
+    atomic_write_json(manifest_path, manifest)
+    return {"path": str(manifest_path), **manifest}
