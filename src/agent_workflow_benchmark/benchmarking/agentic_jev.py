@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -23,6 +24,7 @@ PILOT_STUDY_ID = "agentic-jev-pilot-v1"
 SKILL_UPSTREAM_COMMIT = "65a39f393687675ce170e6094757de20370365b9"
 SKILL_UPSTREAM_RELEASE = "v0.5.7"
 TYPESAFE_SDK_VERSION = "0.6.0"
+SANDBOX_IMAGE = "python:3.12-bookworm"
 _ALLOWED_PRIMITIVES = frozenset({"choice", "noul", "score"})
 _SECRET_KEYS = frozenset(
     {
@@ -118,6 +120,42 @@ def _typesafe_sdk_version() -> str | None:
         return metadata.version("typesafe-sdk")
     except metadata.PackageNotFoundError:
         return None
+
+
+def _sandbox_image_identity() -> dict[str, object]:
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", SANDBOX_IMAGE],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise WorkflowError(
+            f"agentic Jev sandbox image is unavailable: {SANDBOX_IMAGE}; "
+            "materialize it before freezing the runtime"
+        ) from exc
+    try:
+        values = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise WorkflowError("unable to decode Docker sandbox image identity") from exc
+    if not isinstance(values, list) or len(values) != 1 or not isinstance(values[0], Mapping):
+        raise WorkflowError("Docker sandbox image inspection returned an unexpected shape")
+    value = values[0]
+    image_id = value.get("Id")
+    if not isinstance(image_id, str) or not image_id:
+        raise WorkflowError("Docker sandbox image inspection returned no image ID")
+    repo_digests = value.get("RepoDigests")
+    return {
+        "reference": SANDBOX_IMAGE,
+        "image_id": image_id,
+        "repo_digests": sorted(
+            str(item) for item in repo_digests
+        )
+        if isinstance(repo_digests, list)
+        else [],
+    }
 
 
 def _validate_questions(questions: Mapping[str, object]) -> dict[str, object]:
@@ -767,6 +805,7 @@ def create_agentic_jev_runtime_lock(
             "typesafe_sdk_version": sdk_version,
         },
         "docker": _docker_identity(),
+        "sandbox_image": _sandbox_image_identity(),
         "frozen_for_pilot": True,
     }
     validate_instance(
@@ -800,6 +839,10 @@ def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
     if value["docker"] != _docker_identity():
         raise WorkflowError(
             "agentic Jev runtime lock Docker/Compose identity no longer matches"
+        )
+    if value["sandbox_image"] != _sandbox_image_identity():
+        raise WorkflowError(
+            "agentic Jev runtime lock sandbox image identity no longer matches"
         )
     if value["skill"]["sha256"] != agentic_jev_skill_sha256():
         raise WorkflowError("agentic Jev runtime lock skill hash does not match package")
