@@ -122,6 +122,12 @@ def _typesafe_sdk_version() -> str | None:
         return None
 
 
+def _inspect_harness_sha256() -> str:
+    from . import inspect_adjudication as inspect_runtime
+
+    return sha256_file(Path(inspect_runtime.__file__).resolve())
+
+
 def _sandbox_image_identity() -> dict[str, object]:
     try:
         result = subprocess.run(
@@ -804,6 +810,10 @@ def create_agentic_jev_runtime_lock(
             "implementation_sha256": sha256_file(Path(__file__).resolve()),
             "typesafe_sdk_version": sdk_version,
         },
+        "inspect_harness": {
+            "module": "agent_workflow_benchmark.benchmarking.inspect_adjudication",
+            "implementation_sha256": _inspect_harness_sha256(),
+        },
         "docker": _docker_identity(),
         "sandbox_image": _sandbox_image_identity(),
         "frozen_for_pilot": True,
@@ -846,6 +856,11 @@ def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
         )
     if value["skill"]["sha256"] != agentic_jev_skill_sha256():
         raise WorkflowError("agentic Jev runtime lock skill hash does not match package")
+    inspect_harness = value["inspect_harness"]
+    if inspect_harness["implementation_sha256"] != _inspect_harness_sha256():
+        raise WorkflowError(
+            "agentic Jev runtime lock Inspect harness implementation hash no longer matches"
+        )
     host_tool = value["host_tool"]
     if host_tool["implementation_sha256"] != sha256_file(Path(__file__).resolve()):
         raise WorkflowError(
