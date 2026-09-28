@@ -4,7 +4,7 @@ build-backend="setuptools.build_meta"
 
 [project]
 name="agent-workflow-benchmark"
-version="0.5.1"
+version="0.5.2"
 description="Optional comparative benchmark plugin for Agent-Workflow"
 readme="README.md"
 authors=[{name="ngallodev-software"}]
@@ -35,4 +35,4 @@ include-package-data=false
 [tool.setuptools.packages.find]
 where=["src"]
 [tool.setuptools.package-data]
-agent_workflow_benchmark=["schemas/*.json","assets/**/*","templates/evaluation/*.json"]
+agent_workflow_benchmark=["schemas/*.json","assets/**/*","assets/adjudication/*.md","templates/evaluation/*.json"]
