@@ -372,11 +372,16 @@ def _sample_adjudication_completion(
             continue
         if getattr(message, "source", None) not in {None, "generate"}:
             continue
+
+        # Only the terminal generated assistant message is eligible. If it is
+        # still making a tool call or has no text, an earlier assistant message
+        # is not a valid substitute for the agent's terminal answer.
         if getattr(message, "tool_calls", None):
-            continue
+            break
         text = str(getattr(message, "text", "") or "")
         if text.strip():
             return text, "messages.terminal_assistant"
+        break
 
     return completion, "model_output.completion"
 
@@ -791,7 +796,11 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
-            "adjudication_completion_source": completion_source,
+            **(
+                {"adjudication_completion_source": completion_source}
+                if study_id != "routing-semantic-v1"
+                else {}
+            ),
             **_sample_provenance_fields(sample, study=study_id),
             "pass_sha256": sha256_file(pass_path),
         }
@@ -890,7 +899,11 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_total_time": result_sample.total_time,
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
-        "adjudication_completion_source": completion_source,
+        **(
+            {"adjudication_completion_source": completion_source}
+            if study_id != "routing-semantic-v1"
+            else {}
+        ),
         **_sample_provenance_fields(result_sample, study=study_id),
         "pass_sha256": sha256_file(pass_path),
     }
