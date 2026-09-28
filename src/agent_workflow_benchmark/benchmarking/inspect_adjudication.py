@@ -23,6 +23,7 @@ from agent_workflow.util import atomic_write_json, sha256_file
 
 from .adjudication_module import validate_abc_adjudication_module
 from .schema_contracts import validate_instance
+from .resolution_review import render_resolution_review
 from .oracle_adjudication import (
     ADJUDICATION_PASS_SCHEMA,
     ADJUDICATION_PASS_SCHEMA_V2,
@@ -1519,11 +1520,6 @@ def _probe_v2_resolution_renderer(
     c_contract: Mapping[str, Any],
     decision_id: str,
 ) -> dict[str, Any]:
-    repo = Path(__file__).resolve().parents[3]
-    script = repo / "scripts" / "adjudication" / "p0b-render-resolution-review.sh"
-    if not script.is_file():
-        raise WorkflowError(f"resolution renderer not found: {script}")
-
     case_id = str(a_contract["records"][0]["case_id"])
     source = next(item for item in view["cases"] if str(item["case_id"]) == case_id)
     seam = next(
@@ -1569,30 +1565,10 @@ def _probe_v2_resolution_renderer(
     review_path = probe_root / "resolution-review.json"
     markdown_path = probe_root / "resolution-review.md"
     atomic_write_json(review_path, review)
-    env = dict(os.environ)
-    env.update(
-        {
-            "BENCH_REPO": str(repo),
-            "PRIVATE_ROOT": str(probe_root / "private"),
-            "PYTHON": sys.executable,
-            "RESOLUTION_REVIEW": str(review_path),
-            "RESOLUTION_REVIEW_MD": str(markdown_path),
-            "ORACLE_REVIEW_GUIDE": "",
-        }
-    )
-    result = subprocess.run(
-        ["bash", str(script)],
-        cwd=str(repo),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if result.returncode != 0:
-        raise WorkflowError(
-            "v2 resolution renderer probe failed: "
-            + (result.stderr or result.stdout)[-4000:]
-        )
+    try:
+        render_resolution_review(review_path, markdown_path)
+    except (OSError, ValueError, TypeError) as exc:
+        raise WorkflowError(f"v2 resolution renderer probe failed: {exc}") from exc
     text = markdown_path.read_text(encoding="utf-8")
     expected_evidence = [
         records[role][case_id]["justifications"][decision_id][
