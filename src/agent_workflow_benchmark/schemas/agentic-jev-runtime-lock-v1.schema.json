@@ -113,6 +113,47 @@
         "implementation_sha256",
         "typesafe_sdk_version"
       ]
+    },
+    "inspect_harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "const": "agent_workflow_benchmark.benchmarking.inspect_adjudication"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "module",
+        "implementation_sha256"
+      ]
+    },
+    "sandbox_image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reference": {
+          "const": "python:3.12-bookworm"
+        },
+        "image_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo_digests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "reference",
+        "image_id",
+        "repo_digests"
+      ]
     }
   },
   "required": [
@@ -129,7 +170,9 @@
     "tasks",
     "tool",
     "host_tool",
+    "inspect_harness",
     "docker",
+    "sandbox_image",
     "frozen_for_pilot"
   ]
 }
