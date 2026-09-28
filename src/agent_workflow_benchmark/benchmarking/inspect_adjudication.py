@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -1590,6 +1591,21 @@ def _probe_v2_resolution_renderer(
     }
 
 
+def _prepare_v2_preflight_root(root: Path, *, force: bool) -> None:
+    root = Path(root)
+    if root.exists():
+        if root.is_symlink() or not root.is_dir():
+            raise WorkflowError(
+                f"v2 evidence preflight root must be a regular directory: {root}"
+            )
+        populated = any(root.iterdir())
+        if populated and not force:
+            raise WorkflowError(f"v2 evidence preflight directory already exists: {root}")
+        if populated:
+            shutil.rmtree(root)
+    root.mkdir(parents=True, exist_ok=True)
+
+
 def run_v2_evidence_preflight(
     *,
     destination: Path,
@@ -1604,9 +1620,7 @@ def run_v2_evidence_preflight(
     if destination.exists() and not force:
         raise WorkflowError(f"v2 evidence preflight already exists: {destination}")
     root = destination.parent / "routing-semantic-v2-evidence-preflight"
-    if root.exists() and any(root.iterdir()) and not force:
-        raise WorkflowError(f"v2 evidence preflight directory already exists: {root}")
-    root.mkdir(parents=True, exist_ok=True)
+    _prepare_v2_preflight_root(root, force=force)
 
     view_path = root / "synthetic-v2-view.json"
     protocol_path = root / "synthetic-v2-protocol.md"
