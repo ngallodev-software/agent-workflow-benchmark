@@ -477,6 +477,24 @@ def test_v2_provenance_separates_final_output_and_aggregate_session_usage():
     assert value["provider_request_count"] == 3
 
 
+def test_v1_provenance_shape_remains_historical_while_v2_is_scoped():
+    sample = _FakeSample()
+
+    v1 = inspect_runtime._sample_provenance_fields(
+        sample, study="routing-semantic-v1"
+    )
+    assert set(v1) == {"model_usage"}
+    assert v1["model_usage"]["input_tokens"] == 10
+
+    v2 = inspect_runtime._sample_provenance_fields(
+        sample, study="routing-semantic-v2"
+    )
+    assert "model_usage" not in v2
+    assert v2["final_output_usage"]["input_tokens"] == 10
+    assert v2["aggregate_session_usage"]["openai-api/test"]["input_tokens"] == 100
+    assert v2["reasoning_summary"]["observed"] is True
+
+
 def test_reasoning_summary_capture_is_observational_not_raw_reasoning():
     value = inspect_runtime._reasoning_summary_stats(_FakeSample())
     assert value == {
