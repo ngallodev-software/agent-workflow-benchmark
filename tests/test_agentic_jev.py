@@ -184,8 +184,10 @@ def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
+    from agent_workflow_benchmark.benchmarking import agentic_jev as agentic_jev_module
     from agent_workflow_benchmark.benchmarking import inspect_adjudication
 
+    monkeypatch.setattr(agentic_jev_module, "_typesafe_sdk_version", lambda: "0.6.0")
     monkeypatch.setattr(
         inspect_adjudication,
         "resolve_latest_codex_cli",
@@ -224,5 +226,11 @@ def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
     assert result["agent_model_args"] == {"responses_api": True}
     assert result["skill"]["sha256"] == agentic_jev_skill_sha256()
     assert result["tasks"]["count"] == 24
+    assert result["host_tool"]["typesafe_sdk_version"] == "0.6.0"
+    assert len(result["host_tool"]["implementation_sha256"]) == 64
     loaded = load_agentic_jev_runtime_lock(lock_path)
     assert loaded["tasks"]["sha256"] == result["tasks"]["sha256"]
+
+    monkeypatch.setattr(agentic_jev_module, "_typesafe_sdk_version", lambda: "0.6.1")
+    with pytest.raises(WorkflowError, match="TypeSafe SDK version"):
+        load_agentic_jev_runtime_lock(lock_path)
