@@ -92,6 +92,27 @@
     },
     "frozen_for_pilot": {
       "const": true
+    },
+    "host_tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "const": "agent_workflow_benchmark.benchmarking.agentic_jev"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "typesafe_sdk_version": {
+          "const": "0.6.0"
+        }
+      },
+      "required": [
+        "module",
+        "implementation_sha256",
+        "typesafe_sdk_version"
+      ]
     }
   },
   "required": [
@@ -107,6 +128,7 @@
     "skill",
     "tasks",
     "tool",
+    "host_tool",
     "docker",
     "frozen_for_pilot"
   ]
