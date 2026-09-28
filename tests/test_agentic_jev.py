@@ -10,7 +10,9 @@ from agent_workflow_benchmark.benchmarking.agentic_jev import (
     PILOT_ARMS,
     agentic_jev_skill_path,
     agentic_jev_skill_sha256,
+    create_agentic_jev_runtime_lock,
     execute_jev_request,
+    load_agentic_jev_runtime_lock,
     load_pilot_tasks,
     pilot_treatment_manifest,
 )
@@ -176,3 +178,51 @@ def test_packaged_agentic_jev_pilot_has_exactly_24_hidden_tagged_tasks():
     assert len({task["task_id"] for task in value["tasks"]}) == 24
     assert all(task["authoring_tags"] for task in value["tasks"])
     assert all(task["files"] for task in value["tasks"])
+
+
+def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from agent_workflow_benchmark.benchmarking import inspect_adjudication
+
+    monkeypatch.setattr(
+        inspect_adjudication,
+        "resolve_latest_codex_cli",
+        lambda: {
+            "policy": "latest-at-cohort-start",
+            "requested": "latest",
+            "resolved": "9.9.9",
+            "platform": "linux-x64",
+            "cached_path": "/tmp/codex",
+        },
+    )
+    monkeypatch.setattr(
+        inspect_adjudication,
+        "_docker_identity",
+        lambda: {"docker": "Docker test", "compose": "Compose test"},
+    )
+    tasks = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-pilot"
+        / "tasks-v0.1.0-dev.1.json"
+    )
+    lock_path = tmp_path / "runtime-lock.json"
+    result = create_agentic_jev_runtime_lock(
+        destination=lock_path,
+        tasks_path=tasks,
+        agent_model="openai-api/codex-lb/test-model",
+        agent_model_args={"responses_api": True},
+        jev_model=None,
+    )
+
+    assert result["codex_cli"]["resolved"] == "9.9.9"
+    assert result["agent_model"] == "openai-api/codex-lb/test-model"
+    assert result["agent_model_args"] == {"responses_api": True}
+    assert result["skill"]["sha256"] == agentic_jev_skill_sha256()
+    assert result["tasks"]["count"] == 24
+    loaded = load_agentic_jev_runtime_lock(lock_path)
+    assert loaded["tasks"]["sha256"] == result["tasks"]["sha256"]
