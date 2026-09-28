@@ -628,6 +628,35 @@ def test_v2_resolution_renderer_probe_is_package_local(tmp_path: Path):
     assert justification["decisive_case_evidence"][0] in rendered
 
 
+def test_v2_prompt_makes_evidence_array_contract_explicit():
+    prompt = inspect_runtime._v2_prompt_template_path().read_text(encoding="utf-8")
+    assert "MUST be a JSON array, never a scalar string" in prompt
+    assert '"decisive_case_evidence": ["concise case-grounded statement"]' in prompt
+
+
+def test_v2_preflight_invalid_completion_preserves_diagnostics(tmp_path: Path):
+    view_path = tmp_path / "view.json"
+    inspect_runtime._synthetic_v2_evidence_view(view_path)
+    role_dir = tmp_path / "a"
+
+    with pytest.raises(WorkflowError, match="diagnostic="):
+        inspect_runtime._wrap_v2_preflight_completion(
+            view_path=view_path,
+            completion='{"records":[]}',
+            completion_source="model_output.completion",
+            adjudicator_id="preflight-a",
+            role_dir=role_dir,
+        )
+
+    assert (role_dir / "raw-completion.txt").read_text(encoding="utf-8") == '{"records":[]}'
+    diagnostic = json.loads(
+        (role_dir / "contract-validation-error.json").read_text(encoding="utf-8")
+    )
+    assert diagnostic["adjudicator_id"] == "preflight-a"
+    assert diagnostic["completion_source"] == "model_output.completion"
+    assert diagnostic["error"]
+
+
 def test_v2_preflight_model_args_default_is_shell_safe():
     script = (
         ROOT / "scripts" / "adjudication" / "v2-evidence-preflight.sh"
