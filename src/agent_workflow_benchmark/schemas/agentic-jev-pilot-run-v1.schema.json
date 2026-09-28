@@ -1,0 +1,35 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-pilot-run/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow-benchmark/agentic-jev-pilot-run/v1"
+    },
+    "study_id": {
+      "const": "agentic-jev-pilot-v1"
+    },
+    "development_only": {
+      "const": true
+    },
+    "runtime_lock_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "arms": {
+      "type": "object"
+    },
+    "claim_boundary": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "study_id",
+    "development_only",
+    "runtime_lock_sha256",
+    "arms",
+    "claim_boundary"
+  ]
+}
