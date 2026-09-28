@@ -721,6 +721,13 @@ def create_agentic_jev_runtime_lock(
     tasks = load_pilot_tasks(Path(tasks_path))
     if len(tasks["tasks"]) != 24:
         raise WorkflowError("agentic Jev runtime lock requires exactly 24 pilot tasks")
+    sdk_version = _typesafe_sdk_version()
+    if sdk_version != TYPESAFE_SDK_VERSION:
+        observed = sdk_version or "not installed"
+        raise WorkflowError(
+            "agentic Jev runtime freeze requires "
+            f"typesafe-sdk=={TYPESAFE_SDK_VERSION}; observed {observed}"
+        )
     model = str(agent_model).strip()
     if not model:
         raise WorkflowError("agentic Jev runtime lock requires an explicit agent model")
@@ -753,6 +760,11 @@ def create_agentic_jev_runtime_lock(
             "receipt_schema": TOOL_RECEIPT_SCHEMA,
             "primitives": sorted(_ALLOWED_PRIMITIVES),
         },
+        "host_tool": {
+            "module": "agent_workflow_benchmark.benchmarking.agentic_jev",
+            "implementation_sha256": sha256_file(Path(__file__).resolve()),
+            "typesafe_sdk_version": sdk_version,
+        },
         "docker": _docker_identity(),
         "frozen_for_pilot": True,
     }
@@ -775,6 +787,15 @@ def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
     )
     if value["skill"]["sha256"] != agentic_jev_skill_sha256():
         raise WorkflowError("agentic Jev runtime lock skill hash does not match package")
+    host_tool = value["host_tool"]
+    if host_tool["implementation_sha256"] != sha256_file(Path(__file__).resolve()):
+        raise WorkflowError(
+            "agentic Jev runtime lock host-tool implementation hash no longer matches"
+        )
+    if host_tool["typesafe_sdk_version"] != _typesafe_sdk_version():
+        raise WorkflowError(
+            "agentic Jev runtime lock TypeSafe SDK version no longer matches"
+        )
     tasks_path = Path(str(value["tasks"]["path"]))
     if not tasks_path.is_file() or sha256_file(tasks_path) != value["tasks"]["sha256"]:
         raise WorkflowError("agentic Jev runtime lock task manifest no longer matches")
