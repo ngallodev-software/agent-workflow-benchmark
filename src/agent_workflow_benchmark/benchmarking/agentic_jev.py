@@ -23,6 +23,8 @@ TOOL_RECEIPT_SCHEMA = "agent-workflow-benchmark/agentic-jev-tool-receipt/v1"
 PILOT_STUDY_ID = "agentic-jev-pilot-v1"
 PILOT_AGENT_MODEL = "openai-api/codex-lb/gpt-6-luna"
 PILOT_AGENT_REASONING_EFFORT = "high"
+PILOT_CODEX_MODEL_CONFIG = "gpt-6-luna"
+PILOT_CODEX_MIN_VERSION = (0, 155, 0)
 SKILL_UPSTREAM_COMMIT = "65a39f393687675ce170e6094757de20370365b9"
 SKILL_UPSTREAM_RELEASE = "v0.5.7"
 TYPESAFE_SDK_VERSION = "0.6.0"
@@ -115,6 +117,17 @@ def _safe(value: Any, *, key: str = "", depth: int = 0) -> Any:
 
 def _sha256_json(value: object) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _codex_version_tuple(value: str) -> tuple[int, int, int]:
+    raw = str(value).strip().removeprefix("v")
+    parts = raw.split(".")
+    if len(parts) < 3:
+        raise WorkflowError(f"invalid resolved Codex CLI version: {value!r}")
+    try:
+        return tuple(int(part) for part in parts[:3])
+    except ValueError as exc:
+        raise WorkflowError(f"invalid resolved Codex CLI version: {value!r}") from exc
 
 
 def _typesafe_sdk_version() -> str | None:
@@ -561,6 +574,7 @@ def build_agentic_jev_solver(
 
     return codex_cli(
         version=codex_version,
+        model_config=PILOT_CODEX_MODEL_CONFIG,
         skills=skills,
         bridged_tools=bridged_tools,
         web_search="disabled",
@@ -586,6 +600,13 @@ def pilot_treatment_manifest() -> dict[str, object]:
     return {
         "schema": "agent-workflow-benchmark/agentic-jev-treatment/v1",
         "study_id": PILOT_STUDY_ID,
+        "agent": {
+            "model": PILOT_AGENT_MODEL,
+            "reasoning_effort": PILOT_AGENT_REASONING_EFFORT,
+            "responses_api": True,
+            "codex_model_config": PILOT_CODEX_MODEL_CONFIG,
+            "codex_min_version": ".".join(str(item) for item in PILOT_CODEX_MIN_VERSION),
+        },
         "skill": {
             "upstream_repository": "typesafe-ai/skills",
             "upstream_commit": SKILL_UPSTREAM_COMMIT,
@@ -804,13 +825,24 @@ def create_agentic_jev_runtime_lock(
             "generation config, not model_args"
         )
 
+    codex_cli = resolve_latest_codex_cli()
+    resolved_codex_version = str(codex_cli["resolved"])
+    if _codex_version_tuple(resolved_codex_version) < PILOT_CODEX_MIN_VERSION:
+        minimum = ".".join(str(item) for item in PILOT_CODEX_MIN_VERSION)
+        raise WorkflowError(
+            "agentic Jev pilot requires Codex CLI "
+            f">={minimum} for {PILOT_CODEX_MODEL_CONFIG}; "
+            f"resolved {resolved_codex_version}"
+        )
+
     record = {
         "schema": "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
         "created_at": _utc(),
         "study_id": PILOT_STUDY_ID,
         "inspect_ai_version": INSPECT_AI_VERSION,
         "inspect_swe_version": INSPECT_SWE_VERSION,
-        "codex_cli": resolve_latest_codex_cli(),
+        "codex_cli": codex_cli,
+        "codex_model_config": PILOT_CODEX_MODEL_CONFIG,
         "agent_model": model,
         "agent_reasoning_effort": reasoning_effort,
         "agent_model_args": model_args,
@@ -870,6 +902,14 @@ def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
         artifact=str(path),
     )
     _require_inspect_dependencies()
+    if value["codex_model_config"] != PILOT_CODEX_MODEL_CONFIG:
+        raise WorkflowError(
+            "agentic Jev runtime lock Codex model config no longer matches pilot"
+        )
+    if _codex_version_tuple(str(value["codex_cli"]["resolved"])) < PILOT_CODEX_MIN_VERSION:
+        raise WorkflowError(
+            "agentic Jev runtime lock Codex CLI is too old for GPT-6 Luna"
+        )
     if value["agent_model"] != PILOT_AGENT_MODEL:
         raise WorkflowError("agentic Jev runtime lock model no longer matches pilot")
     if value["agent_reasoning_effort"] != PILOT_AGENT_REASONING_EFFORT:
@@ -1184,6 +1224,7 @@ def run_agentic_jev_pilot(
         },
         "runtime": {
             "codex_version": codex_version,
+            "codex_model_config": PILOT_CODEX_MODEL_CONFIG,
             "model": model,
             "reasoning_effort": reasoning_effort,
             "jev_model": jev_model,
