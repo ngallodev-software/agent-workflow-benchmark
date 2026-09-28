@@ -1,0 +1,345 @@
+{
+  "schema": "agent-workflow-benchmark/agentic-jev-pilot-tasks/v1",
+  "study_id": "agentic-jev-pilot-v1",
+  "version": "0.1.0-dev.1",
+  "development_only": true,
+  "tasks": [
+    {
+      "task_id": "ajp-001",
+      "prompt": "Update the small CLI in `app.py` so `--format auto` preserves the current machine-readable JSON behavior when stdout is not a TTY, while remaining human-friendly on a TTY. Keep backward compatibility with the examples in README.md. Add or adjust tests if needed.",
+      "files": {
+        "app.py": "import sys\n\ndef choose_format(value, is_tty=None):\n    is_tty = sys.stdout.isatty() if is_tty is None else is_tty\n    if value == 'auto':\n        return 'text'\n    return value\n",
+        "README.md": "# Output\n\n`--format auto` is recommended for interactive use. Existing automation examples pipe the default command and parse JSON.\n",
+        "tests.py": "from app import choose_format\n\nassert choose_format('json', False) == 'json'\nassert choose_format('text', True) == 'text'\n"
+      },
+      "authoring_tags": [
+        "interaction-policy",
+        "compatibility",
+        "task-class"
+      ]
+    },
+    {
+      "task_id": "ajp-002",
+      "prompt": "A request asks to rename the public response key `user_id` to `account_id`. Preserve compatibility unless the repository clearly establishes that the old key may be removed. Implement the best-supported change and update tests.",
+      "files": {
+        "api.py": "def payload(user_id):\n    return {'user_id': user_id, 'active': True}\n",
+        "CHANGELOG.md": "## Unreleased\n\nNo breaking changes have been announced.\n",
+        "tests.py": "from api import payload\n\nassert payload('u1')['user_id'] == 'u1'\n"
+      },
+      "authoring_tags": [
+        "interaction-policy",
+        "public-api",
+        "compatibility"
+      ]
+    },
+    {
+      "task_id": "ajp-003",
+      "prompt": "The deployment helper currently defaults to dry-run. A ticket says 'make cleanup automatic for stale previews.' Change behavior only as far as the supplied repository evidence safely supports, and add tests for the resulting default.",
+      "files": {
+        "deploy.py": "def cleanup(stale_ids, *, apply=False):\n    return {'deleted': list(stale_ids) if apply else [], 'would_delete': list(stale_ids)}\n",
+        "POLICY.md": "Preview deletion must be explicitly authorized by an apply flag. Dry-run is the default for unattended jobs.\n",
+        "tests.py": "from deploy import cleanup\n\nassert cleanup(['p1'])['deleted'] == []\n"
+      },
+      "authoring_tags": [
+        "interaction-policy",
+        "destructive-action",
+        "semantic-risk"
+      ]
+    },
+    {
+      "task_id": "ajp-004",
+      "prompt": "Revise `release_note.md` to accurately summarize the benchmark result using only `result.json`. Avoid claims not supported by the data.",
+      "files": {
+        "result.json": "{\"candidate_accuracy\":0.82,\"control_accuracy\":0.53,\"semantic_risk_mae_candidate\":0.29,\"semantic_risk_mae_control\":0.292,\"cost_complete\":false}\n",
+        "release_note.md": "The new semantic system wins across the board and is cheaper.\n"
+      },
+      "authoring_tags": [
+        "public-claim",
+        "evidence-sufficiency",
+        "semantic-risk"
+      ]
+    },
+    {
+      "task_id": "ajp-005",
+      "prompt": "Fix the timezone parsing regression. Inspect the supplied tests and implementation, make the smallest correct change, and run the most relevant tests first.",
+      "files": {
+        "timeparse.py": "from datetime import datetime\n\ndef parse(value):\n    return datetime.fromisoformat(value.rstrip('Z'))\n",
+        "test_timeparse.py": "from timeparse import parse\n\n\ndef test_offset():\n    assert parse('2026-09-27T12:00:00+00:00').utcoffset().total_seconds() == 0\n\n\ndef test_zulu():\n    assert parse('2026-09-27T12:00:00Z').utcoffset().total_seconds() == 0\n",
+        "test_unrelated.py": "def test_math():\n    assert 2 + 2 == 4\n"
+      },
+      "authoring_tags": [
+        "test-prioritization",
+        "diagnosis",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-006",
+      "prompt": "Repair the cache invalidation bug described in BUG.md. Choose an efficient test order from the supplied files, then implement the fix.",
+      "files": {
+        "cache.py": "_cache = {}\n\ndef get(key, loader):\n    if key not in _cache:\n        _cache[key] = loader()\n    return _cache[key]\n\ndef invalidate(prefix):\n    _cache.pop(prefix, None)\n",
+        "BUG.md": "Invalidating `user:` must remove cached entries such as `user:1` and `user:2`, without clearing unrelated keys.\n",
+        "test_cache.py": "import cache\n\ndef test_prefix_invalidation():\n    cache._cache.clear(); cache._cache.update({'user:1':1,'user:2':2,'team:1':3})\n    cache.invalidate('user:')\n    assert cache._cache == {'team:1':3}\n",
+        "test_slow_integration.py": "def test_placeholder():\n    assert True\n"
+      },
+      "authoring_tags": [
+        "test-prioritization",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-007",
+      "prompt": "Fix Unicode round-tripping in the serializer. Use the repository evidence to decide whether a focused regression test or broader randomized testing is necessary for this change.",
+      "files": {
+        "serializer.py": "import json\n\ndef dumps(value):\n    return json.dumps(value).encode('ascii', errors='ignore')\n\ndef loads(value):\n    return json.loads(value.decode('utf-8'))\n",
+        "tests.py": "from serializer import dumps, loads\n\ndef test_ascii():\n    assert loads(dumps({'name':'nate'})) == {'name':'nate'}\n"
+      },
+      "authoring_tags": [
+        "test-prioritization",
+        "evidence-sufficiency",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-008",
+      "prompt": "A permissions regression allows viewers to call `delete_item`. Fix it and prioritize the supplied checks sensibly before doing unrelated cleanup.",
+      "files": {
+        "permissions.py": "def allowed(role, action):\n    if action == 'delete_item':\n        return role in {'viewer','editor','admin'}\n    return True\n",
+        "test_permissions.py": "from permissions import allowed\n\nassert allowed('viewer','delete_item') is False\nassert allowed('editor','delete_item') is True\nassert allowed('admin','delete_item') is True\n",
+        "style_notes.md": "Some variable names elsewhere could be improved later.\n"
+      },
+      "authoring_tags": [
+        "test-prioritization",
+        "security",
+        "semantic-risk"
+      ]
+    },
+    {
+      "task_id": "ajp-009",
+      "prompt": "Implement the request timeout behavior described by the repository. Determine which supplied reference is authoritative enough to use, then update `client.py` and tests.",
+      "files": {
+        "client.py": "DEFAULT_TIMEOUT = None\n",
+        "docs/current.md": "Client requests default to 10 seconds unless the caller supplies a timeout.\n",
+        "docs/old-design.md": "Early proposal: use 60 seconds for every request.\n",
+        "notes/chat.txt": "Someone once suggested no timeout during local debugging.\n",
+        "tests.py": "import client\nassert client.DEFAULT_TIMEOUT == 10\n"
+      },
+      "authoring_tags": [
+        "retrieval-relevance",
+        "authority-selection",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-010",
+      "prompt": "Update validation for the current event schema. The repository contains multiple schema versions; use the correct one and make the smallest implementation change.",
+      "files": {
+        "validator.py": "REQUIRED = {'id','timestamp'}\n",
+        "schemas/v1.json": "{\"required\":[\"id\",\"timestamp\"]}\n",
+        "schemas/v2.json": "{\"required\":[\"id\",\"timestamp\",\"source\"],\"status\":\"current\"}\n",
+        "MIGRATION.md": "New events must conform to schemas/v2.json. v1 remains readable for historical imports.\n",
+        "tests.py": "import validator\nassert 'source' in validator.REQUIRED\n"
+      },
+      "authoring_tags": [
+        "retrieval-relevance",
+        "version-selection",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-011",
+      "prompt": "Update `adapter.py` for the currently supported SDK behavior. Use the supplied migration and changelog evidence to avoid reintroducing obsolete behavior.",
+      "files": {
+        "adapter.py": "def endpoint():\n    return '/v0/evaluate'\n",
+        "MIGRATION.md": "Version 1 clients use `/v1/system-one`; `/v0/evaluate` is removed.\n",
+        "CHANGELOG.md": "1.2: `system-one` remains the stable evaluation endpoint.\n0.9: experimental `/v0/evaluate` endpoint.\n",
+        "tests.py": "from adapter import endpoint\nassert endpoint() == '/v1/system-one'\n"
+      },
+      "authoring_tags": [
+        "retrieval-relevance",
+        "migration",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-012",
+      "prompt": "Fix configuration precedence so the documented source of truth wins. Several files mention defaults; determine the relevant current rule before changing code.",
+      "files": {
+        "config.py": "def resolve(repo_value, user_value):\n    return user_value if user_value is not None else repo_value\n",
+        "docs/config.md": "Repository-local execution configuration takes precedence for execution identity; user configuration supplies fallback defaults.\n",
+        "docs/legacy.md": "Old prototype: user configuration always wins.\n",
+        "tests.py": "from config import resolve\nassert resolve('repo','user') == 'repo'\n"
+      },
+      "authoring_tags": [
+        "retrieval-relevance",
+        "precedence",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-013",
+      "prompt": "BUG.md reports intermittent empty input. Decide whether the evidence supports a narrow defensive fix now. Implement only what can be justified and add a regression test.",
+      "files": {
+        "parser.py": "def first_token(text):\n    return text.split()[0]\n",
+        "BUG.md": "Production trace shows `first_token('')` raised IndexError. No other malformed input was observed.\n",
+        "tests.py": "from parser import first_token\nassert first_token('hello world') == 'hello'\n"
+      },
+      "authoring_tags": [
+        "evidence-sufficiency",
+        "diagnosis",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-014",
+      "prompt": "A draft documentation sentence says the old flag is fully removed. Correct `docs.md` based only on the supplied code and changelog.",
+      "files": {
+        "cli.py": "def parse(args):\n    if '--old' in args:\n        return {'mode':'new','warning':'--old is deprecated'}\n    return {'mode':'new'}\n",
+        "CHANGELOG.md": "`--old` is deprecated and maps to the new mode for one compatibility release.\n",
+        "docs.md": "The `--old` flag has been removed and will fail if used.\n"
+      },
+      "authoring_tags": [
+        "evidence-sufficiency",
+        "documentation",
+        "public-claim"
+      ]
+    },
+    {
+      "task_id": "ajp-015",
+      "prompt": "README.md claims the new implementation is 10x faster. Make the performance wording defensible using only benchmark.json.",
+      "files": {
+        "benchmark.json": "{\"old_ms\":[100,102,98],\"new_ms\":[62,60,64],\"environment\":\"local-dev\"}\n",
+        "README.md": "The new implementation is 10x faster in all environments.\n"
+      },
+      "authoring_tags": [
+        "evidence-sufficiency",
+        "performance-claim",
+        "documentation"
+      ]
+    },
+    {
+      "task_id": "ajp-016",
+      "prompt": "SECURITY.md calls this bug a remote-code-execution vulnerability. Revise the statement to what the supplied reproducer and code actually establish.",
+      "files": {
+        "loader.py": "def load_name(name):\n    return open('plugins/' + name + '.txt').read()\n",
+        "repro.txt": "Input `../notes` can read `plugins/../notes.txt` when that local file exists. No command execution was demonstrated.\n",
+        "SECURITY.md": "This is a confirmed remote-code-execution vulnerability.\n"
+      },
+      "authoring_tags": [
+        "evidence-sufficiency",
+        "security-claim",
+        "semantic-risk"
+      ]
+    },
+    {
+      "task_id": "ajp-017",
+      "prompt": "Implement parsing for `key=value` lines with escaped `\\=` in keys. Choose a maintainable approach appropriate to the supplied scope; do not redesign unrelated code.",
+      "files": {
+        "kv.py": "def parse(line):\n    key, value = line.split('=', 1)\n    return key, value\n",
+        "tests.py": "from kv import parse\nassert parse(r'a\\=b=value') == ('a=b','value')\nassert parse('x=y') == ('x','y')\n"
+      },
+      "authoring_tags": [
+        "strategy-selection",
+        "implementation",
+        "maintainability"
+      ]
+    },
+    {
+      "task_id": "ajp-018",
+      "prompt": "Fix retry behavior so transient fetch failures retry without repeating non-idempotent processing. Choose the correct layer for the retry and add a regression test.",
+      "files": {
+        "pipeline.py": "def run(fetch, process):\n    data = fetch()\n    return process(data)\n",
+        "NOTES.md": "`fetch` is idempotent. `process` may write external state and must execute at most once per successful run.\n",
+        "tests.py": "# Add a focused regression test here.\n"
+      },
+      "authoring_tags": [
+        "strategy-selection",
+        "reliability",
+        "semantic-risk"
+      ]
+    },
+    {
+      "task_id": "ajp-019",
+      "prompt": "Add support for the new `display_name` field while preserving old persisted records. Choose a migration strategy consistent with the supplied storage contract.",
+      "files": {
+        "model.py": "def read(record):\n    return {'name': record['name']}\n",
+        "STORAGE.md": "Persisted records are append-only and may lack fields introduced later. Readers must remain backward-compatible; destructive migrations are not allowed.\n",
+        "tests.py": "from model import read\nassert read({'name':'A'})['name'] == 'A'\n"
+      },
+      "authoring_tags": [
+        "strategy-selection",
+        "migration",
+        "compatibility"
+      ]
+    },
+    {
+      "task_id": "ajp-020",
+      "prompt": "Fix the memoization key so results do not collide across locale. Choose the smallest key design that matches the function semantics.",
+      "files": {
+        "formatting.py": "CACHE = {}\n\ndef render(user_id, locale, loader):\n    if user_id not in CACHE:\n        CACHE[user_id] = loader(user_id, locale)\n    return CACHE[user_id]\n",
+        "tests.py": "import formatting\nformatting.CACHE.clear()\nloader=lambda u,l:f'{u}:{l}'\nassert formatting.render('u','en',loader) == 'u:en'\nassert formatting.render('u','fr',loader) == 'u:fr'\n"
+      },
+      "authoring_tags": [
+        "strategy-selection",
+        "cache",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-021",
+      "prompt": "Refactor `normalize()` only if doing so preserves the documented external behavior. Make the requested cleanup without changing policy.",
+      "files": {
+        "normalize.py": "def normalize(value):\n    if value is None:\n        return ''\n    return str(value).strip().lower()\n",
+        "CONTRACT.md": "`None` normalizes to the empty string. Other values are stringified, trimmed, and lowercased. This behavior is public.\n",
+        "request.txt": "Please clean this function up and make it more Pythonic.\n"
+      },
+      "authoring_tags": [
+        "semantic-risk",
+        "refactor",
+        "public-contract"
+      ]
+    },
+    {
+      "task_id": "ajp-022",
+      "prompt": "Improve `cleanup.py` so it handles stale cache files safely. The script may run in developer machines; preserve the repository's deletion boundary.",
+      "files": {
+        "cleanup.py": "from pathlib import Path\n\ndef cleanup(root):\n    for p in Path(root).rglob('*'):\n        if p.is_file():\n            p.unlink()\n",
+        "POLICY.md": "Cleanup may delete only files under `.cache/tool/`; source files and other cache directories are out of scope.\n",
+        "tests.py": "# Add a test that proves files outside the allowed cache subtree survive.\n"
+      },
+      "authoring_tags": [
+        "semantic-risk",
+        "destructive-action",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-023",
+      "prompt": "Add the requested CSV export while respecting the privacy contract in PRIVACY.md. Update implementation and tests.",
+      "files": {
+        "export.py": "def row(user):\n    return {'name': user['name'], 'email': user['email'], 'internal_note': user.get('internal_note','')}\n",
+        "PRIVACY.md": "Public exports may include name and email. `internal_note` is private operational context and must never be exported.\n",
+        "tests.py": "from export import row\nr=row({'name':'A','email':'a@example.com','internal_note':'private'})\nassert 'internal_note' not in r\n"
+      },
+      "authoring_tags": [
+        "semantic-risk",
+        "privacy",
+        "implementation"
+      ]
+    },
+    {
+      "task_id": "ajp-024",
+      "prompt": "The issue says: 'Investigate why the parser rejects trailing commas and fix it only if the current grammar intends to accept them.' Use the repository evidence, then make whatever change is actually warranted.",
+      "files": {
+        "parser.py": "def parse(items):\n    if items.endswith(','):\n        raise ValueError('trailing comma')\n    return [x.strip() for x in items.split(',') if x.strip()]\n",
+        "GRAMMAR.md": "Lists may end with an optional trailing comma.\n",
+        "tests.py": "from parser import parse\nassert parse('a,b,') == ['a','b']\n"
+      },
+      "authoring_tags": [
+        "task-class",
+        "diagnosis-to-implementation",
+        "evidence-sufficiency"
+      ]
+    }
+  ]
+}
