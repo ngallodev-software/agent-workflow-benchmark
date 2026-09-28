@@ -424,3 +424,88 @@ def test_resolve_codex_npm_latest_rejects_nonversion(
     )
     with pytest.raises(WorkflowError, match="invalid Codex CLI version"):
         inspect_runtime._resolve_codex_npm_latest()
+
+
+class _FakeUsage:
+    def __init__(self, **values):
+        self.values = values
+
+    def model_dump(self, mode="json"):
+        return dict(self.values)
+
+
+class _FakeOutput:
+    def __init__(self):
+        self.usage = _FakeUsage(
+            input_tokens=10,
+            output_tokens=2,
+            total_tokens=12,
+        )
+
+
+class _FakeSample:
+    def __init__(self):
+        self.output = _FakeOutput()
+        self.model_usage = {
+            "openai-api/test": _FakeUsage(
+                input_tokens=100,
+                output_tokens=20,
+                total_tokens=120,
+                requests=3,
+            )
+        }
+        self.messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "reasoning",
+                        "reasoning": "redacted",
+                        "summary": "bounded summary",
+                    }
+                ],
+            }
+        ]
+
+
+def test_v2_provenance_separates_final_output_and_aggregate_session_usage():
+    sample = _FakeSample()
+    value = inspect_runtime._sample_usage_provenance(sample)
+    assert value["final_output_usage"]["input_tokens"] == 10
+    assert value["aggregate_session_usage"]["openai-api/test"]["input_tokens"] == 100
+    assert value["model_call_count"] == 3
+    assert value["provider_request_count"] == 3
+
+
+def test_reasoning_summary_capture_is_observational_not_raw_reasoning():
+    value = inspect_runtime._reasoning_summary_stats(_FakeSample())
+    assert value == {
+        "observed": True,
+        "items": 1,
+        "characters": len("bounded summary"),
+    }
+
+
+def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
+    schema = {
+        "schema": "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+        "created_at": "2026-09-27T00:00:00+00:00",
+        "study_id": "routing-semantic-v2",
+        "protocol_version": "routing-semantic-oracle-v2-draft.1",
+        "codex_version": "1.2.3",
+        "model": "mock/model",
+        "passed": True,
+        "gates": {
+            "IA-9": {"status": "pass"},
+            "IA-10": {"status": "pass"},
+            "IA-11": {"status": "pass"},
+        },
+        "artifacts": {"view": "/private/view.json"},
+        "real_cohort_ready": False,
+        "blocking_reason": "real cohort identities are not frozen",
+    }
+    inspect_runtime.validate_instance(
+        schema,
+        "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+        artifact="test",
+    )
