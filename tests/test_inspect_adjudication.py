@@ -621,3 +621,21 @@ def test_v1_adjudication_completion_preserves_historical_output_only_contract():
 
     assert text == ""
     assert source == "model_output.completion"
+
+
+def test_v2_adjudication_completion_never_reuses_pre_tool_assistant_text():
+    sample = _FakeSampleWithTerminalMessage(
+        completion="",
+        messages=[
+            _FakeAssistantMessage('{"records":[]}'),
+            _FakeToolCallingAssistantMessage("calling tool"),
+        ],
+    )
+
+    text, source = inspect_runtime._sample_adjudication_completion(
+        sample,
+        study="routing-semantic-v2",
+    )
+
+    assert text == ""
+    assert source == "model_output.completion"
