@@ -7,6 +7,8 @@ import pytest
 
 from agent_workflow.errors import WorkflowError
 from agent_workflow_benchmark.benchmarking.agentic_jev import (
+    PILOT_AGENT_MODEL,
+    PILOT_AGENT_REASONING_EFFORT,
     PILOT_ARMS,
     agentic_jev_skill_path,
     agentic_jev_skill_sha256,
@@ -228,13 +230,15 @@ def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
     result = create_agentic_jev_runtime_lock(
         destination=lock_path,
         tasks_path=tasks,
-        agent_model="openai-api/codex-lb/test-model",
+        agent_model=PILOT_AGENT_MODEL,
+        agent_reasoning_effort=PILOT_AGENT_REASONING_EFFORT,
         agent_model_args={"responses_api": True},
         jev_model=None,
     )
 
     assert result["codex_cli"]["resolved"] == "9.9.9"
-    assert result["agent_model"] == "openai-api/codex-lb/test-model"
+    assert result["agent_model"] == "openai-api/codex-lb/gpt-6-luna"
+    assert result["agent_reasoning_effort"] == "high"
     assert result["agent_model_args"] == {"responses_api": True}
     assert result["skill"]["sha256"] == agentic_jev_skill_sha256()
     assert result["tasks"]["count"] == 24
@@ -287,3 +291,77 @@ def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
     monkeypatch.setattr(agentic_jev_module, "_typesafe_sdk_version", lambda: "0.6.1")
     with pytest.raises(WorkflowError, match="TypeSafe SDK version"):
         load_agentic_jev_runtime_lock(lock_path)
+
+
+def test_agentic_jev_runtime_lock_rejects_model_or_reasoning_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from agent_workflow_benchmark.benchmarking import agentic_jev as agentic_jev_module
+    from agent_workflow_benchmark.benchmarking import inspect_adjudication
+
+    monkeypatch.setattr(agentic_jev_module, "_typesafe_sdk_version", lambda: "0.6.0")
+    monkeypatch.setattr(agentic_jev_module, "_inspect_harness_sha256", lambda: "a" * 64)
+    monkeypatch.setattr(
+        agentic_jev_module,
+        "_sandbox_image_identity",
+        lambda: {
+            "reference": "python:3.12-bookworm",
+            "image_id": "sha256:image-a",
+            "repo_digests": ["python@sha256:image-a"],
+        },
+    )
+    monkeypatch.setattr(
+        inspect_adjudication,
+        "resolve_latest_codex_cli",
+        lambda: {
+            "policy": "latest-at-cohort-start",
+            "requested": "latest",
+            "resolved": "9.9.9",
+            "platform": "linux-x64",
+            "cached_path": "/tmp/codex",
+        },
+    )
+    monkeypatch.setattr(
+        inspect_adjudication,
+        "_docker_identity",
+        lambda: {"docker": "Docker test", "compose": "Compose test"},
+    )
+    tasks = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-pilot"
+        / "tasks-v0.1.0-dev.1.json"
+    )
+
+    with pytest.raises(WorkflowError, match="model is frozen"):
+        create_agentic_jev_runtime_lock(
+            destination=tmp_path / "wrong-model.json",
+            tasks_path=tasks,
+            agent_model="openai-api/codex-lb/deepseek-flash",
+            agent_reasoning_effort="high",
+            agent_model_args={"responses_api": True},
+        )
+
+    with pytest.raises(WorkflowError, match="reasoning effort is frozen"):
+        create_agentic_jev_runtime_lock(
+            destination=tmp_path / "wrong-effort.json",
+            tasks_path=tasks,
+            agent_model=PILOT_AGENT_MODEL,
+            agent_reasoning_effort="medium",
+            agent_model_args={"responses_api": True},
+        )
+
+    with pytest.raises(WorkflowError, match="generation config"):
+        create_agentic_jev_runtime_lock(
+            destination=tmp_path / "reasoning-in-model-args.json",
+            tasks_path=tasks,
+            agent_model=PILOT_AGENT_MODEL,
+            agent_reasoning_effort=PILOT_AGENT_REASONING_EFFORT,
+            agent_model_args={
+                "responses_api": True,
+                "reasoning_effort": "high",
+            },
+        )
