@@ -32,12 +32,22 @@ New adjudication provenance separates:
 Provider reasoning summaries remain private supplementary evidence. Their absence
 does not invalidate the authoritative structured justification.
 
+## Frozen adjudicator identity
+
+The methodological replication keeps the v1 adjudicator model path fixed:
+
+- model: `openai-api/codex-lb/deepseek-flash`;
+- request mode: Responses API via `{"responses_api": true}`.
+
+The v2 evidence-contract changes are the methodological change being tested. GPT-6 Luna is reserved for the separate `agentic-jev-pilot-v1` coding-agent study and must not be substituted into the v2 oracle replication.
+
 ## Evidence preflight
 
 Before freezing a real v2 cohort:
 
 ~~~bash
-export V2_ADJUDICATION_MODEL='openai-api/codex-lb/<model-id>'
+export V2_ADJUDICATION_MODEL='openai-api/codex-lb/deepseek-flash'
+export V2_ADJUDICATION_MODEL_ARGS_JSON='{"responses_api":true}'
 bash scripts/adjudication/v2-evidence-preflight.sh
 ~~~
 
@@ -60,9 +70,9 @@ qualification must still be frozen.
 
 ## Next freeze boundary
 
-Only after the preflight passes should the exact v1 case content be cloned under a
-new v2 dataset identity and its canonical blinded authoring view/module hashes be
-frozen.
+The exact v1 case content has already been registered under the draft v2 dataset
+identity. Only after the preflight passes should its canonical blinded authoring
+view, adjudication module, and runtime hashes be frozen.
 
 That cohort is a methodological replication. Candidate/control inference is not
 automatically rerun unless the new oracle changes enough labels to justify a

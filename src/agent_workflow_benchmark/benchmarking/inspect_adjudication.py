@@ -43,10 +43,31 @@ RUNTIME_LOCK_SCHEMA = "agent-workflow-benchmark/adjudication-runtime-lock/v1"
 INSPECT_QUALIFICATION_SCHEMA = (
     "agent-workflow-benchmark/inspect-adjudication-qualification/v1"
 )
+V2_ADJUDICATION_MODEL = "openai-api/codex-lb/deepseek-flash"
+V2_ADJUDICATION_MODEL_ARGS = {"responses_api": True}
 
 
 def _utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _validate_v2_adjudicator_identity(
+    model: str,
+    model_args: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    observed_model = str(model).strip()
+    if observed_model != V2_ADJUDICATION_MODEL:
+        raise WorkflowError(
+            "routing-semantic-v2 adjudicator model is frozen to "
+            f"{V2_ADJUDICATION_MODEL}; observed {observed_model or 'empty'}"
+        )
+    observed_args = dict(model_args or {})
+    if observed_args != V2_ADJUDICATION_MODEL_ARGS:
+        raise WorkflowError(
+            "routing-semantic-v2 adjudicator model args are frozen to "
+            f"{V2_ADJUDICATION_MODEL_ARGS}; observed {observed_args}"
+        )
+    return observed_args
 
 
 def _package_version(name: str) -> str | None:
@@ -1524,6 +1545,7 @@ def run_v2_evidence_preflight(
     force: bool = False,
 ) -> dict[str, Any]:
     """Exercise v2-only evidence invariants without qualifying a real cohort."""
+    frozen_model_args = _validate_v2_adjudicator_identity(model, model_args)
     destination = Path(destination)
     if destination.exists() and not force:
         raise WorkflowError(f"v2 evidence preflight already exists: {destination}")
@@ -1698,6 +1720,7 @@ def run_v2_evidence_preflight(
         ],
         "codex_version": codex_version,
         "model": model,
+        "model_args": frozen_model_args,
         "passed": ia9_pass and ia10_pass and ia11_pass,
         "gates": {
             "IA-9": {

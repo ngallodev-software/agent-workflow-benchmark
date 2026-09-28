@@ -23,8 +23,7 @@
       "minLength": 1
     },
     "model": {
-      "type": "string",
-      "minLength": 1
+      "const": "openai-api/codex-lb/deepseek-flash"
     },
     "passed": {
       "type": "boolean"
@@ -100,6 +99,18 @@
     "blocking_reason": {
       "type": "string",
       "minLength": 1
+    },
+    "model_args": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "responses_api": {
+          "const": true
+        }
+      },
+      "required": [
+        "responses_api"
+      ]
     }
   },
   "required": [
@@ -109,6 +120,7 @@
     "protocol_version",
     "codex_version",
     "model",
+    "model_args",
     "passed",
     "gates",
     "artifacts",

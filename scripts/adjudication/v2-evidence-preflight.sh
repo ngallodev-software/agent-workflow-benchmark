@@ -11,10 +11,7 @@ elif [[ -z "$PYTHON" ]]; then
   PYTHON="$(command -v python3 || true)"
 fi
 [[ -n "$PYTHON" && -x "$PYTHON" ]] || { echo "error: Python not found" >&2; exit 1; }
-[[ -n "${V2_ADJUDICATION_MODEL:-}" ]] || {
-  echo "error: set V2_ADJUDICATION_MODEL explicitly" >&2
-  exit 1
-}
+V2_ADJUDICATION_MODEL="${V2_ADJUDICATION_MODEL:-openai-api/codex-lb/deepseek-flash}"
 MODEL_ARGS_JSON="${V2_ADJUDICATION_MODEL_ARGS_JSON:-{\"responses_api\":true}}"
 export CODEX_LB_BASE_URL="${CODEX_LB_BASE_URL:-http://127.0.0.1:2455/v1}"
 export CODEX_LB_API_KEY="${CODEX_LB_API_KEY:-inspect-placeholder}"

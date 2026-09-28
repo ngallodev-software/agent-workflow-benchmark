@@ -511,7 +511,8 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
         "study_id": "routing-semantic-v2",
         "protocol_version": "routing-semantic-oracle-v2-draft.1",
         "codex_version": "1.2.3",
-        "model": "mock/model",
+        "model": "openai-api/codex-lb/deepseek-flash",
+        "model_args": {"responses_api": True},
         "passed": True,
         "gates": {
             "IA-9": {"status": "pass"},
@@ -527,3 +528,22 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
         "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
         artifact="test",
     )
+
+
+def test_v2_adjudicator_identity_is_frozen_to_deepseek_flash():
+    assert inspect_runtime._validate_v2_adjudicator_identity(
+        "openai-api/codex-lb/deepseek-flash",
+        {"responses_api": True},
+    ) == {"responses_api": True}
+
+    with pytest.raises(WorkflowError, match="model is frozen"):
+        inspect_runtime._validate_v2_adjudicator_identity(
+            "openai-api/codex-lb/gpt-6-luna",
+            {"responses_api": True},
+        )
+
+    with pytest.raises(WorkflowError, match="model args are frozen"):
+        inspect_runtime._validate_v2_adjudicator_identity(
+            "openai-api/codex-lb/deepseek-flash",
+            {"responses_api": True, "reasoning_effort": "high"},
+        )
