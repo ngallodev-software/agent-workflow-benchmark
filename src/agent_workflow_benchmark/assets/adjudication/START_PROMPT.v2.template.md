@@ -59,10 +59,15 @@ For every assigned seam, `justifications` must contain the same decision ID as `
 
 `decisive_case_evidence`:
 
-- one to three items;
-- each item at most 320 characters;
+- MUST be a JSON array, never a scalar string;
+- must contain one to three string items, even when there is only one item;
+- each string item must be at most 320 characters;
 - cite or paraphrase only decisive facts actually present in the supplied case/metadata;
-- do not invent repository, deployment, user, or treatment facts.
+- do not invent repository, deployment, user, or treatment facts;
+- before returning JSON, verify the field is an array and every item satisfies the length bound.
+
+Valid shape: `"decisive_case_evidence": ["concise case-grounded statement"]`  
+Invalid shape: `"decisive_case_evidence": "concise case-grounded statement"`
 
 `rubric_rule`:
 
