@@ -1851,7 +1851,16 @@ def run_v2_evidence_preflight(
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(destination, record)
     if not record["passed"]:
-        raise WorkflowError("routing-semantic-v2 evidence preflight failed")
+        failed_gates = [
+            gate_id
+            for gate_id, gate in record["gates"].items()
+            if gate.get("status") != "pass"
+        ]
+        raise WorkflowError(
+            "routing-semantic-v2 evidence preflight failed: "
+            + ", ".join(failed_gates)
+            + f"; artifact={destination}"
+        )
     return {"path": str(destination), **record}
 
 
