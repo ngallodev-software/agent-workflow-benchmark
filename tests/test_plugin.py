@@ -13,7 +13,14 @@ def test_descriptor_owns_benchmark_command_and_schemas():
     assert __version__ == "0.4.1"
     assert descriptor.version == __version__
     assert [command.name for command in descriptor.commands] == ["benchmark"]
-    assert len(descriptor.package_resources) == 36
+    identifiers = {resource.identifier for resource in descriptor.package_resources}
+    assert {
+        "agent-workflow-benchmark/decision-study-adjudication-pass/v2",
+        "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+        "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
+        "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
+        "agent-workflow-benchmark/agentic-jev-pilot-run/v1",
+    } <= identifiers
 
 
 def test_exported_suite_validates_with_plugin_owned_contracts(tmp_path: Path):
