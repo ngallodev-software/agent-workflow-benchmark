@@ -34,6 +34,11 @@ export AGENTIC_JEV_MODEL_ARGS_JSON="${AGENTIC_JEV_MODEL_ARGS_JSON:-{\"responses_
 # Empty means TypeSafe selects its configured/default System One model.
 export AGENTIC_JEV_JEV_MODEL="${AGENTIC_JEV_JEV_MODEL:-}"
 
+# Same codex-lb provider defaults used by the adjudication lane. These are
+# harmless when AGENTIC_JEV_MODEL selects another provider.
+export CODEX_LB_BASE_URL="${CODEX_LB_BASE_URL:-http://127.0.0.1:2455/v1}"
+export CODEX_LB_API_KEY="${CODEX_LB_API_KEY:-inspect-placeholder}"
+
 mkdir -p "$AGENTIC_JEV_ROOT"
 chmod 700 "$AGENTIC_JEV_ROOT"
 

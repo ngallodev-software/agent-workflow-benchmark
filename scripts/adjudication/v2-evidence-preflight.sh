@@ -16,6 +16,8 @@ fi
   exit 1
 }
 MODEL_ARGS_JSON="${V2_ADJUDICATION_MODEL_ARGS_JSON:-{\"responses_api\":true}}"
+export CODEX_LB_BASE_URL="${CODEX_LB_BASE_URL:-http://127.0.0.1:2455/v1}"
+export CODEX_LB_API_KEY="${CODEX_LB_API_KEY:-inspect-placeholder}"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 ROOT="${V2_PREFLIGHT_ROOT:-$DATA_HOME/agent-workflow/routing-semantic-v2-preflight}"
 DEST="${V2_PREFLIGHT:-$ROOT/preflight.json}"
