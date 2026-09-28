@@ -1606,6 +1606,22 @@ def _prepare_v2_preflight_root(root: Path, *, force: bool) -> None:
     root.mkdir(parents=True, exist_ok=True)
 
 
+def _v2_preflight_failure_message(
+    record: Mapping[str, Any],
+    destination: Path,
+) -> str:
+    failed_gates = [
+        str(gate_id)
+        for gate_id, gate in record.get("gates", {}).items()
+        if isinstance(gate, Mapping) and gate.get("status") != "pass"
+    ]
+    suffix = ", ".join(failed_gates) if failed_gates else "unknown gate"
+    return (
+        "routing-semantic-v2 evidence preflight failed: "
+        f"{suffix}; artifact={Path(destination)}"
+    )
+
+
 def run_v2_evidence_preflight(
     *,
     destination: Path,
@@ -1851,7 +1867,7 @@ def run_v2_evidence_preflight(
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(destination, record)
     if not record["passed"]:
-        raise WorkflowError("routing-semantic-v2 evidence preflight failed")
+        raise WorkflowError(_v2_preflight_failure_message(record, destination))
     return {"path": str(destination), **record}
 
 
