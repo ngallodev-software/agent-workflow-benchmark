@@ -111,6 +111,35 @@
       "required": [
         "responses_api"
       ]
+    },
+    "completion_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "A": {
+          "enum": [
+            "model_output.completion",
+            "messages.terminal_assistant"
+          ]
+        },
+        "B": {
+          "enum": [
+            "model_output.completion",
+            "messages.terminal_assistant"
+          ]
+        },
+        "C": {
+          "enum": [
+            "model_output.completion",
+            "messages.terminal_assistant"
+          ]
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "C"
+      ]
     }
   },
   "required": [
@@ -123,6 +152,7 @@
     "model_args",
     "passed",
     "gates",
+    "completion_sources",
     "artifacts",
     "real_cohort_ready",
     "blocking_reason"
