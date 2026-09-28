@@ -444,6 +444,21 @@ def _reasoning_summary_stats(sample: Any) -> dict[str, Any]:
     }
 
 
+
+def _sample_provenance_fields(sample: Any, *, study: str) -> dict[str, Any]:
+    if study == "routing-semantic-v1":
+        return {
+            "model_usage": (
+                _jsonable(sample.output.usage)
+                if getattr(getattr(sample, "output", None), "usage", None) is not None
+                else None
+            )
+        }
+    return {
+        **_sample_usage_provenance(sample),
+        "reasoning_summary": _reasoning_summary_stats(sample),
+    }
+
 def _wrap_pass(
     view_path: Path,
     output: Mapping[str, Any],
@@ -649,6 +664,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
     )
     repo = _repo_root(config.module_path)
     module_value = _read_json(config.module_path)
+    study_id = str(module_value["task"]["study_id"])
     template = repo / str(module_value["prompt"]["template"])
     primary = module_value["roles"]["primary"]
 
@@ -697,7 +713,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             config.view_path,
             result,
             adjudicator_id=adjudicator_id,
-            study=str(module_value["task"]["study_id"]),
+            study=study_id,
         )
         role_spec = next(item for item in primary if str(item["role"]) == role)
         role_dir = config.output_root / str(role_spec["result_subdir"])
@@ -719,8 +735,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
-            **_sample_usage_provenance(sample),
-            "reasoning_summary": _reasoning_summary_stats(sample),
+            **_sample_provenance_fields(sample, study=study_id),
             "pass_sha256": sha256_file(pass_path),
         }
         atomic_write_json(role_dir / "inspect-provenance.json", provenance)
@@ -757,6 +772,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
     )
     repo = _repo_root(config.module_path)
     module_value = _read_json(config.module_path)
+    study_id = str(module_value["task"]["study_id"])
     template = repo / str(module_value["prompt"]["template"])
     tiebreaker = module_value["roles"]["tiebreaker"]
     adjudicator_id = str(tiebreaker["adjudicator_id"])
@@ -792,7 +808,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         config.view_path,
         _json_completion(getattr(result_sample.output, "completion", "")),
         adjudicator_id=adjudicator_id,
-        study=str(module_value["task"]["study_id"]),
+        study=study_id,
     )
     role_dir = config.output_root / str(tiebreaker["result_subdir"])
     role_dir.mkdir(parents=True, exist_ok=True)
@@ -813,8 +829,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_total_time": result_sample.total_time,
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
-        **_sample_usage_provenance(result_sample),
-        "reasoning_summary": _reasoning_summary_stats(result_sample),
+        **_sample_provenance_fields(result_sample, study=study_id),
         "pass_sha256": sha256_file(pass_path),
     }
     atomic_write_json(role_dir / "inspect-provenance.json", provenance)
