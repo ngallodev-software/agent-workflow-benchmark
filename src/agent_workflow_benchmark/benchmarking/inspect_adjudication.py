@@ -349,6 +349,38 @@ def _render_prompt(template_path: Path, adjudicator_id: str) -> str:
     return template.replace("{{ADJUDICATOR_ID}}", adjudicator_id)
 
 
+def _sample_adjudication_completion(
+    sample: Any,
+    *,
+    study: str,
+) -> tuple[str, str]:
+    """Return the adjudication text and its source.
+
+    routing-semantic-v1 preserves its historical contract and reads only
+    ModelOutput.completion. Newer studies may fall back to the terminal
+    generated assistant message because agent-backed Inspect runs can finish
+    with terminal text in EvalSample.messages while leaving output.completion
+    empty.
+    """
+    output = getattr(sample, "output", None)
+    completion = str(getattr(output, "completion", "") or "")
+    if completion.strip() or study == "routing-semantic-v1":
+        return completion, "model_output.completion"
+
+    for message in reversed(getattr(sample, "messages", None) or []):
+        if getattr(message, "role", None) != "assistant":
+            continue
+        if getattr(message, "source", None) not in {None, "generate"}:
+            continue
+        if getattr(message, "tool_calls", None):
+            continue
+        text = str(getattr(message, "text", "") or "")
+        if text.strip():
+            return text, "messages.terminal_assistant"
+
+    return completion, "model_output.completion"
+
+
 def _json_completion(text: str) -> dict[str, Any]:
     raw = text.strip()
     if raw.startswith("```"):
@@ -728,7 +760,10 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         sample = by_id[role]
         if sample.error:
             raise WorkflowError(f"Inspect adjudicator {role} failed: {sample.error}")
-        completion = getattr(sample.output, "completion", "")
+        completion, completion_source = _sample_adjudication_completion(
+            sample,
+            study=study_id,
+        )
         result = _json_completion(completion)
         contract = _wrap_pass(
             config.view_path,
@@ -756,6 +791,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
+            "adjudication_completion_source": completion_source,
             **_sample_provenance_fields(sample, study=study_id),
             "pass_sha256": sha256_file(pass_path),
         }
@@ -825,9 +861,13 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         raise WorkflowError(
             f"Inspect adjudicator C failed: {getattr(result_sample, 'error', None)}"
         )
+    completion, completion_source = _sample_adjudication_completion(
+        result_sample,
+        study=study_id,
+    )
     contract = _wrap_pass(
         config.view_path,
-        _json_completion(getattr(result_sample.output, "completion", "")),
+        _json_completion(completion),
         adjudicator_id=adjudicator_id,
         study=study_id,
     )
@@ -850,6 +890,7 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_total_time": result_sample.total_time,
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
+        "adjudication_completion_source": completion_source,
         **_sample_provenance_fields(result_sample, study=study_id),
         "pass_sha256": sha256_file(pass_path),
     }
@@ -1592,13 +1633,18 @@ def run_v2_evidence_preflight(
     validations: dict[str, dict[str, Any]] = {}
     usage: dict[str, dict[str, Any]] = {}
     reasoning: dict[str, dict[str, Any]] = {}
+    completion_sources: dict[str, str] = {}
     for role in ("A", "B"):
         sample = by_id[role]
         if sample.error:
             raise WorkflowError(f"v2 evidence preflight {role} failed: {sample.error}")
+        completion, completion_source = _sample_adjudication_completion(
+            sample,
+            study="routing-semantic-v2",
+        )
         contract = _wrap_pass(
             view_path,
-            _json_completion(sample.output.completion),
+            _json_completion(completion),
             adjudicator_id=f"preflight-{role.lower()}",
             study="routing-semantic-v2",
         )
@@ -1611,6 +1657,7 @@ def run_v2_evidence_preflight(
         contracts[role] = contract
         usage[role] = _sample_usage_provenance(sample)
         reasoning[role] = _reasoning_summary_stats(sample)
+        completion_sources[role] = completion_source
 
     decisions = _decision_specs(_study_spec("routing-semantic-v2"))
     forced_b = copy.deepcopy(contracts["B"])
@@ -1665,9 +1712,13 @@ def run_v2_evidence_preflight(
         raise WorkflowError(
             f"v2 evidence preflight C failed: {getattr(c_result, 'error', None)}"
         )
+    c_completion, c_completion_source = _sample_adjudication_completion(
+        c_result,
+        study="routing-semantic-v2",
+    )
     c_contract = _wrap_pass(
         dispute_path,
-        _json_completion(c_result.output.completion),
+        _json_completion(c_completion),
         adjudicator_id="preflight-c",
         study="routing-semantic-v2",
     )
@@ -1681,6 +1732,7 @@ def run_v2_evidence_preflight(
     validations["C"] = c_validation
     usage["C"] = _sample_usage_provenance(c_result)
     reasoning["C"] = _reasoning_summary_stats(c_result)
+    completion_sources["C"] = c_completion_source
 
     renderer = _probe_v2_resolution_renderer(
         output_root=root,
@@ -1745,6 +1797,7 @@ def run_v2_evidence_preflight(
                 },
             },
         },
+        "completion_sources": completion_sources,
         "artifacts": {
             "view": str(view_path),
             "protocol": str(protocol_path),
