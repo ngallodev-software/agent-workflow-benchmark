@@ -188,6 +188,18 @@ def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
     from agent_workflow_benchmark.benchmarking import inspect_adjudication
 
     monkeypatch.setattr(agentic_jev_module, "_typesafe_sdk_version", lambda: "0.6.0")
+    monkeypatch.setattr(agentic_jev_module, "_inspect_harness_sha256", lambda: "a" * 64)
+    monkeypatch.setattr(
+        agentic_jev_module,
+        "_sandbox_image_identity",
+        lambda: {
+            "reference": "python:3.12-bookworm",
+            "image_id": "sha256:image-a",
+            "repo_digests": ["python@sha256:image-a"],
+        },
+    )
+    monkeypatch.setattr(inspect_adjudication, "_require_inspect_dependencies", lambda: (object(), object()))
+    monkeypatch.setattr(inspect_adjudication, "_sandbox_platform", lambda: "linux-x64")
     monkeypatch.setattr(
         inspect_adjudication,
         "resolve_latest_codex_cli",
@@ -228,9 +240,50 @@ def test_agentic_jev_runtime_lock_binds_model_skill_and_tasks(
     assert result["tasks"]["count"] == 24
     assert result["host_tool"]["typesafe_sdk_version"] == "0.6.0"
     assert len(result["host_tool"]["implementation_sha256"]) == 64
+    assert result["inspect_harness"]["implementation_sha256"] == "a" * 64
+    assert result["sandbox_image"]["image_id"] == "sha256:image-a"
     loaded = load_agentic_jev_runtime_lock(lock_path)
     assert loaded["tasks"]["sha256"] == result["tasks"]["sha256"]
 
+    monkeypatch.setattr(
+        inspect_adjudication,
+        "_docker_identity",
+        lambda: {"docker": "Docker drift", "compose": "Compose test"},
+    )
+    with pytest.raises(WorkflowError, match="Docker/Compose identity"):
+        load_agentic_jev_runtime_lock(lock_path)
+
+    monkeypatch.setattr(
+        inspect_adjudication,
+        "_docker_identity",
+        lambda: {"docker": "Docker test", "compose": "Compose test"},
+    )
+    monkeypatch.setattr(
+        agentic_jev_module,
+        "_sandbox_image_identity",
+        lambda: {
+            "reference": "python:3.12-bookworm",
+            "image_id": "sha256:image-b",
+            "repo_digests": ["python@sha256:image-b"],
+        },
+    )
+    with pytest.raises(WorkflowError, match="sandbox image identity"):
+        load_agentic_jev_runtime_lock(lock_path)
+
+    monkeypatch.setattr(
+        agentic_jev_module,
+        "_sandbox_image_identity",
+        lambda: {
+            "reference": "python:3.12-bookworm",
+            "image_id": "sha256:image-a",
+            "repo_digests": ["python@sha256:image-a"],
+        },
+    )
+    monkeypatch.setattr(agentic_jev_module, "_inspect_harness_sha256", lambda: "b" * 64)
+    with pytest.raises(WorkflowError, match="Inspect harness implementation"):
+        load_agentic_jev_runtime_lock(lock_path)
+
+    monkeypatch.setattr(agentic_jev_module, "_inspect_harness_sha256", lambda: "a" * 64)
     monkeypatch.setattr(agentic_jev_module, "_typesafe_sdk_version", lambda: "0.6.1")
     with pytest.raises(WorkflowError, match="TypeSafe SDK version"):
         load_agentic_jev_runtime_lock(lock_path)

@@ -55,11 +55,15 @@ The lock binds:
 - frozen TypeSafe skill SHA;
 - exact 24-task development manifest SHA;
 - exact host-side Jev implementation SHA;
+- exact benchmark Inspect-harness implementation SHA;
 - exact TypeSafe SDK version;
 - host-tool receipt contract;
-- Docker identity.
+- Docker/Compose identity;
+- resolved local sandbox image identity for `python:3.12-bookworm`.
 
-The qualification and run both assert the same lock.
+The qualification and run both assert the same lock. Loading the lock rechecks the current Inspect AI / Inspect SWE versions, Codex platform, Docker/Compose identity, sandbox-image identity, benchmark Inspect-harness SHA, host-tool implementation SHA, TypeSafe SDK version, skill SHA, and task-manifest SHA before execution.
+
+The sandbox image must already be materialized locally before the runtime is frozen so its exact image ID/digest set can be recorded. The mutable tag alone is not treated as a frozen identity.
 
 ## Tool qualification
 

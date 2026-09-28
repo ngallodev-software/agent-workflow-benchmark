@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -23,6 +24,7 @@ PILOT_STUDY_ID = "agentic-jev-pilot-v1"
 SKILL_UPSTREAM_COMMIT = "65a39f393687675ce170e6094757de20370365b9"
 SKILL_UPSTREAM_RELEASE = "v0.5.7"
 TYPESAFE_SDK_VERSION = "0.6.0"
+SANDBOX_IMAGE = "python:3.12-bookworm"
 _ALLOWED_PRIMITIVES = frozenset({"choice", "noul", "score"})
 _SECRET_KEYS = frozenset(
     {
@@ -118,6 +120,48 @@ def _typesafe_sdk_version() -> str | None:
         return metadata.version("typesafe-sdk")
     except metadata.PackageNotFoundError:
         return None
+
+
+def _inspect_harness_sha256() -> str:
+    from . import inspect_adjudication as inspect_runtime
+
+    return sha256_file(Path(inspect_runtime.__file__).resolve())
+
+
+def _sandbox_image_identity() -> dict[str, object]:
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", SANDBOX_IMAGE],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise WorkflowError(
+            f"agentic Jev sandbox image is unavailable: {SANDBOX_IMAGE}; "
+            "materialize it before freezing the runtime"
+        ) from exc
+    try:
+        values = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise WorkflowError("unable to decode Docker sandbox image identity") from exc
+    if not isinstance(values, list) or len(values) != 1 or not isinstance(values[0], Mapping):
+        raise WorkflowError("Docker sandbox image inspection returned an unexpected shape")
+    value = values[0]
+    image_id = value.get("Id")
+    if not isinstance(image_id, str) or not image_id:
+        raise WorkflowError("Docker sandbox image inspection returned no image ID")
+    repo_digests = value.get("RepoDigests")
+    return {
+        "reference": SANDBOX_IMAGE,
+        "image_id": image_id,
+        "repo_digests": sorted(
+            str(item) for item in repo_digests
+        )
+        if isinstance(repo_digests, list)
+        else [],
+    }
 
 
 def _validate_questions(questions: Mapping[str, object]) -> dict[str, object]:
@@ -766,7 +810,12 @@ def create_agentic_jev_runtime_lock(
             "implementation_sha256": sha256_file(Path(__file__).resolve()),
             "typesafe_sdk_version": sdk_version,
         },
+        "inspect_harness": {
+            "module": "agent_workflow_benchmark.benchmarking.inspect_adjudication",
+            "implementation_sha256": _inspect_harness_sha256(),
+        },
         "docker": _docker_identity(),
+        "sandbox_image": _sandbox_image_identity(),
         "frozen_for_pilot": True,
     }
     validate_instance(
@@ -780,14 +829,38 @@ def create_agentic_jev_runtime_lock(
 
 
 def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
+    from .inspect_adjudication import (
+        _docker_identity,
+        _require_inspect_dependencies,
+        _sandbox_platform,
+    )
+
     value = _read_json_object(Path(path))
     validate_instance(
         value,
         "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
         artifact=str(path),
     )
+    _require_inspect_dependencies()
+    if value["codex_cli"]["platform"] != _sandbox_platform():
+        raise WorkflowError(
+            "agentic Jev runtime lock Codex platform no longer matches the host"
+        )
+    if value["docker"] != _docker_identity():
+        raise WorkflowError(
+            "agentic Jev runtime lock Docker/Compose identity no longer matches"
+        )
+    if value["sandbox_image"] != _sandbox_image_identity():
+        raise WorkflowError(
+            "agentic Jev runtime lock sandbox image identity no longer matches"
+        )
     if value["skill"]["sha256"] != agentic_jev_skill_sha256():
         raise WorkflowError("agentic Jev runtime lock skill hash does not match package")
+    inspect_harness = value["inspect_harness"]
+    if inspect_harness["implementation_sha256"] != _inspect_harness_sha256():
+        raise WorkflowError(
+            "agentic Jev runtime lock Inspect harness implementation hash no longer matches"
+        )
     host_tool = value["host_tool"]
     if host_tool["implementation_sha256"] != sha256_file(Path(__file__).resolve()):
         raise WorkflowError(
@@ -882,6 +955,9 @@ def run_agentic_jev_tool_qualification(
         raise WorkflowError("agent-directed Jev tool qualification sample failed")
 
     functions = _tool_call_functions(log)
+    jev_functions = [
+        name for name in functions if name.endswith("jev_system_one")
+    ]
     receipts = _receipt_values(receipt_path)
     successful = [item for item in receipts if item.get("status") == "success"]
     api_key = os.environ.get("TYPESAFE_API_KEY")
@@ -895,9 +971,11 @@ def run_agentic_jev_tool_qualification(
     )
     key_absent = not api_key or api_key not in transcript
     qualified = (
-        any(name.endswith("jev_system_one") for name in functions)
+        len(jev_functions) == 1
+        and len(receipts) == 1
         and len(successful) == 1
         and key_absent
+        and agentic_jev_skill_path().is_file()
     )
     record = {
         "schema": "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
@@ -912,9 +990,9 @@ def run_agentic_jev_tool_qualification(
         "tool_functions": functions,
         "receipt_summary": _receipt_summary(receipt_path),
         "checks": {
-            "jev_tool_called": any(
-                name.endswith("jev_system_one") for name in functions
-            ),
+            "jev_tool_called": bool(jev_functions),
+            "exactly_one_jev_tool_call": len(jev_functions) == 1,
+            "exactly_one_receipt": len(receipts) == 1,
             "exactly_one_successful_receipt": len(successful) == 1,
             "api_key_absent_from_agent_transcript": key_absent,
             "skill_snapshot_present": agentic_jev_skill_path().is_file(),
