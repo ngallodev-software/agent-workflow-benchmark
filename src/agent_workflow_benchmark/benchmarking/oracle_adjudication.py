@@ -11,7 +11,10 @@ from agent_workflow.util import atomic_write_json, sha256_file
 
 from .schema_contracts import validate_instance
 
-ADJUDICATION_PASS_SCHEMA = "agent-workflow-benchmark/decision-study-adjudication-pass/v1"
+ADJUDICATION_PASS_SCHEMA_V1 = "agent-workflow-benchmark/decision-study-adjudication-pass/v1"
+ADJUDICATION_PASS_SCHEMA_V2 = "agent-workflow-benchmark/decision-study-adjudication-pass/v2"
+# Backward-compatible exported name for the frozen v1 lane.
+ADJUDICATION_PASS_SCHEMA = ADJUDICATION_PASS_SCHEMA_V1
 DISPUTE_VIEW_SCHEMA = "agent-workflow-benchmark/decision-study-oracle-dispute-view/v1"
 RESOLUTIONS_SCHEMA = "agent-workflow-benchmark/decision-study-adjudication-resolutions/v1"
 FREEZE_MANIFEST_SCHEMA = "agent-workflow-benchmark/decision-study-oracle-freeze-manifest/v1"
@@ -44,6 +47,59 @@ def _decision_specs(spec: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
         for item in spec["decision_seams"]
         if isinstance(item, Mapping)
     }
+
+
+def _adjudication_pass_schema(spec: Mapping[str, Any]) -> str:
+    oracle_policy = spec.get("oracle_policy", {})
+    if isinstance(oracle_policy, Mapping):
+        value = oracle_policy.get("adjudication_pass_schema")
+        if isinstance(value, str) and value:
+            if value not in {ADJUDICATION_PASS_SCHEMA_V1, ADJUDICATION_PASS_SCHEMA_V2}:
+                raise WorkflowError(
+                    f"unsupported adjudication pass schema requested by study: {value!r}"
+                )
+            return value
+    return ADJUDICATION_PASS_SCHEMA_V1
+
+
+def _validate_justification(
+    decision_id: str,
+    value: Any,
+    *,
+    case_id: str,
+) -> None:
+    if not isinstance(value, Mapping):
+        raise WorkflowError(
+            f"adjudication justification for {case_id}:{decision_id} must be an object"
+        )
+    evidence = value.get("decisive_case_evidence")
+    if (
+        not isinstance(evidence, list)
+        or not 1 <= len(evidence) <= 3
+        or not all(
+            isinstance(item, str) and 0 < len(item.strip()) <= 320
+            for item in evidence
+        )
+    ):
+        raise WorkflowError(
+            f"adjudication justification for {case_id}:{decision_id} requires "
+            "1-3 decisive_case_evidence strings of at most 320 characters"
+        )
+    rubric_rule = value.get("rubric_rule")
+    if (
+        not isinstance(rubric_rule, str)
+        or not rubric_rule.strip()
+        or len(rubric_rule) > 320
+    ):
+        raise WorkflowError(
+            f"adjudication justification for {case_id}:{decision_id} requires "
+            "a non-empty rubric_rule of at most 320 characters"
+        )
+    ambiguity = value.get("ambiguity")
+    if ambiguity not in {"none", "material", "insufficient_evidence"}:
+        raise WorkflowError(
+            f"invalid ambiguity for {case_id}:{decision_id}: {ambiguity!r}"
+        )
 
 
 def _validate_label(
@@ -148,7 +204,8 @@ def _load_adjudication_pass(
     spec = _study_spec(study)
     decisions = _decision_specs(spec)
     value = _read_json_object(pass_path)
-    validate_instance(value, ADJUDICATION_PASS_SCHEMA, artifact=str(pass_path))
+    pass_schema = _adjudication_pass_schema(spec)
+    validate_instance(value, pass_schema, artifact=str(pass_path))
 
     if value["study_id"] != view["study_id"]:
         raise WorkflowError("adjudication pass belongs to a different study")
@@ -180,6 +237,25 @@ def _load_adjudication_pass(
             )
         for decision_id, label in labels.items():
             _validate_label(str(decision_id), label, decisions=decisions)
+
+        if pass_schema == ADJUDICATION_PASS_SCHEMA_V2:
+            justifications = raw.get("justifications")
+            if not isinstance(justifications, Mapping):
+                raise WorkflowError(
+                    f"adjudication justifications for {case_id} must be an object"
+                )
+            actual_justifications = {str(item) for item in justifications}
+            if actual_justifications != wanted:
+                missing = sorted(wanted - actual_justifications)
+                extra = sorted(actual_justifications - wanted)
+                raise WorkflowError(
+                    f"adjudication justifications for {case_id} do not match required seams; "
+                    f"missing={missing}, extra={extra}"
+                )
+            for decision_id, justification in justifications.items():
+                _validate_justification(
+                    str(decision_id), justification, case_id=case_id
+                )
         records_by_case[case_id] = raw
 
     if set(records_by_case) != set(expected):
@@ -197,7 +273,13 @@ def _load_adjudication_pass(
         "adjudicator_id": value["adjudicator_id"],
         "pass_sha256": sha256_file(Path(pass_path)),
         "records_by_case": records_by_case,
+        "schema": pass_schema,
         "labels": sum(len(raw["labels"]) for raw in records_by_case.values()),
+        "justifications": (
+            sum(len(raw.get("justifications", {})) for raw in records_by_case.values())
+            if pass_schema == ADJUDICATION_PASS_SCHEMA_V2
+            else 0
+        ),
     }
 
 
@@ -215,10 +297,12 @@ def validate_adjudication_pass(
         "dataset_version": value["dataset_version"],
         "protocol_version": value["protocol_version"],
         "adjudicator_id": loaded["adjudicator_id"],
+        "schema": loaded["schema"],
         "input_view_sha256": loaded["view_sha256"],
         "pass_sha256": loaded["pass_sha256"],
         "cases": len(loaded["records_by_case"]),
         "labels": loaded["labels"],
+        "justifications": loaded["justifications"],
     }
 
 

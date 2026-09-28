@@ -1,0 +1,118 @@
+{
+  "$id": "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "study_id": {
+      "const": "routing-semantic-v2"
+    },
+    "protocol_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "codex_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "IA-9": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-10": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "IA-11": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "fail"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        }
+      },
+      "required": [
+        "IA-9",
+        "IA-10",
+        "IA-11"
+      ]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "real_cohort_ready": {
+      "const": false
+    },
+    "blocking_reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema",
+    "created_at",
+    "study_id",
+    "protocol_version",
+    "codex_version",
+    "model",
+    "passed",
+    "gates",
+    "artifacts",
+    "real_cohort_ready",
+    "blocking_reason"
+  ]
+}

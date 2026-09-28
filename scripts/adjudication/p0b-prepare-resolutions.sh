@@ -132,6 +132,12 @@ for case in dispute.get("cases", []):
         if allowed is None and seam.get("oracle_type") == "boolean":
             allowed = [False, True]
 
+        justifications = {}
+        for key, records in (("a", a_records), ("b", b_records), ("c", c_records)):
+            value = records.get(case_id, {}).get("justifications", {}).get(decision_id)
+            if value is not None:
+                justifications[key] = value
+
         conflicts.append(
             {
                 "case_id": case_id,
@@ -146,6 +152,7 @@ for case in dispute.get("cases", []):
                 "decision_seam": seam,
                 "allowed_labels": allowed,
                 "votes": {"a": a, "b": b, "c": c},
+                "justifications": justifications,
             }
         )
 

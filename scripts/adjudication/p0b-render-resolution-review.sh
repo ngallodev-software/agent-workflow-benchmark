@@ -105,8 +105,10 @@ lines = [
     "**Important:** `oracle_eligible` means a seam requires an oracle label. It is not the label itself. "
     "Metadata is evidence, not ground truth.",
     "",
-    "Use only the verbatim case prompt, supplied metadata, frozen rubric, and independent A/B/C votes. "
-    "Do not add facts from the live repository, deployment environment, credentials, portfolio site, or other private context unless they appear in the frozen case.",
+    "Use only the verbatim case prompt, supplied metadata, frozen rubric, independent A/B/C votes, "
+    "and any structured A/B/C justifications rendered below. "
+    "Do not add facts from the live repository, deployment environment, credentials, portfolio site, "
+    "provider reasoning summaries, or other private context unless they appear in the frozen case.",
     "",
     f"Study: `{review.get('study_id', '')}`  ",
     f"Dataset: `{review.get('dataset_version', '')}`  ",
@@ -133,6 +135,7 @@ for index, conflict in enumerate(conflicts, 1):
     )
     metadata = conflict.get("metadata") or {}
     votes = conflict.get("votes") or {}
+    justifications = conflict.get("justifications") or {}
 
     lines += [
         f"## {index}. {case_id} — `{decision_id}`",
@@ -171,6 +174,32 @@ for index, conflict in enumerate(conflicts, 1):
         f"- **B:** `{scalar(votes.get('b'))}`",
         f"- **C:** `{scalar(votes.get('c'))}`",
         "",
+    ]
+
+    if justifications:
+        lines += [
+            "### Independent structured justifications",
+            "",
+            "These are authoritative v2 decision-evidence fields from the independent passes. "
+            "They are not provider chain-of-thought or reasoning summaries.",
+            "",
+        ]
+        for role in ("a", "b", "c"):
+            justification = justifications.get(role)
+            if not isinstance(justification, dict):
+                continue
+            lines += [
+                f"#### {role.upper()}",
+                "",
+                f"- **Ambiguity:** `{scalar(justification.get('ambiguity'))}`",
+                f"- **Rubric rule:** {justification.get('rubric_rule', '')}",
+                "- **Decisive case evidence:**",
+            ]
+            for item in justification.get("decisive_case_evidence") or []:
+                lines.append(f"  - {item}")
+            lines.append("")
+
+    lines += [
         "### Human resolution",
         "",
         "Record the final label, rationale, and participants in `resolutions.json`.",

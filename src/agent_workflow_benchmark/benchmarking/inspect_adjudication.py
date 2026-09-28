@@ -7,6 +7,7 @@ import os
 import platform
 import re
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -23,10 +24,13 @@ from .adjudication_module import validate_abc_adjudication_module
 from .schema_contracts import validate_instance
 from .oracle_adjudication import (
     ADJUDICATION_PASS_SCHEMA,
+    ADJUDICATION_PASS_SCHEMA_V2,
+    _adjudication_pass_schema,
     _decision_specs,
     _load_view,
     _study_spec,
     _validate_label,
+    _validate_justification,
     export_oracle_dispute_view,
     freeze_oracle_bundle,
     validate_adjudication_pass,
@@ -346,6 +350,100 @@ def _sample_retry_count(sample: Any) -> int:
     return len(sample.error_retries or [])
 
 
+def _jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, Mapping):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    if hasattr(value, "model_dump"):
+        try:
+            return _jsonable(value.model_dump(mode="json"))
+        except TypeError:
+            return _jsonable(value.model_dump())
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+def _usage_request_count(value: Any) -> int | None:
+    normalized = _jsonable(value)
+    if isinstance(normalized, Mapping):
+        direct = normalized.get("requests")
+        if isinstance(direct, int) and not isinstance(direct, bool):
+            return direct
+        counts = [
+            result
+            for item in normalized.values()
+            if (result := _usage_request_count(item)) is not None
+        ]
+        return sum(counts) if counts else None
+    if isinstance(normalized, list):
+        counts = [
+            result
+            for item in normalized
+            if (result := _usage_request_count(item)) is not None
+        ]
+        return sum(counts) if counts else None
+    return None
+
+
+def _sample_usage_provenance(sample: Any) -> dict[str, Any]:
+    final_usage = (
+        _jsonable(sample.output.usage)
+        if getattr(getattr(sample, "output", None), "usage", None) is not None
+        else None
+    )
+    aggregate_usage = (
+        _jsonable(getattr(sample, "model_usage", None))
+        if getattr(sample, "model_usage", None) is not None
+        else None
+    )
+    model_call_count = _usage_request_count(aggregate_usage)
+    return {
+        "final_output_usage": final_usage,
+        "aggregate_session_usage": aggregate_usage,
+        "provider_request_count": model_call_count,
+        "model_call_count": model_call_count,
+    }
+
+
+def _reasoning_summary_stats(sample: Any) -> dict[str, Any]:
+    summaries: list[str] = []
+
+    def walk(value: Any) -> None:
+        normalized = _jsonable(value)
+        if isinstance(normalized, Mapping):
+            summary = normalized.get("summary")
+            reasoning_marker = (
+                "reasoning" in normalized
+                or str(normalized.get("type", "")).lower().startswith("reason")
+            )
+            if reasoning_marker and isinstance(summary, str) and summary.strip():
+                summaries.append(summary)
+            elif reasoning_marker and isinstance(summary, list):
+                for item in summary:
+                    if isinstance(item, str) and item.strip():
+                        summaries.append(item)
+                    elif isinstance(item, Mapping):
+                        text = item.get("text")
+                        if isinstance(text, str) and text.strip():
+                            summaries.append(text)
+            for item in normalized.values():
+                walk(item)
+        elif isinstance(normalized, list):
+            for item in normalized:
+                walk(item)
+
+    walk(getattr(sample, "messages", None) or [])
+    return {
+        "observed": bool(summaries),
+        "items": len(summaries),
+        "characters": sum(len(item) for item in summaries),
+    }
+
+
 def _wrap_pass(
     view_path: Path,
     output: Mapping[str, Any],
@@ -356,6 +454,7 @@ def _wrap_pass(
     view, expected, view_sha256 = _load_view(Path(view_path), study=study)
     spec = _study_spec(study)
     decisions = _decision_specs(spec)
+    pass_schema = _adjudication_pass_schema(spec)
     records = output.get("records")
     if not isinstance(records, list):
         raise WorkflowError("Inspect adjudicator output must contain a records array")
@@ -377,7 +476,31 @@ def _wrap_pass(
             )
         for decision_id, label in labels.items():
             _validate_label(str(decision_id), label, decisions=decisions)
-        by_case[case_id] = {"case_id": case_id, "labels": dict(labels)}
+        wrapped = {"case_id": case_id, "labels": dict(labels)}
+        if pass_schema == ADJUDICATION_PASS_SCHEMA_V2:
+            justifications = raw.get("justifications")
+            if not isinstance(justifications, Mapping):
+                raise WorkflowError(
+                    f"Inspect adjudication justifications for {case_id} must be an object"
+                )
+            if set(justifications) != wanted:
+                raise WorkflowError(
+                    f"Inspect adjudication justifications for {case_id} do not match required seams"
+                )
+            normalized_justifications: dict[str, dict[str, Any]] = {}
+            for decision_id, justification in justifications.items():
+                _validate_justification(
+                    str(decision_id), justification, case_id=case_id
+                )
+                normalized_justifications[str(decision_id)] = {
+                    "decisive_case_evidence": list(
+                        justification["decisive_case_evidence"]
+                    ),
+                    "rubric_rule": str(justification["rubric_rule"]),
+                    "ambiguity": str(justification["ambiguity"]),
+                }
+            wrapped["justifications"] = normalized_justifications
+        by_case[case_id] = wrapped
 
     if set(by_case) != set(expected):
         missing = sorted(set(expected) - set(by_case))
@@ -387,7 +510,7 @@ def _wrap_pass(
         )
 
     return {
-        "schema": ADJUDICATION_PASS_SCHEMA,
+        "schema": pass_schema,
         "study_id": view["study_id"],
         "dataset_version": view["dataset_version"],
         "protocol_version": spec["oracle_policy"]["protocol_version"],
@@ -398,6 +521,11 @@ def _wrap_pass(
             "independent": True,
             "treatment_outputs_seen": False,
             "other_adjudicator_labels_seen": False,
+            **(
+                {"other_adjudicator_justifications_seen": False}
+                if pass_schema == ADJUDICATION_PASS_SCHEMA_V2
+                else {}
+            ),
         },
         "records": [by_case[case_id] for case_id in expected],
     }
@@ -591,11 +719,8 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
-            "model_usage": (
-                sample.output.usage.model_dump(mode="json")
-                if getattr(sample.output, "usage", None) is not None
-                else None
-            ),
+            **_sample_usage_provenance(sample),
+            "reasoning_summary": _reasoning_summary_stats(sample),
             "pass_sha256": sha256_file(pass_path),
         }
         atomic_write_json(role_dir / "inspect-provenance.json", provenance)
@@ -688,11 +813,8 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_total_time": result_sample.total_time,
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
-        "model_usage": (
-            result_sample.output.usage.model_dump(mode="json")
-            if getattr(result_sample.output, "usage", None) is not None
-            else None
-        ),
+        **_sample_usage_provenance(result_sample),
+        "reasoning_summary": _reasoning_summary_stats(result_sample),
         "pass_sha256": sha256_file(pass_path),
     }
     atomic_write_json(role_dir / "inspect-provenance.json", provenance)
@@ -1175,6 +1297,444 @@ def _forced_disagreement_passes(
     validate_adjudication_pass(view_path, a_path, study="routing-semantic-v1")
     validate_adjudication_pass(view_path, b_path, study="routing-semantic-v1")
     return a_path, b_path
+
+
+def _synthetic_v2_evidence_view(destination: Path) -> dict[str, Any]:
+    spec = _study_spec("routing-semantic-v2")
+    eligible = {
+        str(item["decision_id"]): True
+        for item in spec["decision_seams"]
+        if isinstance(item, Mapping)
+    }
+    record = {
+        "schema": comparative.ORACLE_AUTHORING_VIEW_SCHEMA,
+        "study_id": spec["study_id"],
+        "dataset_version": "routing-semantic-corpus-v2-preflight",
+        "decision_seams": copy.deepcopy(spec["decision_seams"]),
+        "oracle_policy": copy.deepcopy(spec["oracle_policy"]),
+        "cases": [
+            {
+                "case_id": "rsv2-preflight-001",
+                "task": (
+                    "Review an existing parser change for defects. Do not modify "
+                    "product behavior unless the supplied evidence requires a fix."
+                ),
+                "metadata": {
+                    "environment": "development",
+                    "requires_interaction": False,
+                    "risk": "low",
+                    "task_type": "review",
+                },
+                "oracle_eligible": dict(eligible),
+            },
+            {
+                "case_id": "rsv2-preflight-002",
+                "task": (
+                    "Prepare a production deletion plan, but do not execute it "
+                    "without explicit authorization."
+                ),
+                "metadata": {
+                    "environment": "production",
+                    "requires_interaction": True,
+                    "risk": "high",
+                    "task_type": "documentation",
+                },
+                "oracle_eligible": dict(eligible),
+            },
+        ],
+        "blinding": {
+            "construction_tags_included": False,
+            "control_outputs_included": False,
+            "candidate_outputs_included": False,
+        },
+    }
+    try:
+        comparative.validate_record(record, comparative.ORACLE_AUTHORING_VIEW_SCHEMA)
+    except comparative.ContractError as exc:
+        raise WorkflowError(f"synthetic v2 evidence view is invalid: {exc}") from exc
+    atomic_write_json(destination, record)
+    return record
+
+
+def _synthetic_v2_protocol(destination: Path) -> None:
+    destination.write_text(
+        """# Synthetic routing-semantic-v2 evidence preflight protocol
+
+This is synthetic qualification evidence only. It is not a real oracle cohort.
+
+Use the supplied routing task-class, interaction-required, and semantic-risk
+rubrics. For every assigned label also emit a structured justification containing:
+
+- 1-3 concise decisive_case_evidence statements grounded only in the case;
+- one concise rubric_rule;
+- ambiguity exactly one of none, material, insufficient_evidence.
+
+The justification is bounded decision evidence, not hidden chain-of-thought.
+Provider reasoning summaries are supplementary and are not required.
+""",
+        encoding="utf-8",
+    )
+
+
+def _alternate_label(
+    decision_id: str,
+    current: Any,
+    *,
+    decisions: Mapping[str, Mapping[str, Any]],
+) -> Any:
+    seam = decisions[decision_id]
+    oracle_type = str(seam.get("oracle_type") or "")
+    if oracle_type == "boolean":
+        return not bool(current)
+    if oracle_type == "categorical":
+        return next(item for item in seam["labels"] if item != current)
+    if oracle_type == "ordinal":
+        return next(item for item in seam["levels"] if item != current)
+    raise WorkflowError(f"unsupported synthetic dispute seam: {decision_id}")
+
+
+def _probe_v2_resolution_renderer(
+    *,
+    output_root: Path,
+    view: Mapping[str, Any],
+    a_contract: Mapping[str, Any],
+    b_contract: Mapping[str, Any],
+    c_contract: Mapping[str, Any],
+    decision_id: str,
+) -> dict[str, Any]:
+    repo = Path(__file__).resolve().parents[3]
+    script = repo / "scripts" / "adjudication" / "p0b-render-resolution-review.sh"
+    if not script.is_file():
+        raise WorkflowError(f"resolution renderer not found: {script}")
+
+    case_id = str(a_contract["records"][0]["case_id"])
+    source = next(item for item in view["cases"] if str(item["case_id"]) == case_id)
+    seam = next(
+        item
+        for item in view["decision_seams"]
+        if str(item["decision_id"]) == decision_id
+    )
+    records = {
+        "a": {str(item["case_id"]): item for item in a_contract["records"]},
+        "b": {str(item["case_id"]): item for item in b_contract["records"]},
+        "c": {str(item["case_id"]): item for item in c_contract["records"]},
+    }
+    review = {
+        "format": "agent-workflow-benchmark/three-way-resolution-review/v1",
+        "study_id": view["study_id"],
+        "dataset_version": view["dataset_version"],
+        "three_way_conflicts": [
+            {
+                "case_id": case_id,
+                "decision_id": decision_id,
+                "task": source["task"],
+                "metadata": source["metadata"],
+                "oracle_eligible": source["oracle_eligible"],
+                "decision_seam": seam,
+                "allowed_labels": (
+                    seam.get("labels")
+                    or seam.get("levels")
+                    or [False, True]
+                ),
+                "votes": {
+                    role: records[role][case_id]["labels"][decision_id]
+                    for role in ("a", "b", "c")
+                },
+                "justifications": {
+                    role: records[role][case_id]["justifications"][decision_id]
+                    for role in ("a", "b", "c")
+                },
+            }
+        ],
+    }
+    probe_root = output_root / "resolution-renderer-probe"
+    probe_root.mkdir(parents=True, exist_ok=True)
+    review_path = probe_root / "resolution-review.json"
+    markdown_path = probe_root / "resolution-review.md"
+    atomic_write_json(review_path, review)
+    env = dict(os.environ)
+    env.update(
+        {
+            "BENCH_REPO": str(repo),
+            "PRIVATE_ROOT": str(probe_root / "private"),
+            "PYTHON": sys.executable,
+            "RESOLUTION_REVIEW": str(review_path),
+            "RESOLUTION_REVIEW_MD": str(markdown_path),
+            "ORACLE_REVIEW_GUIDE": "",
+        }
+    )
+    result = subprocess.run(
+        ["bash", str(script)],
+        cwd=str(repo),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise WorkflowError(
+            "v2 resolution renderer probe failed: "
+            + (result.stderr or result.stdout)[-4000:]
+        )
+    text = markdown_path.read_text(encoding="utf-8")
+    expected_evidence = [
+        records[role][case_id]["justifications"][decision_id][
+            "decisive_case_evidence"
+        ][0]
+        for role in ("a", "b", "c")
+    ]
+    passed = (
+        "Independent structured justifications" in text
+        and all(item in text for item in expected_evidence)
+    )
+    if not passed:
+        raise WorkflowError(
+            "v2 resolution renderer did not preserve independent justifications"
+        )
+    return {
+        "passed": True,
+        "review": str(review_path),
+        "markdown": str(markdown_path),
+        "decision_id": decision_id,
+        "justifications_rendered": 3,
+    }
+
+
+def run_v2_evidence_preflight(
+    *,
+    destination: Path,
+    codex_version: str,
+    model: str,
+    model_args: Mapping[str, Any] | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Exercise v2-only evidence invariants without qualifying a real cohort."""
+    destination = Path(destination)
+    if destination.exists() and not force:
+        raise WorkflowError(f"v2 evidence preflight already exists: {destination}")
+    root = destination.parent / "routing-semantic-v2-evidence-preflight"
+    if root.exists() and any(root.iterdir()) and not force:
+        raise WorkflowError(f"v2 evidence preflight directory already exists: {root}")
+    root.mkdir(parents=True, exist_ok=True)
+
+    view_path = root / "synthetic-v2-view.json"
+    protocol_path = root / "synthetic-v2-protocol.md"
+    view = _synthetic_v2_evidence_view(view_path)
+    _synthetic_v2_protocol(protocol_path)
+    prompt_template = (
+        Path(__file__).resolve().parents[3]
+        / "docker"
+        / "adjudication"
+        / "START_PROMPT.v2.template.md"
+    )
+
+    from inspect_ai.dataset import Sample
+
+    samples = [
+        Sample(
+            id=role,
+            input=_render_prompt(prompt_template, f"preflight-{role.lower()}"),
+            files=_sample_files(view_path, protocol_path),
+        )
+        for role in ("A", "B")
+    ]
+    log = _inspect_eval(
+        samples=samples,
+        codex_version=codex_version,
+        model=model,
+        model_args=model_args,
+        log_dir=root / "inspect-logs" / "primary",
+        max_samples=2,
+        log_model_api=False,
+    )
+    by_id = {str(sample.id): sample for sample in log.samples or []}
+    if set(by_id) != {"A", "B"}:
+        raise WorkflowError("v2 evidence preflight did not return A and B")
+
+    contracts: dict[str, dict[str, Any]] = {}
+    validations: dict[str, dict[str, Any]] = {}
+    usage: dict[str, dict[str, Any]] = {}
+    reasoning: dict[str, dict[str, Any]] = {}
+    for role in ("A", "B"):
+        sample = by_id[role]
+        if sample.error:
+            raise WorkflowError(f"v2 evidence preflight {role} failed: {sample.error}")
+        contract = _wrap_pass(
+            view_path,
+            _json_completion(sample.output.completion),
+            adjudicator_id=f"preflight-{role.lower()}",
+            study="routing-semantic-v2",
+        )
+        role_path = root / role.lower() / "adjudication.json"
+        role_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(role_path, contract)
+        validations[role] = validate_adjudication_pass(
+            view_path, role_path, study="routing-semantic-v2"
+        )
+        contracts[role] = contract
+        usage[role] = _sample_usage_provenance(sample)
+        reasoning[role] = _reasoning_summary_stats(sample)
+
+    decisions = _decision_specs(_study_spec("routing-semantic-v2"))
+    forced_b = copy.deepcopy(contracts["B"])
+    first_record = forced_b["records"][0]
+    decision_id = "routing.semantic_risk"
+    first_record["labels"][decision_id] = _alternate_label(
+        decision_id,
+        first_record["labels"][decision_id],
+        decisions=decisions,
+    )
+    forced_b_path = root / "forced-b" / "adjudication.json"
+    forced_b_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(forced_b_path, forced_b)
+    validate_adjudication_pass(
+        view_path, forced_b_path, study="routing-semantic-v2"
+    )
+
+    a_path = root / "a" / "adjudication.json"
+    dispute_path = root / "synthetic-v2-dispute.json"
+    dispute = export_oracle_dispute_view(
+        view_path,
+        a_path,
+        forced_b_path,
+        dispute_path,
+        study="routing-semantic-v2",
+    )
+    dispute_value = _read_json(dispute_path)
+    encoded_dispute = json.dumps(dispute_value, sort_keys=True)
+    no_ab_leakage = (
+        '"justifications"' not in encoded_dispute
+        and '"labels"' not in encoded_dispute
+    )
+    if not no_ab_leakage:
+        raise WorkflowError("v2 C dispute view leaked A/B decision evidence")
+
+    c_sample = Sample(
+        id="C",
+        input=_render_prompt(prompt_template, "preflight-c"),
+        files=_sample_files(dispute_path, protocol_path),
+    )
+    c_log = _inspect_eval(
+        samples=[c_sample],
+        codex_version=codex_version,
+        model=model,
+        model_args=model_args,
+        log_dir=root / "inspect-logs" / "tiebreaker",
+        max_samples=1,
+        log_model_api=False,
+    )
+    c_result = (c_log.samples or [None])[0]
+    if c_result is None or c_result.error:
+        raise WorkflowError(
+            f"v2 evidence preflight C failed: {getattr(c_result, 'error', None)}"
+        )
+    c_contract = _wrap_pass(
+        dispute_path,
+        _json_completion(c_result.output.completion),
+        adjudicator_id="preflight-c",
+        study="routing-semantic-v2",
+    )
+    c_path = root / "c" / "adjudication.json"
+    c_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(c_path, c_contract)
+    c_validation = validate_adjudication_pass(
+        dispute_path, c_path, study="routing-semantic-v2"
+    )
+    contracts["C"] = c_contract
+    validations["C"] = c_validation
+    usage["C"] = _sample_usage_provenance(c_result)
+    reasoning["C"] = _reasoning_summary_stats(c_result)
+
+    renderer = _probe_v2_resolution_renderer(
+        output_root=root,
+        view=view,
+        a_contract=contracts["A"],
+        b_contract=forced_b,
+        c_contract=c_contract,
+        decision_id=decision_id,
+    )
+
+    ia9_pass = (
+        all(item.get("schema") == ADJUDICATION_PASS_SCHEMA_V2 for item in validations.values())
+        and all(item.get("justifications", 0) > 0 for item in validations.values())
+        and no_ab_leakage
+        and renderer["passed"] is True
+    )
+    ia10_pass = all(
+        value.get("final_output_usage") is not None
+        and value.get("aggregate_session_usage") is not None
+        and isinstance(value.get("model_call_count"), int)
+        and value["model_call_count"] >= 1
+        for value in usage.values()
+    )
+    # IA-11 validates the capture path and records capability observation. Summary
+    # presence is deliberately not required for study validity.
+    ia11_pass = all(
+        set(value) == {"observed", "items", "characters"}
+        for value in reasoning.values()
+    )
+
+    record = {
+        "schema": "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+        "created_at": _utc(),
+        "study_id": "routing-semantic-v2",
+        "protocol_version": _study_spec("routing-semantic-v2")["oracle_policy"][
+            "protocol_version"
+        ],
+        "codex_version": codex_version,
+        "model": model,
+        "passed": ia9_pass and ia10_pass and ia11_pass,
+        "gates": {
+            "IA-9": {
+                "status": "pass" if ia9_pass else "fail",
+                "evidence": {
+                    "a": validations["A"],
+                    "b": validations["B"],
+                    "c": validations["C"],
+                    "c_view_has_no_a_b_labels_or_justifications": no_ab_leakage,
+                    "human_resolution_renderer": renderer,
+                },
+            },
+            "IA-10": {
+                "status": "pass" if ia10_pass else "fail",
+                "evidence": usage,
+            },
+            "IA-11": {
+                "status": "pass" if ia11_pass else "fail",
+                "evidence": {
+                    "summary_capture_optional": True,
+                    "roles": reasoning,
+                },
+            },
+        },
+        "artifacts": {
+            "view": str(view_path),
+            "protocol": str(protocol_path),
+            "a_pass": str(a_path),
+            "b_pass": str(root / "b" / "adjudication.json"),
+            "forced_b_pass": str(forced_b_path),
+            "c_dispute_view": str(dispute_path),
+            "c_pass": str(c_path),
+            "resolution_review": renderer["review"],
+            "resolution_review_md": renderer["markdown"],
+        },
+        "real_cohort_ready": False,
+        "blocking_reason": (
+            "The real routing-semantic-v2 dataset identity, canonical blinded "
+            "authoring view, adjudication module, runtime lock, and full IA-1..IA-11 "
+            "qualification have not yet been frozen."
+        ),
+    }
+    validate_instance(
+        record,
+        "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+        artifact="routing-semantic-v2 evidence preflight",
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(destination, record)
+    if not record["passed"]:
+        raise WorkflowError("routing-semantic-v2 evidence preflight failed")
+    return {"path": str(destination), **record}
 
 
 def run_inspect_live_qualification(

@@ -10,6 +10,7 @@ import pytest
 from agent_workflow.errors import WorkflowError
 from agent_workflow_benchmark.benchmarking.oracle_adjudication import (
     ADJUDICATION_PASS_SCHEMA,
+    ADJUDICATION_PASS_SCHEMA_V2,
     FREEZE_MANIFEST_SCHEMA,
     RESOLUTIONS_SCHEMA,
     export_oracle_dispute_view,
@@ -305,3 +306,139 @@ def test_three_way_conflict_requires_recorded_resolution_and_can_remain_unresolv
         resolutions_path
     )
     assert freeze_manifest["counts"]["unresolved"] == 1
+
+
+def _v2_authoring_view(tmp_path: Path) -> tuple[Path, dict]:
+    base = comparative.oracle_authoring_view(
+        comparative.load_study_corpus("routing-semantic-v1")
+    )
+    spec = comparative.load_study_spec("routing-semantic-v2")
+    base["study_id"] = "routing-semantic-v2"
+    base["dataset_version"] = "routing-semantic-corpus-v2-dev"
+    base["oracle_policy"] = dict(spec["oracle_policy"])
+    path = tmp_path / "oracle-authoring-view-v2.json"
+    _write_json(path, base)
+    return path, base
+
+
+def _v2_pass(
+    view_path: Path,
+    view: dict,
+    path: Path,
+    adjudicator_id: str,
+    *,
+    omit_justification: tuple[str, str] | None = None,
+) -> Path:
+    records = []
+    defaults = _base_labels()
+    for case in view["cases"]:
+        case_id = str(case["case_id"])
+        decision_ids = [
+            decision_id
+            for decision_id, eligible in case["oracle_eligible"].items()
+            if eligible is True
+        ]
+        labels = {decision_id: defaults[decision_id] for decision_id in decision_ids}
+        justifications = {}
+        for decision_id in decision_ids:
+            if omit_justification == (case_id, decision_id):
+                continue
+            justifications[decision_id] = {
+                "decisive_case_evidence": [
+                    "The supplied case text directly supports this frozen-rubric label."
+                ],
+                "rubric_rule": "Apply the frozen seam definition to the supplied case only.",
+                "ambiguity": "none",
+            }
+        records.append(
+            {
+                "case_id": case_id,
+                "labels": labels,
+                "justifications": justifications,
+            }
+        )
+    value = {
+        "schema": ADJUDICATION_PASS_SCHEMA_V2,
+        "study_id": view["study_id"],
+        "dataset_version": view["dataset_version"],
+        "protocol_version": view["oracle_policy"]["protocol_version"],
+        "input_view_sha256": _sha(view_path),
+        "adjudicator_id": adjudicator_id,
+        "completed_at": "2026-09-27T20:00:00+00:00",
+        "attestation": {
+            "independent": True,
+            "treatment_outputs_seen": False,
+            "other_adjudicator_labels_seen": False,
+            "other_adjudicator_justifications_seen": False,
+        },
+        "records": records,
+    }
+    _write_json(path, value)
+    return path
+
+
+def test_v2_adjudication_pass_requires_and_counts_structured_justifications(
+    tmp_path: Path,
+):
+    view_path, view = _v2_authoring_view(tmp_path)
+    pass_path = _v2_pass(view_path, view, tmp_path / "v2-a.json", "A")
+    result = validate_adjudication_pass(
+        view_path,
+        pass_path,
+        study="routing-semantic-v2",
+    )
+    assert result["valid"] is True
+    assert result["schema"] == ADJUDICATION_PASS_SCHEMA_V2
+    assert result["cases"] == 120
+    assert result["labels"] == 360
+    assert result["justifications"] == 360
+
+
+def test_v2_adjudication_pass_fails_closed_when_justification_is_missing(
+    tmp_path: Path,
+):
+    view_path, view = _v2_authoring_view(tmp_path)
+    first = str(view["cases"][0]["case_id"])
+    pass_path = _v2_pass(
+        view_path,
+        view,
+        tmp_path / "v2-missing.json",
+        "A",
+        omit_justification=(first, "routing.semantic_risk"),
+    )
+    with pytest.raises(WorkflowError, match="justifications.*do not match required seams"):
+        validate_adjudication_pass(
+            view_path,
+            pass_path,
+            study="routing-semantic-v2",
+        )
+
+
+def test_v2_dispute_view_does_not_leak_a_b_structured_justifications(
+    tmp_path: Path,
+):
+    view_path, view = _v2_authoring_view(tmp_path)
+    pass_a = _v2_pass(view_path, view, tmp_path / "v2-a.json", "A")
+    pass_b_value = json.loads(
+        _v2_pass(view_path, view, tmp_path / "v2-b.json", "B").read_text(
+            encoding="utf-8"
+        )
+    )
+    first = str(view["cases"][0]["case_id"])
+    pass_b_value["records"][0]["labels"]["routing.task_class"] = "review"
+    _write_json(tmp_path / "v2-b.json", pass_b_value)
+
+    dispute = tmp_path / "v2-dispute.json"
+    export_oracle_dispute_view(
+        view_path,
+        pass_a,
+        tmp_path / "v2-b.json",
+        dispute,
+        study="routing-semantic-v2",
+    )
+    value = json.loads(dispute.read_text(encoding="utf-8"))
+    case = next(item for item in value["cases"] if item["case_id"] == first)
+    assert case["disputed_decision_ids"] == ["routing.task_class"]
+    assert "labels" not in case
+    assert "justifications" not in case
+    assert value["blinding"]["a_b_labels_included"] is False

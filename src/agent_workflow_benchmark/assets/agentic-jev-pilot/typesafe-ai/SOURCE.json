@@ -1,0 +1,9 @@
+{
+  "schema": "agent-workflow-benchmark/agentic-jev-skill-source/v1",
+  "repository": "typesafe-ai/skills",
+  "commit": "65a39f393687675ce170e6094757de20370365b9",
+  "release": "v0.5.7",
+  "source_path": "skills/typesafe-ai/SKILL.md",
+  "fetched_for": "agentic-jev-pilot-v1",
+  "note": "Frozen snapshot for treatment reproducibility; live TypeSafe docs remain implementation reference, not mutable treatment input."
+}

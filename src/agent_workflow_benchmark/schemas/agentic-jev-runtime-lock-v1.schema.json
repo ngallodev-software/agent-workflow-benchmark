@@ -1,0 +1,113 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-workflow-benchmark/agentic-jev-runtime-lock/v1"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "study_id": {
+      "const": "agentic-jev-pilot-v1"
+    },
+    "inspect_ai_version": {
+      "const": "0.3.268"
+    },
+    "inspect_swe_version": {
+      "const": "0.2.70"
+    },
+    "codex_cli": {
+      "type": "object"
+    },
+    "agent_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_model_args": {
+      "type": "object"
+    },
+    "jev_model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "upstream_commit": {
+          "const": "65a39f393687675ce170e6094757de20370365b9"
+        },
+        "upstream_release": {
+          "const": "v0.5.7"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "upstream_commit",
+        "upstream_release",
+        "sha256"
+      ]
+    },
+    "tasks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "count": {
+          "const": 24
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "count",
+        "version"
+      ]
+    },
+    "tool": {
+      "type": "object"
+    },
+    "docker": {
+      "type": "object"
+    },
+    "frozen_for_pilot": {
+      "const": true
+    }
+  },
+  "required": [
+    "schema",
+    "created_at",
+    "study_id",
+    "inspect_ai_version",
+    "inspect_swe_version",
+    "codex_cli",
+    "agent_model",
+    "agent_model_args",
+    "jev_model",
+    "skill",
+    "tasks",
+    "tool",
+    "docker",
+    "frozen_for_pilot"
+  ]
+}
