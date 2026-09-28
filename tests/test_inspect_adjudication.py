@@ -451,9 +451,14 @@ class _FakeSample:
                 input_tokens=100,
                 output_tokens=20,
                 total_tokens=120,
-                requests=3,
             )
         }
+        self.events = [
+            type("Event", (), {"event": "model", "retries": None, "cache": None})(),
+            type("Event", (), {"event": "tool", "retries": None, "cache": None})(),
+            type("Event", (), {"event": "model", "retries": 1, "cache": None})(),
+            type("Event", (), {"event": "model", "retries": None, "cache": "read"})(),
+        ]
         self.messages = [
             {
                 "role": "assistant",
@@ -475,6 +480,27 @@ def test_v2_provenance_separates_final_output_and_aggregate_session_usage():
     assert value["aggregate_session_usage"]["openai-api/test"]["input_tokens"] == 100
     assert value["model_call_count"] == 3
     assert value["provider_request_count"] == 3
+
+
+def test_v2_model_and_provider_counts_distinguish_retries_and_cache_reads():
+    sample = _FakeSample()
+
+    model_calls, provider_requests = inspect_runtime._sample_model_request_counts(sample)
+
+    assert model_calls == 3
+    assert provider_requests == 3
+
+
+def test_v2_provider_request_count_fails_closed_on_invalid_retry_evidence():
+    sample = _FakeSample()
+    sample.events = [
+        type("Event", (), {"event": "model", "retries": "unknown", "cache": None})()
+    ]
+
+    model_calls, provider_requests = inspect_runtime._sample_model_request_counts(sample)
+
+    assert model_calls == 1
+    assert provider_requests is None
 
 
 def test_v1_provenance_shape_remains_historical_while_v2_is_scoped():
