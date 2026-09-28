@@ -165,6 +165,40 @@ def _validate_questions(questions: Mapping[str, object]) -> dict[str, object]:
     return normalized
 
 
+def _sdk_questions(questions: Mapping[str, object]) -> dict[str, object]:
+    try:
+        from typesafe_sdk import Choice, Noul, Score
+    except ImportError as exc:
+        raise WorkflowError(
+            "typesafe-sdk is required for the agent-directed Jev pilot"
+        ) from exc
+
+    result: dict[str, object] = {}
+    for question_id, raw_spec in questions.items():
+        if not isinstance(raw_spec, Mapping):
+            raise WorkflowError(f"invalid normalized Jev question: {question_id}")
+        primitive = str(raw_spec["type"])
+        instructions = raw_spec["instructions"]
+        criteria = raw_spec.get("criteria")
+        if primitive == "choice":
+            result[question_id] = Choice(
+                instructions=instructions,
+                criteria=criteria,
+            )
+        elif primitive == "noul":
+            result[question_id] = Noul(instructions=instructions)
+        elif primitive == "score":
+            result[question_id] = Score(
+                instructions=instructions,
+                criteria=criteria,
+            )
+        else:
+            raise WorkflowError(
+                f"unsupported normalized Jev primitive: {primitive!r}"
+            )
+    return result
+
+
 def _answers(response: Any) -> Mapping[str, object]:
     answers = getattr(response, "answers", None)
     if isinstance(answers, Mapping):
@@ -373,9 +407,14 @@ def execute_jev_request(
         client = TypeSafeClient()
 
     try:
+        transport_questions = (
+            _sdk_questions(safe_questions)
+            if client.__class__.__module__.startswith("typesafe_sdk")
+            else safe_questions
+        )
         response = client.system_one(
             state=safe_state,
-            questions=safe_questions,
+            questions=transport_questions,
             model=model,
         )
         normalized = _normalize_answers(response, safe_questions)
