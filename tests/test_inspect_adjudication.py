@@ -561,6 +561,15 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
     )
 
 
+def test_v2_preflight_model_args_default_is_shell_safe():
+    script = (
+        ROOT / "scripts" / "adjudication" / "v2-evidence-preflight.sh"
+    ).read_text(encoding="utf-8")
+    assert 'MODEL_ARGS_JSON="${V2_ADJUDICATION_MODEL_ARGS_JSON:-}"' in script
+    assert 'MODEL_ARGS_JSON=\'{"responses_api":true}\'' in script
+    assert 'V2_ADJUDICATION_MODEL_ARGS_JSON:-{\\"responses_api\\":true}' not in script
+
+
 def test_v2_adjudicator_identity_is_frozen_to_deepseek_flash():
     assert inspect_runtime._validate_v2_adjudicator_identity(
         "openai-api/codex-lb/deepseek-flash",
