@@ -696,13 +696,95 @@ def _receipt_summary(path: Path) -> dict[str, object]:
     }
 
 
+def create_agentic_jev_runtime_lock(
+    *,
+    destination: Path,
+    tasks_path: Path,
+    agent_model: str,
+    agent_model_args: Mapping[str, Any] | None = None,
+    jev_model: str | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    from .inspect_adjudication import (
+        INSPECT_AI_VERSION,
+        INSPECT_SWE_VERSION,
+        _docker_identity,
+        resolve_latest_codex_cli,
+    )
+
+    destination = Path(destination)
+    if destination.exists() and not force:
+        raise WorkflowError(f"agentic Jev runtime lock already exists: {destination}")
+    if destination.exists() and (destination.is_dir() or destination.is_symlink()):
+        raise WorkflowError("agentic Jev runtime lock must be a regular file")
+
+    tasks = load_pilot_tasks(Path(tasks_path))
+    if len(tasks["tasks"]) != 24:
+        raise WorkflowError("agentic Jev runtime lock requires exactly 24 pilot tasks")
+    model = str(agent_model).strip()
+    if not model:
+        raise WorkflowError("agentic Jev runtime lock requires an explicit agent model")
+
+    record = {
+        "schema": "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
+        "created_at": _utc(),
+        "study_id": PILOT_STUDY_ID,
+        "inspect_ai_version": INSPECT_AI_VERSION,
+        "inspect_swe_version": INSPECT_SWE_VERSION,
+        "codex_cli": resolve_latest_codex_cli(),
+        "agent_model": model,
+        "agent_model_args": dict(agent_model_args or {}),
+        "jev_model": jev_model,
+        "skill": {
+            "upstream_commit": SKILL_UPSTREAM_COMMIT,
+            "upstream_release": SKILL_UPSTREAM_RELEASE,
+            "sha256": agentic_jev_skill_sha256(),
+        },
+        "tasks": {
+            "path": str(Path(tasks_path).resolve()),
+            "sha256": sha256_file(Path(tasks_path)),
+            "count": len(tasks["tasks"]),
+            "version": str(tasks["version"]),
+        },
+        "tool": {
+            "transport": "Inspect bridged tool / MCP",
+            "execution_location": "host",
+            "api_key_location": "host-only",
+            "receipt_schema": TOOL_RECEIPT_SCHEMA,
+            "primitives": sorted(_ALLOWED_PRIMITIVES),
+        },
+        "docker": _docker_identity(),
+        "frozen_for_pilot": True,
+    }
+    validate_instance(
+        record,
+        "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
+        artifact="agentic Jev runtime lock",
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(destination, record)
+    return {"path": str(destination), "sha256": sha256_file(destination), **record}
+
+
+def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
+    value = _read_json_object(Path(path))
+    validate_instance(
+        value,
+        "agent-workflow-benchmark/agentic-jev-runtime-lock/v1",
+        artifact=str(path),
+    )
+    if value["skill"]["sha256"] != agentic_jev_skill_sha256():
+        raise WorkflowError("agentic Jev runtime lock skill hash does not match package")
+    tasks_path = Path(str(value["tasks"]["path"]))
+    if not tasks_path.is_file() or sha256_file(tasks_path) != value["tasks"]["sha256"]:
+        raise WorkflowError("agentic Jev runtime lock task manifest no longer matches")
+    return value
+
+
 def run_agentic_jev_tool_qualification(
     *,
     output_root: Path,
-    codex_version: str,
-    model: str,
-    model_args: Mapping[str, Any] | None = None,
-    jev_model: str | None = None,
+    runtime_lock_path: Path,
     force: bool = False,
 ) -> dict[str, Any]:
     try:
@@ -714,6 +796,13 @@ def run_agentic_jev_tool_qualification(
             "agent-directed Jev qualification requires agent-workflow-benchmark[agentic-jev]"
         ) from exc
     from .inspect_adjudication import _inspect_sandbox_spec
+
+    runtime_lock_path = Path(runtime_lock_path)
+    runtime_lock = load_agentic_jev_runtime_lock(runtime_lock_path)
+    codex_version = str(runtime_lock["codex_cli"]["resolved"])
+    model = str(runtime_lock["agent_model"])
+    model_args = dict(runtime_lock["agent_model_args"])
+    jev_model = runtime_lock.get("jev_model")
 
     output_root = Path(output_root)
     result_path = output_root / "qualification.json"
@@ -793,6 +882,7 @@ def run_agentic_jev_tool_qualification(
         "study_id": PILOT_STUDY_ID,
         "created_at": _utc(),
         "qualified": qualified,
+        "runtime_lock_sha256": sha256_file(runtime_lock_path),
         "codex_version": codex_version,
         "model": model,
         "jev_model": jev_model,
@@ -809,6 +899,11 @@ def run_agentic_jev_tool_qualification(
         },
         "inspect_log": getattr(log, "location", None),
     }
+    validate_instance(
+        record,
+        "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
+        artifact="agentic Jev tool qualification",
+    )
     atomic_write_json(result_path, record)
     if not qualified:
         raise WorkflowError(
@@ -819,13 +914,9 @@ def run_agentic_jev_tool_qualification(
 
 def run_agentic_jev_pilot(
     *,
-    tasks_path: Path,
     output_root: Path,
-    codex_version: str,
-    model: str,
-    model_args: Mapping[str, Any] | None = None,
-    jev_model: str | None = None,
-    qualification_path: Path | None = None,
+    runtime_lock_path: Path,
+    qualification_path: Path,
     force: bool = False,
 ) -> dict[str, Any]:
     try:
@@ -837,23 +928,32 @@ def run_agentic_jev_pilot(
         ) from exc
     from .inspect_adjudication import _inspect_sandbox_spec
 
-    tasks_path = Path(tasks_path)
+    runtime_lock_path = Path(runtime_lock_path)
+    runtime_lock = load_agentic_jev_runtime_lock(runtime_lock_path)
+    tasks_path = Path(str(runtime_lock["tasks"]["path"]))
     tasks = load_pilot_tasks(tasks_path)
+    codex_version = str(runtime_lock["codex_cli"]["resolved"])
+    model = str(runtime_lock["agent_model"])
+    model_args = dict(runtime_lock["agent_model_args"])
+    jev_model = runtime_lock.get("jev_model")
     if len(tasks["tasks"]) != 24:
         raise WorkflowError(
             "the registered agentic Jev pilot requires exactly 24 development tasks"
         )
 
-    if qualification_path is not None:
-        qualification = _read_json_object(Path(qualification_path))
-        if (
-            qualification.get("schema")
-            != "agent-workflow-benchmark/agentic-jev-tool-qualification/v1"
-            or qualification.get("qualified") is not True
-        ):
-            raise WorkflowError("agentic Jev tool qualification is not passing")
-        if qualification.get("skill_sha256") != agentic_jev_skill_sha256():
-            raise WorkflowError("agentic Jev qualification used a different skill snapshot")
+    qualification_path = Path(qualification_path)
+    qualification = _read_json_object(qualification_path)
+    validate_instance(
+        qualification,
+        "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
+        artifact=str(qualification_path),
+    )
+    if qualification.get("qualified") is not True:
+        raise WorkflowError("agentic Jev tool qualification is not passing")
+    if qualification.get("skill_sha256") != agentic_jev_skill_sha256():
+        raise WorkflowError("agentic Jev qualification used a different skill snapshot")
+    if qualification.get("runtime_lock_sha256") != sha256_file(runtime_lock_path):
+        raise WorkflowError("agentic Jev qualification used a different runtime lock")
 
     output_root = Path(output_root)
     manifest_path = output_root / "run-manifest.json"
@@ -931,6 +1031,7 @@ def run_agentic_jev_pilot(
         "study_id": PILOT_STUDY_ID,
         "created_at": _utc(),
         "development_only": True,
+        "runtime_lock_sha256": sha256_file(runtime_lock_path),
         "task_manifest": {
             "path": str(tasks_path),
             "sha256": sha256_file(tasks_path),
@@ -944,14 +1045,10 @@ def run_agentic_jev_pilot(
             "jev_model": jev_model,
         },
         "treatment": pilot_treatment_manifest(),
-        "qualification": (
-            {
-                "path": str(qualification_path),
-                "sha256": sha256_file(Path(qualification_path)),
-            }
-            if qualification_path is not None
-            else None
-        ),
+        "qualification": {
+            "path": str(qualification_path),
+            "sha256": sha256_file(qualification_path),
+        },
         "arms": arm_results,
         "claim_boundary": {
             "exploratory_only": True,
@@ -959,5 +1056,10 @@ def run_agentic_jev_pilot(
             "purpose": "discover candidate agent-directed Jev seams before preregistration",
         },
     }
+    validate_instance(
+        manifest,
+        "agent-workflow-benchmark/agentic-jev-pilot-run/v1",
+        artifact="agentic Jev pilot run",
+    )
     atomic_write_json(manifest_path, manifest)
     return {"path": str(manifest_path), **manifest}
