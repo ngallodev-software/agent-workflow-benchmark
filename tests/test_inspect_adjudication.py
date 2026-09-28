@@ -571,6 +571,63 @@ def test_v2_preflight_prompt_is_packaged_and_matches_docker_source():
     )
 
 
+def test_v2_resolution_renderer_probe_is_package_local(tmp_path: Path):
+    decision_id = "routing.semantic_risk"
+    case_id = "synthetic-1"
+    justification = {
+        "decisive_case_evidence": ["The request affects production state."],
+        "rubric_rule": "Production impact is high semantic consequence.",
+        "ambiguity": "none",
+    }
+    view = {
+        "study_id": "routing-semantic-v2",
+        "dataset_version": "synthetic",
+        "cases": [
+            {
+                "case_id": case_id,
+                "task": "Change production state.",
+                "metadata": {},
+                "oracle_eligible": [decision_id],
+            }
+        ],
+        "decision_seams": [
+            {
+                "decision_id": decision_id,
+                "oracle_type": "ordinal",
+                "levels": [0, 1, 2],
+            }
+        ],
+    }
+    contracts = []
+    for label in (0, 1, 2):
+        contracts.append(
+            {
+                "records": [
+                    {
+                        "case_id": case_id,
+                        "labels": {decision_id: label},
+                        "justifications": {decision_id: justification},
+                    }
+                ]
+            }
+        )
+
+    result = inspect_runtime._probe_v2_resolution_renderer(
+        output_root=tmp_path,
+        view=view,
+        a_contract=contracts[0],
+        b_contract=contracts[1],
+        c_contract=contracts[2],
+        decision_id=decision_id,
+    )
+
+    assert result["passed"] is True
+    assert Path(result["markdown"]).is_file()
+    rendered = Path(result["markdown"]).read_text(encoding="utf-8")
+    assert "Independent structured justifications" in rendered
+    assert justification["decisive_case_evidence"][0] in rendered
+
+
 def test_v2_preflight_model_args_default_is_shell_safe():
     script = (
         ROOT / "scripts" / "adjudication" / "v2-evidence-preflight.sh"
