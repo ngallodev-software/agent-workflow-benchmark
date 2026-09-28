@@ -22,6 +22,7 @@ TOOL_RECEIPT_SCHEMA = "agent-workflow-benchmark/agentic-jev-tool-receipt/v1"
 PILOT_STUDY_ID = "agentic-jev-pilot-v1"
 SKILL_UPSTREAM_COMMIT = "65a39f393687675ce170e6094757de20370365b9"
 SKILL_UPSTREAM_RELEASE = "v0.5.7"
+TYPESAFE_SDK_VERSION = "0.6.0"
 _ALLOWED_PRIMITIVES = frozenset({"choice", "noul", "score"})
 _SECRET_KEYS = frozenset(
     {
