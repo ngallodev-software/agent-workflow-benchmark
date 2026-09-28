@@ -955,6 +955,9 @@ def run_agentic_jev_tool_qualification(
         raise WorkflowError("agent-directed Jev tool qualification sample failed")
 
     functions = _tool_call_functions(log)
+    jev_functions = [
+        name for name in functions if name.endswith("jev_system_one")
+    ]
     receipts = _receipt_values(receipt_path)
     successful = [item for item in receipts if item.get("status") == "success"]
     api_key = os.environ.get("TYPESAFE_API_KEY")
@@ -968,9 +971,11 @@ def run_agentic_jev_tool_qualification(
     )
     key_absent = not api_key or api_key not in transcript
     qualified = (
-        any(name.endswith("jev_system_one") for name in functions)
+        len(jev_functions) == 1
+        and len(receipts) == 1
         and len(successful) == 1
         and key_absent
+        and agentic_jev_skill_path().is_file()
     )
     record = {
         "schema": "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
@@ -985,9 +990,9 @@ def run_agentic_jev_tool_qualification(
         "tool_functions": functions,
         "receipt_summary": _receipt_summary(receipt_path),
         "checks": {
-            "jev_tool_called": any(
-                name.endswith("jev_system_one") for name in functions
-            ),
+            "jev_tool_called": bool(jev_functions),
+            "exactly_one_jev_tool_call": len(jev_functions) == 1,
+            "exactly_one_receipt": len(receipts) == 1,
             "exactly_one_successful_receipt": len(successful) == 1,
             "api_key_absent_from_agent_transcript": key_absent,
             "skill_snapshot_present": agentic_jev_skill_path().is_file(),
