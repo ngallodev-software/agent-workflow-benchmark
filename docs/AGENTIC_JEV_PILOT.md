@@ -54,6 +54,8 @@ The lock binds:
 - optional requested Jev model;
 - frozen TypeSafe skill SHA;
 - exact 24-task development manifest SHA;
+- exact host-side Jev implementation SHA;
+- exact TypeSafe SDK version;
 - host-tool receipt contract;
 - Docker identity.
 
