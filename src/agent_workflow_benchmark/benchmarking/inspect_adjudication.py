@@ -1483,9 +1483,14 @@ This is synthetic qualification evidence only. It is not a real oracle cohort.
 Use the supplied routing task-class, interaction-required, and semantic-risk
 rubrics. For every assigned label also emit a structured justification containing:
 
-- 1-3 concise decisive_case_evidence statements grounded only in the case;
-- one concise rubric_rule;
-- ambiguity exactly one of none, material, insufficient_evidence.
+- decisive_case_evidence MUST be a JSON array containing 1-3 strings;
+- every decisive_case_evidence string MUST be at most 320 characters;
+- rubric_rule MUST be one non-empty string of at most 320 characters;
+- ambiguity MUST be exactly one of none, material, insufficient_evidence.
+
+Never emit decisive_case_evidence as a scalar string, even when there is only one
+evidence statement. Before returning, verify every assigned seam satisfies this
+machine contract exactly.
 
 The justification is bounded decision evidence, not hidden chain-of-thought.
 Provider reasoning summaries are supplementary and are not required.
@@ -1624,6 +1629,47 @@ def _v2_preflight_failure_message(
     )
 
 
+def _wrap_v2_preflight_completion(
+    *,
+    view_path: Path,
+    completion: str,
+    completion_source: str,
+    adjudicator_id: str,
+    role_dir: Path,
+) -> dict[str, Any]:
+    role_dir = Path(role_dir)
+    role_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = role_dir / "raw-completion.txt"
+    raw_path.write_text(completion, encoding="utf-8")
+    parsed_path = role_dir / "raw-completion.json"
+    failure_path = role_dir / "contract-validation-error.json"
+
+    try:
+        parsed = _json_completion(completion)
+        atomic_write_json(parsed_path, parsed)
+        return _wrap_pass(
+            view_path,
+            parsed,
+            adjudicator_id=adjudicator_id,
+            study="routing-semantic-v2",
+        )
+    except WorkflowError as exc:
+        atomic_write_json(
+            failure_path,
+            {
+                "adjudicator_id": adjudicator_id,
+                "completion_source": completion_source,
+                "error": str(exc),
+                "raw_completion": str(raw_path),
+                "parsed_completion": str(parsed_path) if parsed_path.exists() else None,
+            },
+        )
+        raise WorkflowError(
+            "routing-semantic-v2 preflight adjudication contract invalid; "
+            f"adjudicator={adjudicator_id}; diagnostic={failure_path}; error={exc}"
+        ) from exc
+
+
 def run_v2_evidence_preflight(
     *,
     destination: Path,
@@ -1682,14 +1728,15 @@ def run_v2_evidence_preflight(
             sample,
             study="routing-semantic-v2",
         )
-        contract = _wrap_pass(
-            view_path,
-            _json_completion(completion),
+        role_dir = root / role.lower()
+        contract = _wrap_v2_preflight_completion(
+            view_path=view_path,
+            completion=completion,
+            completion_source=completion_source,
             adjudicator_id=f"preflight-{role.lower()}",
-            study="routing-semantic-v2",
+            role_dir=role_dir,
         )
-        role_path = root / role.lower() / "adjudication.json"
-        role_path.parent.mkdir(parents=True, exist_ok=True)
+        role_path = role_dir / "adjudication.json"
         atomic_write_json(role_path, contract)
         validations[role] = validate_adjudication_pass(
             view_path, role_path, study="routing-semantic-v2"
@@ -1756,14 +1803,15 @@ def run_v2_evidence_preflight(
         c_result,
         study="routing-semantic-v2",
     )
-    c_contract = _wrap_pass(
-        dispute_path,
-        _json_completion(c_completion),
+    c_role_dir = root / "c"
+    c_contract = _wrap_v2_preflight_completion(
+        view_path=dispute_path,
+        completion=c_completion,
+        completion_source=c_completion_source,
         adjudicator_id="preflight-c",
-        study="routing-semantic-v2",
+        role_dir=c_role_dir,
     )
-    c_path = root / "c" / "adjudication.json"
-    c_path.parent.mkdir(parents=True, exist_ok=True)
+    c_path = c_role_dir / "adjudication.json"
     atomic_write_json(c_path, c_contract)
     c_validation = validate_adjudication_pass(
         dispute_path, c_path, study="routing-semantic-v2"
