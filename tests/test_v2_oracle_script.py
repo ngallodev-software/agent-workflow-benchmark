@@ -51,3 +51,18 @@ def test_resolution_helper_keeps_v1_default_but_allows_versioned_override():
         '${FREEZE_RERUN_COMMAND:-bash scripts/adjudication/p0b-freeze.sh}'
         in text
     )
+
+
+def test_v2_c_runner_verifies_current_ab_dispute_view_before_model_call():
+    text = V2_ORACLE.read_text(encoding="utf-8")
+    start = text.index("run_c() {")
+    end = text.index("\nrun_all() {", start)
+    run_c = text[start:end]
+
+    validate_ab = run_c.index("validate_ab")
+    verify_dispute = run_c.index("verify_dispute_view")
+    model_call = run_c.index('run_model_private "run-c"')
+
+    assert validate_ab < verify_dispute < model_call
+    assert "C dispute view seam set does not match current A/B disagreements" in text
+    assert "a_b_labels_included" in text
