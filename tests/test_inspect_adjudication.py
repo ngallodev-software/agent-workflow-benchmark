@@ -295,7 +295,7 @@ def test_static_qualification_is_not_ready_until_live_gates_pass(
     monkeypatch.setattr(
         inspect_runtime,
         "_require_inspect_dependencies",
-        lambda: (object(), object()),
+        lambda **_: (object(), object()),
     )
     monkeypatch.setattr(
         inspect_runtime,
