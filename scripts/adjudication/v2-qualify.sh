@@ -290,3 +290,7 @@ print("qualified:", qualification["qualified"])
 print("runtime_lock:", runtime_lock_path)
 print("qualification:", qualification_path)
 PY
+
+if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-0}" == "1" ]]; then
+  "$PYTHON" "$DIAGNOSE" --root "$PRIVATE_ROOT" --attempt current
+fi
