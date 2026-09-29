@@ -132,7 +132,10 @@ bash scripts/adjudication/v2-oracle.sh verify
 
 The verifier requires:
 
-- benchmark `0.6.3` and comparative-eval `0.3.1`;
+- Agent-Workflow `0.11.12`, benchmark `0.6.3`, and comparative-eval `0.3.1`;
+- no tracked or staged changes in the benchmark or comparative-eval checkouts;
+- installed benchmark adjudication/compat source files to byte-match the benchmark checkout;
+- installed v2 comparative study/corpus resources to byte-match the comparative-eval checkout;
 - `qualified=true`;
 - IA-1 through IA-11 all `pass`;
 - the qualification module/runtime-lock hashes to match the supplied files;
@@ -152,6 +155,11 @@ Run the real independent A/B cohort:
 bash scripts/adjudication/v2-oracle.sh run-ab
 ~~~
 
+Before the first provider call the driver writes immutable private
+`run-identity.json` evidence binding the cohort to the benchmark/comparative
+Git heads, package versions, runtime-lock bytes, qualification bytes and
+qualification attempt id, module bytes, and frozen view/protocol/corpus hashes.
+
 The model-stage console stays compact. Full Inspect/Codex output is retained
 under the private v2 oracle log root. By default the driver also places the
 sanitized loopback Codex-LB ingress observer in the same path qualified by the
@@ -164,15 +172,24 @@ DeepSeek `POST /v1/responses` request to carry:
 
 The sanitized observer retains no prompts, input/messages, tool arguments,
 header values, model responses, or full schemas. Set
-`V2_CAPTURE_CODEX_LB_INGRESS=0` only for an explicitly documented reason; the
-default keeps the diagnostic evidence needed if the intermittent v20
-structured-output failure recurs.
+`V2_CAPTURE_CODEX_LB_INGRESS=0` only for an explicitly documented reason;
+the driver requires a non-empty `V2_CAPTURE_OVERRIDE_REASON` when capture is
+disabled. The default keeps the diagnostic evidence needed if the intermittent
+v20 structured-output failure recurs.
 
 Continue only after A/B pass validation:
 
 ~~~bash
 bash scripts/adjudication/v2-oracle.sh compute-disputes
 bash scripts/adjudication/v2-oracle.sh run-c
+~~~
+
+If a later code fix affects only deterministic validation, revalidate already
+preserved model outputs without another provider call:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh validate-ab
+bash scripts/adjudication/v2-oracle.sh validate-c
 ~~~
 
 `run-c` exits cleanly without a model call when the blinded dispute view
