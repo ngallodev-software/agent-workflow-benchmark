@@ -1944,6 +1944,39 @@ def run_v2_evidence_preflight(
     return {"path": str(destination), **record}
 
 
+def _validated_v2_evidence_preflight(
+    path: Path,
+    *,
+    model: str,
+    model_args: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    path = Path(path)
+    value = _read_json(path)
+    validate_instance(
+        value,
+        "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
+        artifact=str(path),
+    )
+    _validate_v2_adjudicator_identity(model, model_args)
+    if value.get("passed") is not True:
+        raise WorkflowError("routing-semantic-v2 evidence preflight is not passing")
+    if value.get("model") != model or value.get("model_args") != dict(model_args or {}):
+        raise WorkflowError(
+            "routing-semantic-v2 evidence preflight model identity does not match "
+            "the requested qualification model"
+        )
+    if value.get("real_cohort_ready") is not False:
+        raise WorkflowError(
+            "routing-semantic-v2 evidence preflight must remain synthetic-only"
+        )
+    for gate in ("IA-9", "IA-10", "IA-11"):
+        if value.get("gates", {}).get(gate, {}).get("status") != "pass":
+            raise WorkflowError(
+                f"routing-semantic-v2 evidence preflight gate is not passing: {gate}"
+            )
+    return value
+
+
 def run_inspect_live_qualification(
     module_path: Path,
     runtime_lock_path: Path,
@@ -1951,6 +1984,7 @@ def run_inspect_live_qualification(
     *,
     model: str,
     model_args: Mapping[str, Any] | None = None,
+    evidence_preflight_path: Path | None = None,
     force: bool = False,
     log_model_api: bool = False,
 ) -> dict[str, Any]:
@@ -1960,7 +1994,27 @@ def run_inspect_live_qualification(
     if destination.exists() and not force:
         raise WorkflowError(f"Inspect qualification manifest already exists: {destination}")
     module = validate_abc_adjudication_module(module_path)
+    study_id = str(module.get("task", {}).get("study_id") or "")
+    if study_id not in {"routing-semantic-v1", "routing-semantic-v2"}:
+        raise WorkflowError(
+            f"unsupported Inspect qualification study: {study_id or 'empty'}"
+        )
     runtime_lock = _load_runtime_lock(runtime_lock_path, module)
+    evidence_preflight: dict[str, Any] | None = None
+    if study_id == "routing-semantic-v2":
+        if evidence_preflight_path is None:
+            raise WorkflowError(
+                "routing-semantic-v2 qualification requires --evidence-preflight"
+            )
+        evidence_preflight = _validated_v2_evidence_preflight(
+            evidence_preflight_path,
+            model=model,
+            model_args=model_args,
+        )
+    elif evidence_preflight_path is not None:
+        raise WorkflowError(
+            "evidence preflight is only valid for routing-semantic-v2 qualification"
+        )
     root = destination.parent / "inspect-qualification"
     if root.exists() and any(root.iterdir()) and not force:
         raise WorkflowError(f"Inspect qualification evidence directory already exists: {root}")
@@ -1968,8 +2022,12 @@ def run_inspect_live_qualification(
 
     synthetic_view = root / "synthetic-oracle-view.json"
     synthetic_protocol = root / "synthetic-protocol.md"
-    _synthetic_qualification_view(synthetic_view)
-    _synthetic_protocol(synthetic_protocol)
+    if study_id == "routing-semantic-v2":
+        _synthetic_v2_evidence_view(synthetic_view)
+        _synthetic_v2_protocol(synthetic_protocol)
+    else:
+        _synthetic_qualification_view(synthetic_view)
+        _synthetic_protocol(synthetic_protocol)
 
     guardrail = _run_guardrail_probe(
         output_root=root,
@@ -1993,18 +2051,19 @@ def run_inspect_live_qualification(
     a_validation = validate_adjudication_pass(
         synthetic_view,
         Path(primary["outputs"]["A"]["path"]),
-        study="routing-semantic-v1",
+        study=study_id,
     )
     b_validation = validate_adjudication_pass(
         synthetic_view,
         Path(primary["outputs"]["B"]["path"]),
-        study="routing-semantic-v1",
+        study=study_id,
     )
 
     forced_a, forced_b = _forced_disagreement_passes(
         view_path=synthetic_view,
         primary_manifest=primary,
         output_root=root,
+        study=study_id,
     )
     dispute_path = root / "synthetic-disputes-for-c.json"
     dispute = export_oracle_dispute_view(
@@ -2012,7 +2071,7 @@ def run_inspect_live_qualification(
         forced_a,
         forced_b,
         dispute_path,
-        study="routing-semantic-v1",
+        study=study_id,
     )
     if not dispute["requires_c"]:
         raise WorkflowError("synthetic qualification failed to create a required C dispute")
@@ -2033,7 +2092,7 @@ def run_inspect_live_qualification(
     c_validation = validate_adjudication_pass(
         dispute_path,
         Path(c_result["path"]),
-        study="routing-semantic-v1",
+        study=study_id,
     )
 
     synthetic_oracle = root / "synthetic-oracle.json"
@@ -2045,7 +2104,7 @@ def run_inspect_live_qualification(
         oracle_version="inspect-qualification-v1",
         c_view_path=dispute_path,
         pass_c_path=Path(c_result["path"]),
-        study="routing-semantic-v1",
+        study=study_id,
     )
 
     wrapper_parity = _direct_wrapper_parity(
@@ -2053,17 +2112,18 @@ def run_inspect_live_qualification(
         runtime_lock_path=runtime_lock_path,
         view_path=synthetic_view,
         output_root=root,
+        study=study_id,
     )
 
     repo = _repo_root(module_path)
     direct_module_path = (
-        repo / "modules" / "abc-adjudication" / "routing-semantic-v1.module.json"
+        repo / "modules" / "abc-adjudication" / f"{study_id}.module.json"
     )
     direct_module = _read_json(direct_module_path)
     inspect_module = _read_json(module_path)
     direct_required = {item["id"]: item for item in direct_module["required_files"]}
     inspect_required = {item["id"]: item for item in inspect_module["required_files"]}
-    identity_ids = {"oracle-view", "routing-corpus"}
+    identity_ids = {"oracle-view", "oracle-protocol", "routing-corpus"}
     identity_parity = all(
         direct_required[item]["sha256"] == inspect_required[item]["sha256"]
         for item in identity_ids
@@ -2136,8 +2196,26 @@ def run_inspect_live_qualification(
             },
         },
     }
+    qualification_schema = INSPECT_QUALIFICATION_SCHEMA
+    if study_id == "routing-semantic-v2":
+        assert evidence_preflight is not None
+        preflight_path = Path(evidence_preflight_path)
+        preflight_sha256 = sha256_file(preflight_path)
+        for gate in ("IA-9", "IA-10", "IA-11"):
+            gates[gate] = {
+                "status": "pass",
+                "evidence": {
+                    "preflight_path": str(preflight_path),
+                    "preflight_sha256": preflight_sha256,
+                    "synthetic_gate": copy.deepcopy(
+                        evidence_preflight["gates"][gate]["evidence"]
+                    ),
+                },
+            }
+        qualification_schema = INSPECT_QUALIFICATION_SCHEMA_V2
+
     record = {
-        "schema": INSPECT_QUALIFICATION_SCHEMA,
+        "schema": qualification_schema,
         "created_at": _utc(),
         "module_id": module["module_id"],
         "module_sha256": module["module_sha256"],
@@ -2147,7 +2225,7 @@ def run_inspect_live_qualification(
     }
     validate_instance(
         record,
-        INSPECT_QUALIFICATION_SCHEMA,
+        qualification_schema,
         artifact="Inspect adjudication qualification",
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
