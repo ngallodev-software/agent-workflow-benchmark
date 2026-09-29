@@ -361,6 +361,20 @@ Specifically:
 
 This is a caller-owned schema adaptation, not an Inspect-SWE rewrite.
 
+## Downstream compatibility-patch rollover
+
+The private qualification host may already have capability v1 patched into the installed Inspect-SWE 0.2.71 source.
+
+Capability v2 SHALL NOT patch over those already-mutated bytes. Before installing the v2 compatibility layer, restore the exact pristine Inspect-SWE 0.2.71 wheel bytes, for example:
+
+```bash
+python -m pip install --force-reinstall --no-deps inspect-swe==0.2.71
+```
+
+Then apply capability v2 and freeze a new runtime lock.
+
+The v2 patch detects the legacy v1 marker and fails with this remediation rather than silently stacking two source mutations.
+
 ## Qualification gate
 
 The upstream/local change is not sufficient evidence by itself.
