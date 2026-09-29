@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import stat
 import subprocess
 
@@ -57,3 +58,44 @@ def test_v2_preflight_is_explicitly_not_real_cohort_qualification() -> None:
     assert "real_cohort_ready:" in text
     assert "blocking_reason:" in text
     assert "V2_ADJUDICATION_MODEL" in text
+
+
+
+def test_agentic_env_preserves_model_args_json(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["XDG_DATA_HOME"] = str(tmp_path / "data")
+    env["AGENTIC_JEV_MODEL_ARGS_JSON"] = '{"responses_api":true}'
+    result = subprocess.run(
+        [
+            "bash",
+            "-lc",
+            'source scripts/agentic-jev/env.sh; printf "%s" "$AGENTIC_JEV_MODEL_ARGS_JSON"',
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == '{"responses_api":true}'
+
+
+def test_agentic_env_defaults_model_args_json_without_extra_brace(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["XDG_DATA_HOME"] = str(tmp_path / "data")
+    env.pop("AGENTIC_JEV_MODEL_ARGS_JSON", None)
+    result = subprocess.run(
+        [
+            "bash",
+            "-lc",
+            'source scripts/agentic-jev/env.sh; printf "%s" "$AGENTIC_JEV_MODEL_ARGS_JSON"',
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == '{"responses_api":true}'
