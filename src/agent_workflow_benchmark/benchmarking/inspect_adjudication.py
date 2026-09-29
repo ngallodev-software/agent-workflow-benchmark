@@ -21,6 +21,12 @@ import agent_workflow_comparative_eval as comparative
 from agent_workflow.errors import WorkflowError
 from agent_workflow.util import atomic_write_json, sha256_file
 
+from agent_workflow_benchmark.compat.inspect_swe_output_schema import (
+    CAPABILITY_ID as INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+    InspectSweOutputSchemaPatchError,
+    assert_runtime_capability as assert_inspect_swe_output_schema_capability,
+)
+
 from .adjudication_module import validate_abc_adjudication_module
 from .schema_contracts import validate_instance
 from .resolution_review import render_resolution_review
@@ -39,7 +45,7 @@ from .oracle_adjudication import (
 )
 
 INSPECT_AI_VERSION = "0.3.268"
-INSPECT_SWE_VERSION = "0.2.70"
+INSPECT_SWE_VERSION = "0.2.71"
 CODEX_VERSION_POLICY = "latest-at-cohort-start"
 RUNTIME_LOCK_SCHEMA = "agent-workflow-benchmark/adjudication-runtime-lock/v1"
 INSPECT_QUALIFICATION_SCHEMA = (
@@ -82,7 +88,10 @@ def _package_version(name: str) -> str | None:
         return None
 
 
-def _require_inspect_dependencies() -> tuple[Any, Any]:
+def _require_inspect_dependencies(
+    *,
+    require_output_schema: bool = False,
+) -> tuple[Any, Any]:
     inspect_version = _package_version("inspect-ai")
     inspect_swe_version = _package_version("inspect-swe")
     missing = [
@@ -114,6 +123,14 @@ def _require_inspect_dependencies() -> tuple[Any, Any]:
         import inspect_swe
     except ImportError as exc:
         raise WorkflowError(f"unable to import Inspect adjudication runtime: {exc}") from exc
+    if require_output_schema:
+        try:
+            assert_inspect_swe_output_schema_capability()
+        except InspectSweOutputSchemaPatchError as exc:
+            raise WorkflowError(
+                "routing-semantic-v2 requires the pinned Inspect-SWE Codex "
+                f"output-schema capability: {exc}"
+            ) from exc
     return inspect_ai, inspect_swe
 
 
@@ -230,7 +247,14 @@ def create_inspect_runtime_lock(
     if destination.exists() and (destination.is_dir() or destination.is_symlink()):
         raise WorkflowError(f"adjudication runtime lock must be a regular file: {destination}")
 
-    _require_inspect_dependencies()
+    study_id = str(module.get("study_id") or "")
+    require_output_schema = study_id == "routing-semantic-v2"
+    _require_inspect_dependencies(require_output_schema=require_output_schema)
+    structured_output = (
+        assert_inspect_swe_output_schema_capability()
+        if require_output_schema
+        else None
+    )
     codex = resolve_latest_codex_cli()
     docker = _docker_identity()
     record = {
@@ -243,6 +267,20 @@ def create_inspect_runtime_lock(
         "inspect_ai_version": INSPECT_AI_VERSION,
         "inspect_swe_version": INSPECT_SWE_VERSION,
         "codex_cli": codex,
+        **(
+            {
+                "structured_output": {
+                    "mode": "codex-output-schema",
+                    "capability": INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+                    "inspect_swe_source_sha256": structured_output["source_sha256"],
+                    "upstream_git_blob_sha1": structured_output[
+                        "upstream_git_blob_sha1"
+                    ],
+                }
+            }
+            if structured_output is not None
+            else {}
+        ),
         "docker": docker,
         "frozen_for_cohort": True,
     }
@@ -284,6 +322,30 @@ def _load_runtime_lock(path: Path, module: Mapping[str, Any]) -> dict[str, Any]:
         raise WorkflowError("runtime lock Inspect AI version does not match installed policy")
     if value.get("inspect_swe_version") != INSPECT_SWE_VERSION:
         raise WorkflowError("runtime lock Inspect SWE version does not match installed policy")
+    if str(module.get("study_id") or "") == "routing-semantic-v2":
+        structured = value.get("structured_output")
+        if not isinstance(structured, Mapping):
+            raise WorkflowError(
+                "routing-semantic-v2 runtime lock lacks structured-output enforcement"
+            )
+        if structured.get("mode") != "codex-output-schema":
+            raise WorkflowError(
+                "routing-semantic-v2 runtime lock has unsupported structured-output mode"
+            )
+        try:
+            capability = assert_inspect_swe_output_schema_capability()
+        except InspectSweOutputSchemaPatchError as exc:
+            raise WorkflowError(
+                f"installed Inspect-SWE structured-output capability is invalid: {exc}"
+            ) from exc
+        if structured.get("capability") != capability["capability"]:
+            raise WorkflowError(
+                "runtime lock structured-output capability does not match installed runtime"
+            )
+        if structured.get("inspect_swe_source_sha256") != capability["source_sha256"]:
+            raise WorkflowError(
+                "runtime lock Inspect-SWE patched source hash does not match installed runtime"
+            )
     return value
 
 
@@ -665,6 +727,113 @@ class InspectRunConfig:
     allow_unqualified: bool = False
 
 
+def _v2_label_output_schema(
+    decision_id: str,
+    *,
+    decisions: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    seam = decisions.get(decision_id)
+    if seam is None:
+        raise WorkflowError(f"unknown v2 decision seam for output schema: {decision_id}")
+    oracle_type = seam.get("oracle_type")
+    if oracle_type == "categorical":
+        return {"type": "string", "enum": list(seam.get("labels") or [])}
+    if oracle_type == "boolean":
+        return {"type": "boolean"}
+    if oracle_type == "ordinal":
+        return {"type": "integer", "enum": list(seam.get("levels") or [])}
+    raise WorkflowError(
+        f"unsupported v2 oracle_type for output schema {decision_id}: {oracle_type!r}"
+    )
+
+
+def _v2_justification_output_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "decisive_case_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320,
+                },
+            },
+            "rubric_rule": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320,
+            },
+            "ambiguity": {
+                "type": "string",
+                "enum": ["none", "material", "insufficient_evidence"],
+            },
+        },
+        "required": [
+            "decisive_case_evidence",
+            "rubric_rule",
+            "ambiguity",
+        ],
+    }
+
+
+def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
+    view, expected, _ = _load_view(Path(view_path), study="routing-semantic-v2")
+    decisions = _decision_specs(view)
+    variants: list[dict[str, Any]] = []
+    for case_id, decision_ids in expected.items():
+        ordered = sorted(decision_ids)
+        variants.append(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "case_id": {"const": case_id},
+                    "labels": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            decision_id: _v2_label_output_schema(
+                                decision_id,
+                                decisions=decisions,
+                            )
+                            for decision_id in ordered
+                        },
+                        "required": ordered,
+                    },
+                    "justifications": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            decision_id: _v2_justification_output_schema()
+                            for decision_id in ordered
+                        },
+                        "required": ordered,
+                    },
+                },
+                "required": ["case_id", "labels", "justifications"],
+            }
+        )
+    if not variants:
+        raise WorkflowError("v2 output schema requires at least one assigned case")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "records": {
+                "type": "array",
+                "minItems": len(expected),
+                "maxItems": len(expected),
+                "items": {"anyOf": variants},
+            }
+        },
+        "required": ["records"],
+    }
+
+
 def _inspect_sandbox_spec() -> Any:
     from inspect_ai.util import ComposeConfig, ComposeService, SandboxEnvironmentSpec
 
@@ -699,13 +868,24 @@ def _inspect_eval(
     log_dir: Path,
     max_samples: int,
     log_model_api: bool,
+    output_schema: Mapping[str, Any] | None = None,
 ) -> Any:
-    inspect_ai, inspect_swe = _require_inspect_dependencies()
+    inspect_ai, inspect_swe = _require_inspect_dependencies(
+        require_output_schema=output_schema is not None
+    )
     from inspect_ai import Task
     from inspect_swe import codex_cli
 
+    structured_schema = (
+        copy.deepcopy(dict(output_schema)) if output_schema is not None else None
+    )
+    if structured_schema is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(log_dir / "codex-output-schema.json", structured_schema)
+
     solver = codex_cli(
         version=codex_version,
+        output_schema=structured_schema,
         web_search="disabled",
         goals=False,
         attempts=1,
@@ -791,6 +971,11 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
 
     config.output_root.mkdir(parents=True, exist_ok=True)
     log_dir = config.output_root / "inspect-logs" / "primary"
+    structured_schema = (
+        _v2_model_output_schema(config.view_path)
+        if study_id == "routing-semantic-v2"
+        else None
+    )
     log = _inspect_eval(
         samples=samples,
         codex_version=str(runtime_lock["codex_cli"]["resolved"]),
@@ -799,6 +984,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         log_dir=log_dir,
         max_samples=2,
         log_model_api=config.log_model_api,
+        output_schema=structured_schema,
     )
 
     by_id = {str(sample.id): sample for sample in log.samples or []}
@@ -830,6 +1016,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         if pass_path.exists():
             raise WorkflowError(f"Inspect adjudication result already exists: {pass_path}")
         atomic_write_json(pass_path, contract)
+        structured_schema_path = log_dir / "codex-output-schema.json"
         provenance = {
             "backend": "inspect-ai",
             "role": role,
@@ -843,6 +1030,16 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
+            **(
+                {
+                    "structured_output_schema": str(structured_schema_path),
+                    "structured_output_schema_sha256": sha256_file(
+                        structured_schema_path
+                    ),
+                }
+                if structured_schema is not None
+                else {}
+            ),
             **(
                 {"adjudication_completion_source": completion_source}
                 if study_id != "routing-semantic-v1"
@@ -866,6 +1063,18 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         "runtime_lock_sha256": sha256_file(config.runtime_lock_path),
         "view_sha256": sha256_file(config.view_path),
         "model": config.model,
+        **(
+            {
+                "structured_output_schema": str(
+                    log_dir / "codex-output-schema.json"
+                ),
+                "structured_output_schema_sha256": sha256_file(
+                    log_dir / "codex-output-schema.json"
+                ),
+            }
+            if structured_schema is not None
+            else {}
+        ),
         "outputs": outputs,
         "reveal_policy": "after-all-primary-complete",
     }
@@ -903,14 +1112,21 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         },
     )
     config.output_root.mkdir(parents=True, exist_ok=True)
+    log_dir = config.output_root / "inspect-logs" / "tiebreaker"
+    structured_schema = (
+        _v2_model_output_schema(config.view_path)
+        if study_id == "routing-semantic-v2"
+        else None
+    )
     log = _inspect_eval(
         samples=[sample],
         codex_version=str(runtime_lock["codex_cli"]["resolved"]),
         model=config.model,
         model_args=config.model_args,
-        log_dir=config.output_root / "inspect-logs" / "tiebreaker",
+        log_dir=log_dir,
         max_samples=1,
         log_model_api=config.log_model_api,
+        output_schema=structured_schema,
     )
     result_sample = (log.samples or [None])[0]
     if result_sample is None or result_sample.error:
@@ -947,6 +1163,18 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
         **(
+            {
+                "structured_output_schema": str(
+                    log_dir / "codex-output-schema.json"
+                ),
+                "structured_output_schema_sha256": sha256_file(
+                    log_dir / "codex-output-schema.json"
+                ),
+            }
+            if structured_schema is not None
+            else {}
+        ),
+        **(
             {"adjudication_completion_source": completion_source}
             if study_id != "routing-semantic-v1"
             else {}
@@ -962,6 +1190,18 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "path": str(pass_path),
         "sha256": provenance["pass_sha256"],
         "provenance": str(role_dir / "inspect-provenance.json"),
+        **(
+            {
+                "structured_output_schema": str(
+                    log_dir / "codex-output-schema.json"
+                ),
+                "structured_output_schema_sha256": sha256_file(
+                    log_dir / "codex-output-schema.json"
+                ),
+            }
+            if structured_schema is not None
+            else {}
+        ),
     }
 
 
@@ -1748,6 +1988,7 @@ def run_v2_evidence_preflight(
         log_dir=root / "inspect-logs" / "primary",
         max_samples=2,
         log_model_api=False,
+        output_schema=_v2_model_output_schema(view_path),
     )
     by_id = {str(sample.id): sample for sample in log.samples or []}
     if set(by_id) != {"A", "B"}:
@@ -1831,6 +2072,7 @@ def run_v2_evidence_preflight(
         log_dir=root / "inspect-logs" / "tiebreaker",
         max_samples=1,
         log_model_api=False,
+        output_schema=_v2_model_output_schema(dispute_path),
     )
     c_result = (c_log.samples or [None])[0]
     if c_result is None or c_result.error:
@@ -1907,6 +2149,19 @@ def run_v2_evidence_preflight(
                     "a": validations["A"],
                     "b": validations["B"],
                     "c": validations["C"],
+                    "structured_output_enforced": True,
+                    "primary_output_schema_sha256": sha256_file(
+                        root
+                        / "inspect-logs"
+                        / "primary"
+                        / "codex-output-schema.json"
+                    ),
+                    "c_output_schema_sha256": sha256_file(
+                        root
+                        / "inspect-logs"
+                        / "tiebreaker"
+                        / "codex-output-schema.json"
+                    ),
                     "c_view_has_no_a_b_labels_or_justifications": no_ab_leakage,
                     "human_resolution_renderer": renderer,
                 },
@@ -1934,6 +2189,18 @@ def run_v2_evidence_preflight(
             "c_pass": str(c_path),
             "resolution_review": renderer["review"],
             "resolution_review_md": renderer["markdown"],
+            "primary_output_schema": str(
+                root / "inspect-logs" / "primary" / "codex-output-schema.json"
+            ),
+            "primary_output_schema_sha256": sha256_file(
+                root / "inspect-logs" / "primary" / "codex-output-schema.json"
+            ),
+            "c_output_schema": str(
+                root / "inspect-logs" / "tiebreaker" / "codex-output-schema.json"
+            ),
+            "c_output_schema_sha256": sha256_file(
+                root / "inspect-logs" / "tiebreaker" / "codex-output-schema.json"
+            ),
         },
         "real_cohort_ready": False,
         "blocking_reason": (
@@ -2100,6 +2367,15 @@ def run_inspect_live_qualification(
                 "inspect_ai_version": runtime_lock["inspect_ai_version"],
                 "inspect_swe_version": runtime_lock["inspect_swe_version"],
                 "codex_cli": dict(runtime_lock["codex_cli"]),
+                **(
+                    {
+                        "structured_output": dict(
+                            runtime_lock["structured_output"]
+                        )
+                    }
+                    if "structured_output" in runtime_lock
+                    else {}
+                ),
                 "docker": dict(runtime_lock["docker"]),
             },
         },
@@ -2108,6 +2384,15 @@ def run_inspect_live_qualification(
             "evidence": {
                 "synthetic_primary_completed": True,
                 "model": model,
+                **(
+                    {
+                        "structured_output_schema_sha256": primary[
+                            "structured_output_schema_sha256"
+                        ]
+                    }
+                    if "structured_output_schema_sha256" in primary
+                    else {}
+                ),
                 "host_provider_bridge_required_by_sandbox_network_none": True,
             },
         },
@@ -2142,6 +2427,15 @@ def run_inspect_live_qualification(
             "evidence": {
                 "dispute_view_sha256": dispute["sha256"],
                 "c_pass_sha256": c_validation["pass_sha256"],
+                **(
+                    {
+                        "structured_output_schema_sha256": c_result[
+                            "structured_output_schema_sha256"
+                        ]
+                    }
+                    if "structured_output_schema_sha256" in c_result
+                    else {}
+                ),
                 "disputed_cases": dispute["disputed_cases"],
                 "disputed_seams": dispute["disputed_seams"],
             },
