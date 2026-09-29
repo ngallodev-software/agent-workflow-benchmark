@@ -299,6 +299,8 @@ print("routing-semantic-v2 full qualification: PASS")
 for gate in required:
     print(gate, gates[gate]["status"])
 print("qualified:", qualification["qualified"])
+print("benchmark_version:", ia1["agent_workflow_benchmark_version"])
+print("output_schema_strategy:", ia1["v2_output_schema_strategy"])
 print("runtime_lock:", runtime_lock_path)
 print("qualification:", qualification_path)
 PY
