@@ -1944,39 +1944,6 @@ def run_v2_evidence_preflight(
     return {"path": str(destination), **record}
 
 
-def _validated_v2_evidence_preflight(
-    path: Path,
-    *,
-    model: str,
-    model_args: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    path = Path(path)
-    value = _read_json(path)
-    validate_instance(
-        value,
-        "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
-        artifact=str(path),
-    )
-    _validate_v2_adjudicator_identity(model, model_args)
-    if value.get("passed") is not True:
-        raise WorkflowError("routing-semantic-v2 evidence preflight is not passing")
-    if value.get("model") != model or value.get("model_args") != dict(model_args or {}):
-        raise WorkflowError(
-            "routing-semantic-v2 evidence preflight model identity does not match "
-            "the requested qualification model"
-        )
-    if value.get("real_cohort_ready") is not False:
-        raise WorkflowError(
-            "routing-semantic-v2 evidence preflight must remain synthetic-only"
-        )
-    for gate in ("IA-9", "IA-10", "IA-11"):
-        if value.get("gates", {}).get(gate, {}).get("status") != "pass":
-            raise WorkflowError(
-                f"routing-semantic-v2 evidence preflight gate is not passing: {gate}"
-            )
-    return value
-
-
 def run_inspect_live_qualification(
     module_path: Path,
     runtime_lock_path: Path,
@@ -1984,7 +1951,6 @@ def run_inspect_live_qualification(
     *,
     model: str,
     model_args: Mapping[str, Any] | None = None,
-    evidence_preflight_path: Path | None = None,
     force: bool = False,
     log_model_api: bool = False,
 ) -> dict[str, Any]:
@@ -2000,21 +1966,8 @@ def run_inspect_live_qualification(
             f"unsupported Inspect qualification study: {study_id or 'empty'}"
         )
     runtime_lock = _load_runtime_lock(runtime_lock_path, module)
-    evidence_preflight: dict[str, Any] | None = None
     if study_id == "routing-semantic-v2":
-        if evidence_preflight_path is None:
-            raise WorkflowError(
-                "routing-semantic-v2 qualification requires --evidence-preflight"
-            )
-        evidence_preflight = _validated_v2_evidence_preflight(
-            evidence_preflight_path,
-            model=model,
-            model_args=model_args,
-        )
-    elif evidence_preflight_path is not None:
-        raise WorkflowError(
-            "evidence preflight is only valid for routing-semantic-v2 qualification"
-        )
+        _validate_v2_adjudicator_identity(model, model_args)
     root = destination.parent / "inspect-qualification"
     if root.exists() and any(root.iterdir()) and not force:
         raise WorkflowError(f"Inspect qualification evidence directory already exists: {root}")
@@ -2198,9 +2151,23 @@ def run_inspect_live_qualification(
     }
     qualification_schema = INSPECT_QUALIFICATION_SCHEMA
     if study_id == "routing-semantic-v2":
-        assert evidence_preflight is not None
-        preflight_path = Path(evidence_preflight_path)
+        locked_codex_version = str(runtime_lock["codex_cli"]["resolved"])
+        evidence_preflight = run_v2_evidence_preflight(
+            destination=root / "v2-evidence-preflight.json",
+            codex_version=locked_codex_version,
+            model=model,
+            model_args=model_args,
+        )
+        preflight_path = Path(evidence_preflight["path"])
         preflight_sha256 = sha256_file(preflight_path)
+        if evidence_preflight["protocol_version"] != _study_spec(study_id)["oracle_policy"]["protocol_version"]:
+            raise WorkflowError(
+                "routing-semantic-v2 full qualification preflight protocol identity drifted"
+            )
+        if evidence_preflight["codex_version"] != locked_codex_version:
+            raise WorkflowError(
+                "routing-semantic-v2 full qualification preflight Codex identity drifted"
+            )
         for gate in ("IA-9", "IA-10", "IA-11"):
             gates[gate] = {
                 "status": "pass",
