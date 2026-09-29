@@ -43,7 +43,7 @@ QUALIFICATION="${V2_QUALIFICATION:-$PRIVATE_ROOT/qualification.json}"
 from importlib import metadata
 
 expected = {
-    "agent-workflow-benchmark": "0.6.1",
+    "agent-workflow-benchmark": "0.6.2",
     "agent-workflow-comparative-eval": "0.3.1",
 }
 for name, wanted in expected.items():
