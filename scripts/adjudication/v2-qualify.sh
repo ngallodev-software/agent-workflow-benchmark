@@ -57,7 +57,7 @@ PY
 mkdir -p "$PRIVATE_ROOT"
 retry_root=""
 
-if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" ]]; then
+if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RUN_LOG" ]]; then
   if [[ "${FORCE_V2_QUALIFICATION:-0}" != "1" ]]; then
     echo "error: v2 qualification evidence already exists; preserve it or set FORCE_V2_QUALIFICATION=1 for an archived retry" >&2
     echo "qualification: $QUALIFICATION" >&2
