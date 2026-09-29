@@ -45,6 +45,9 @@ def test_v2_qualifier_runs_all_eleven_gates_under_one_runtime_lock() -> None:
     assert "Archived incompatible runtime lock" in text
     assert 'mv "$RUNTIME_LOCK" "$retry_root/runtime-lock.json"' in text
     assert 'rm -f "$RUNTIME_LOCK"' not in text
+    assert 'V2_CAPTURE_CODEX_LB_INGRESS:-1' in text
+    assert "v2-verify-ingress.py" in text
+    assert '--schema-root "$PRIVATE_ROOT/inspect-qualification"' in text
 
 
 def test_p0a_defaults_to_deepseek_and_explicitly_passes_selected_model() -> None:
