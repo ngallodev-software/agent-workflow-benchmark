@@ -118,13 +118,15 @@ def _completion_class(text: str) -> str:
     return "non_json"
 
 
-def _attempt_paths(root: Path, attempt: str) -> tuple[Path, Path, Path, Path]:
+def _attempt_paths(root: Path, attempt: str) -> tuple[Path, Path, Path, Path, Path, Path]:
     if attempt == "current":
         return (
             root / "inspect-qualification",
             root / "qualification.json",
             root / "qualification-run.log",
             root / "attempt.json",
+            root / "codex-lb-ingress.jsonl",
+            root / "codex-lb-ingress-proxy.log",
         )
     if not attempt.startswith("retry:"):
         raise SystemExit("attempt must be 'current' or 'retry:<UTC-stamp>'")
@@ -137,32 +139,43 @@ def _attempt_paths(root: Path, attempt: str) -> tuple[Path, Path, Path, Path]:
         retry / "qualification.json",
         retry / "qualification-run.log",
         retry / "attempt.json",
+        retry / "codex-lb-ingress.jsonl",
+        retry / "codex-lb-ingress-proxy.log",
     )
 
 
 def _list_attempts(root: Path) -> None:
-    current_evidence, current_qualification, current_runlog, current_meta = _attempt_paths(
-        root, "current"
-    )
+    (
+        current_evidence,
+        current_qualification,
+        current_runlog,
+        current_meta,
+        current_ingress,
+        current_proxylog,
+    ) = _attempt_paths(root, "current")
     print(
         "current"
         f"\tevidence={'present' if current_evidence.is_dir() else 'absent'}"
         f"\tqualification={'present' if current_qualification.is_file() else 'absent'}"
         f"\trunlog={'present' if current_runlog.is_file() else 'absent'}"
         f"\tmeta={'present' if current_meta.is_file() else 'absent'}"
+        f"\tingress={'present' if current_ingress.is_file() else 'absent'}"
+        f"\tproxylog={'present' if current_proxylog.is_file() else 'absent'}"
     )
     retries = root / "retries"
     if not retries.is_dir():
         return
     for item in sorted(path for path in retries.iterdir() if path.is_dir()):
         attempt = f"retry:{item.name}"
-        evidence, qualification, runlog, meta = _attempt_paths(root, attempt)
+        evidence, qualification, runlog, meta, ingress, proxylog = _attempt_paths(root, attempt)
         print(
             f"{attempt}"
             f"\tevidence={'present' if evidence.is_dir() else 'absent'}"
             f"\tqualification={'present' if qualification.is_file() else 'absent'}"
             f"\trunlog={'present' if runlog.is_file() else 'absent'}"
             f"\tmeta={'present' if meta.is_file() else 'absent'}"
+            f"\tingress={'present' if ingress.is_file() else 'absent'}"
+            f"\tproxylog={'present' if proxylog.is_file() else 'absent'}"
         )
 
 
@@ -175,11 +188,71 @@ def _attempt_meta(path: Path) -> dict[str, Any]:
         return {"exists": True, "error": str(exc)}
     if not isinstance(value, Mapping):
         return {"exists": True, "error": "attempt metadata is not an object"}
-    allowed = {"attempt_id", "model", "log_model_api", "status", "exit_status"}
+    allowed = {
+        "attempt_id",
+        "model",
+        "log_model_api",
+        "capture_codex_lb_ingress",
+        "status",
+        "exit_status",
+    }
     return {
         "exists": True,
         **{key: value.get(key) for key in sorted(allowed) if key in value},
     }
+
+
+def _ingress_summary(path: Path, schema_artifacts: list[dict[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "exists": path.is_file(),
+        "path": str(path),
+        "records": [],
+    }
+    if not path.is_file():
+        return result
+
+    schema_labels: dict[str, str] = {}
+    for artifact in schema_artifacts:
+        sha = artifact.get("sha256")
+        artifact_path = str(artifact.get("path") or "")
+        if not sha:
+            continue
+        if "/tiebreaker/" in artifact_path:
+            schema_labels[str(sha)] = "C"
+        elif "/primary/" in artifact_path:
+            schema_labels[str(sha)] = "primary"
+
+    records: list[dict[str, Any]] = []
+    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not raw.strip():
+            continue
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            records.append({"line": line_number, "error": f"invalid JSONL: {exc}"})
+            continue
+        if not isinstance(value, Mapping):
+            records.append({"line": line_number, "error": "record is not an object"})
+            continue
+        text_format = value.get("text_format")
+        schema_sha = (
+            text_format.get("schema_sha256")
+            if isinstance(text_format, Mapping)
+            else None
+        )
+        records.append(
+            {
+                "line": line_number,
+                "method": value.get("method"),
+                "path": value.get("path"),
+                "model": value.get("model"),
+                "text_format": text_format,
+                "response_format": value.get("response_format"),
+                "schema_match": schema_labels.get(str(schema_sha)) if schema_sha else None,
+            }
+        )
+    result["records"] = records
+    return result
 
 
 def _qualification_summary(path: Path) -> dict[str, Any]:
@@ -266,7 +339,14 @@ def _sample_summary(sample: Any) -> dict[str, Any]:
 
 
 def _collect(attempt: str, root: Path) -> dict[str, Any]:
-    evidence_root, qualification_path, runlog_path, meta_path = _attempt_paths(root, attempt)
+    (
+        evidence_root,
+        qualification_path,
+        runlog_path,
+        meta_path,
+        ingress_path,
+        proxylog_path,
+    ) = _attempt_paths(root, attempt)
     result: dict[str, Any] = {
         "attempt": attempt,
         "root": str(root),
@@ -280,11 +360,13 @@ def _collect(attempt: str, root: Path) -> dict[str, Any]:
             "exists": runlog_path.is_file(),
             "bytes": runlog_path.stat().st_size if runlog_path.is_file() else None,
         },
+        "ingress_proxy_log": {
+            "path": str(proxylog_path),
+            "exists": proxylog_path.is_file(),
+            "bytes": proxylog_path.stat().st_size if proxylog_path.is_file() else None,
+        },
         "eval_logs": [],
     }
-
-    if not evidence_root.is_dir():
-        return result
 
     schema_artifacts: list[dict[str, Any]] = []
     for path in sorted(evidence_root.rglob("codex-output-schema.json")):
@@ -305,6 +387,10 @@ def _collect(attempt: str, root: Path) -> dict[str, Any]:
                 }
             )
     result["schema_artifacts"] = schema_artifacts
+    result["codex_lb_ingress"] = _ingress_summary(ingress_path, schema_artifacts)
+
+    if not evidence_root.is_dir():
+        return result
 
     logs = sorted(evidence_root.rglob("*.eval"), key=lambda p: p.stat().st_mtime)
     for path in logs:
@@ -358,6 +444,25 @@ def _print_text(result: Mapping[str, Any]) -> None:
         if runlog["exists"]
         else "absent",
     )
+    ingress = result.get("codex_lb_ingress") or {"exists": False, "records": []}
+    print(f"codex_lb_ingress_exists: {ingress.get('exists')}")
+    if ingress.get("exists"):
+        print(f"codex_lb_ingress_records: {len(ingress.get('records') or [])}")
+        for record in ingress.get("records") or []:
+            if "error" in record:
+                print(f"  ingress line={record['line']} error={record['error']}")
+                continue
+            fmt = record.get("text_format")
+            print(
+                "  ingress:"
+                f" line={record.get('line')}"
+                f" method={record.get('method')}"
+                f" path={record.get('path')}"
+                f" model={record.get('model')}"
+                f" schema_match={record.get('schema_match')}"
+                f" text_format={fmt}"
+            )
+
     artifacts = result.get("schema_artifacts") or []
     print(f"schema_artifacts: {len(artifacts)}")
     for artifact in artifacts:
