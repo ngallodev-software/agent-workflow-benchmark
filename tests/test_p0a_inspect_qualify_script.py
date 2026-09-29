@@ -40,6 +40,9 @@ def test_v2_qualifier_runs_all_eleven_gates_under_one_runtime_lock() -> None:
     assert "range(1, 12)" in text
     assert "FORCE_V2_QUALIFICATION" in text
     assert 'if [[ -f "$RUNTIME_LOCK" ]]; then' in text
+    assert "_load_runtime_lock" in text
+    assert "Archived incompatible runtime lock" in text
+    assert 'mv "$RUNTIME_LOCK" "$retry_root/runtime-lock.json"' in text
     assert 'rm -f "$RUNTIME_LOCK"' not in text
 
 
