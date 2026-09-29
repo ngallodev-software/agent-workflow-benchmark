@@ -39,6 +39,9 @@ ORACLE_RUN="${V2_ORACLE_RUN:-$ORACLE_ROOT/run-01}"
 MODULE="${V2_MODULE:-$BENCH_REPO/modules/abc-adjudication/routing-semantic-v2.inspect.module.json}"
 RUNTIME_LOCK="${V2_RUNTIME_LOCK:-$QUAL_ROOT/runtime-lock.json}"
 QUALIFICATION="${V2_QUALIFICATION:-$QUAL_ROOT/qualification.json}"
+QUAL_ATTEMPT="${V2_QUALIFICATION_ATTEMPT:-$QUAL_ROOT/attempt.json}"
+QUAL_INGRESS="${V2_QUALIFICATION_INGRESS:-$QUAL_ROOT/codex-lb-ingress.jsonl}"
+QUAL_EVIDENCE_ROOT="${V2_QUALIFICATION_EVIDENCE_ROOT:-$QUAL_ROOT/inspect-qualification}"
 
 ORACLE_VIEW="${V2_ORACLE_VIEW:-$COMP_REPO/docs/studies/artifacts/routing-semantic-v2/oracle-authoring-view.json}"
 ORACLE_PROTOCOL="${V2_ORACLE_PROTOCOL:-$COMP_REPO/docs/studies/routing-semantic-v2-oracle-protocol.md}"
@@ -57,6 +60,7 @@ RUN_IDENTITY="$ORACLE_RUN/run-identity.json"
 LOG_DIR="$ORACLE_ROOT/logs/$(basename "$ORACLE_RUN")"
 DIAG_DIR="$ORACLE_ROOT/diagnostics/$(basename "$ORACLE_RUN")"
 INGRESS_PROXY="$SCRIPT_DIR/v2-codex-lb-ingress-capture.py"
+INGRESS_VERIFY="$SCRIPT_DIR/v2-verify-ingress.py"
 
 STUDY="routing-semantic-v2"
 MODEL="openai-api/codex-lb/deepseek-flash"
@@ -107,6 +111,8 @@ write_run_identity() {
     "$MODULE" \
     "$RUNTIME_LOCK" \
     "$QUALIFICATION" \
+    "$QUAL_ATTEMPT" \
+    "$QUAL_INGRESS" \
     "$ORACLE_VIEW" \
     "$ORACLE_PROTOCOL" \
     "$CORPUS" \
@@ -126,14 +132,16 @@ from pathlib import Path
     module_path,
     runtime_lock_path,
     qualification_path,
+    qualification_attempt_path,
+    qualification_ingress_path,
     view_path,
     protocol_path,
     corpus_path,
-) = map(Path, sys.argv[1:8])
-bench_head = sys.argv[8]
-comp_head = sys.argv[9]
-capture_enabled = sys.argv[10] == "1"
-capture_override_reason = sys.argv[11] or None
+) = map(Path, sys.argv[1:10])
+bench_head = sys.argv[10]
+comp_head = sys.argv[11]
+capture_enabled = sys.argv[12] == "1"
+capture_override_reason = sys.argv[13] or None
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -144,9 +152,8 @@ def sha256(path: Path) -> str:
 
 qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
 qualification_attempt = None
-attempt_path = qualification_path.parent / "attempt.json"
-if attempt_path.is_file():
-    attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+if qualification_attempt_path.is_file():
+    attempt = json.loads(qualification_attempt_path.read_text(encoding="utf-8"))
     if isinstance(attempt, dict):
         qualification_attempt = attempt.get("attempt_id")
 
@@ -173,6 +180,8 @@ record = {
     "module_sha256": sha256(module_path),
     "runtime_lock_sha256": sha256(runtime_lock_path),
     "qualification_sha256": sha256(qualification_path),
+    "qualification_attempt_sha256": sha256(qualification_attempt_path),
+    "qualification_ingress_sha256": sha256(qualification_ingress_path),
     "qualification_attempt_id": qualification_attempt,
     "qualification_qualified": qualification.get("qualified") is True,
     "qualification_gates": {
@@ -238,62 +247,12 @@ summarize_ingress_capture() {
   local schema_path="$2"
   require_file "$capture"
   require_file "$schema_path"
+  require_file "$INGRESS_VERIFY"
 
-  "$PYTHON" - "$capture" "$schema_path" <<'PY'
-import hashlib
-import json
-import sys
-from pathlib import Path
-
-capture_path, schema_path = map(Path, sys.argv[1:3])
-
-schema = json.loads(schema_path.read_text(encoding="utf-8"))
-schema_payload = json.dumps(
-    schema,
-    sort_keys=True,
-    separators=(",", ":"),
-).encode("utf-8")
-expected_sha = hashlib.sha256(schema_payload).hexdigest()
-
-records = []
-for line_no, raw in enumerate(capture_path.read_text(encoding="utf-8").splitlines(), start=1):
-    if not raw.strip():
-        continue
-    value = json.loads(raw)
-    if not isinstance(value, dict):
-        raise SystemExit(f"capture line {line_no} is not an object")
-    if value.get("method") != "POST" or value.get("path") != "/v1/responses":
-        continue
-    if value.get("model") != "deepseek-flash":
-        continue
-    records.append((line_no, value))
-
-if not records:
-    raise SystemExit("no DeepSeek /v1/responses requests were captured")
-
-failures = []
-for line_no, value in records:
-    fmt = value.get("text_format")
-    if not isinstance(fmt, dict):
-        failures.append(f"line {line_no}: missing text_format")
-        continue
-    if fmt.get("type") != "json_schema":
-        failures.append(f"line {line_no}: type={fmt.get('type')!r}")
-    if fmt.get("strict") is not True:
-        failures.append(f"line {line_no}: strict={fmt.get('strict')!r}")
-    if fmt.get("schema_sha256") != expected_sha:
-        failures.append(
-            f"line {line_no}: schema_sha256={fmt.get('schema_sha256')!r}, expected={expected_sha}"
-        )
-
-print(f"structured_requests: {len(records)}")
-print(f"schema_sha256: {expected_sha}")
-print(f"json_schema_strict: {'pass' if not failures else 'fail'}")
-if failures:
-    for failure in failures:
-        print(f"  {failure}")
-    raise SystemExit("sanitized ingress capture did not match the frozen stage schema")
-PY
+  "$PYTHON" "$INGRESS_VERIFY" \
+    --capture "$capture" \
+    --schema "$schema_path" \
+    --model deepseek-flash
 }
 
 run_model_private() {
@@ -483,8 +442,12 @@ verify_qualification() {
   require_file "$MODULE"
   require_file "$RUNTIME_LOCK"
   require_file "$QUALIFICATION"
+  require_file "$QUAL_ATTEMPT"
+  require_file "$QUAL_INGRESS"
+  [[ -d "$QUAL_EVIDENCE_ROOT" ]] || die "qualification evidence root not found: $QUAL_EVIDENCE_ROOT"
+  require_file "$INGRESS_VERIFY"
 
-  "$PYTHON" - "$MODULE" "$RUNTIME_LOCK" "$QUALIFICATION" "$MODEL" <<'PY'
+  "$PYTHON" - "$MODULE" "$RUNTIME_LOCK" "$QUALIFICATION" "$QUAL_ATTEMPT" "$MODEL" <<'PY'
 import hashlib
 import json
 import sys
@@ -496,8 +459,8 @@ from agent_workflow_benchmark.benchmarking.adjudication_module import (
 from agent_workflow_benchmark.benchmarking.inspect_adjudication import _load_runtime_lock
 from agent_workflow_benchmark.benchmarking.schema_contracts import validate_instance
 
-module_path, runtime_lock_path, qualification_path = map(Path, sys.argv[1:4])
-expected_model = sys.argv[4]
+module_path, runtime_lock_path, qualification_path, attempt_path = map(Path, sys.argv[1:5])
+expected_model = sys.argv[5]
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -557,6 +520,23 @@ if ia1.get("v2_output_schema_strategy") != "eligibility-grouped-case-enum/v1":
         f"{ia1.get('v2_output_schema_strategy')!r}"
     )
 
+attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+if not isinstance(attempt, dict):
+    raise SystemExit("qualification attempt metadata is not an object")
+if attempt.get("model") != expected_model:
+    raise SystemExit(
+        f"qualification attempt model mismatch: {attempt.get('model')!r}"
+    )
+if attempt.get("capture_codex_lb_ingress") is not True:
+    raise SystemExit(
+        "qualification did not capture sanitized Codex-LB ingress; "
+        "it cannot authorize the real v2 cohort"
+    )
+if attempt.get("status") != "command-complete":
+    raise SystemExit(
+        f"qualification attempt status is not command-complete: {attempt.get('status')!r}"
+    )
+
 print("qualification: PASS")
 print("qualified: true")
 print("gates: IA-1..IA-11 pass")
@@ -564,7 +544,13 @@ print(f"model: {model}")
 print(f"module_sha256: {module['module_sha256']}")
 print(f"runtime_lock_sha256: {sha256(runtime_lock_path)}")
 print(f"qualification_sha256: {sha256(qualification_path)}")
+print(f"qualification_attempt_id: {attempt.get('attempt_id')}")
 PY
+
+  "$PYTHON" "$INGRESS_VERIFY" \
+    --capture "$QUAL_INGRESS" \
+    --schema-root "$QUAL_EVIDENCE_ROOT" \
+    --model deepseek-flash
 }
 
 verify_frozen_inputs() {
