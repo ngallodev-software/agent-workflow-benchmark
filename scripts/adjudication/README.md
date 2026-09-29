@@ -64,6 +64,53 @@ retry against the same runtime lock:
 FORCE_V2_QUALIFICATION=1 bash scripts/adjudication/v2-qualify.sh
 ~~~
 
+The v2 qualifier keeps the terminal intentionally compact. Inspect/model-API output
+is written to the private qualification root as `qualification-run.log` rather
+than streamed to stdout. On a forced retry that log is archived beside the
+corresponding `inspect-qualification` directory and any qualification manifest.
+
+For structured-output transport diagnosis, prefer the sanitized Codex-LB ingress
+capture. It forwards each request body byte-for-byte to the already-running local
+Codex-LB but records only method/path/model plus the structured-output format
+controls and a canonical schema SHA-256. It never records prompts, input/messages,
+tool arguments, header values, model responses, or full schemas:
+
+~~~bash
+V2_CAPTURE_CODEX_LB_INGRESS=1 FORCE_V2_QUALIFICATION=1 \
+  bash scripts/adjudication/v2-qualify.sh
+~~~
+
+The private capture is `codex-lb-ingress.jsonl`; the diagnostic compares its
+schema hashes against the persisted primary and C `codex-output-schema.json`
+artifacts and labels matching requests as `primary` or `C`.
+
+Raw Inspect model-API logging remains available when specifically needed and is
+still captured only in the private run log:
+
+~~~bash
+V2_LOG_MODEL_API=1 FORCE_V2_QUALIFICATION=1 \
+  bash scripts/adjudication/v2-qualify.sh
+~~~
+
+Use the repository-owned non-leaking diagnostic instead of ad-hoc `rglob`
+snippets:
+
+~~~bash
+python scripts/adjudication/v2-diagnose.py --attempt current
+python scripts/adjudication/v2-diagnose.py --list-attempts
+python scripts/adjudication/v2-diagnose.py --attempt retry:<UTC-stamp>
+~~~
+
+The diagnostic never falls back from `current` to an archived retry. New runs
+also write a private `attempt.json` containing the explicit UTC attempt id,
+model, model-API logging mode, and terminal status; forced retries archive that
+identity beside the matching evidence.
+
+The diagnostic reports only qualification state, sample status, completion
+classification, persisted structured-output schema hashes/content constraints,
+and structured-output request metadata when Inspect exposes it. It does not
+print prompts, full model answers, response bodies, tool arguments, or secrets.
+
 The earlier standalone `routing-semantic-v2-preflight/preflight.json` remains
 historical development evidence; the full qualifier deliberately produces fresh
 IA-9/10/11 evidence under the final frozen identities.

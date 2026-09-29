@@ -754,8 +754,6 @@ def _v2_justification_output_schema() -> dict[str, Any]:
         "properties": {
             "decisive_case_evidence": {
                 "type": "array",
-                "minItems": 1,
-                "maxItems": 3,
                 "items": {
                     "type": "string",
                     "minLength": 1,
@@ -791,7 +789,7 @@ def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "case_id": {"const": case_id},
+                    "case_id": {"type": "string", "enum": [case_id]},
                     "labels": {
                         "type": "object",
                         "additionalProperties": False,
@@ -825,8 +823,6 @@ def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
         "properties": {
             "records": {
                 "type": "array",
-                "minItems": len(expected),
-                "maxItems": len(expected),
                 "items": {"anyOf": variants},
             }
         },

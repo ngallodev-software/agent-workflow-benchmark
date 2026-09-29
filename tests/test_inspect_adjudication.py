@@ -649,12 +649,14 @@ def test_v2_model_output_schema_matches_assigned_view(tmp_path: Path):
 
     assert schema["type"] == "object"
     records = schema["properties"]["records"]
-    assert records["minItems"] == 2
-    assert records["maxItems"] == 2
+    assert "minItems" not in records
+    assert "maxItems" not in records
     variants = records["items"]["anyOf"]
-    assert {item["properties"]["case_id"]["const"] for item in variants} == {
-        "rsv2-preflight-001",
-        "rsv2-preflight-002",
+    case_schemas = [item["properties"]["case_id"] for item in variants]
+    assert {item["type"] for item in case_schemas} == {"string"}
+    assert {tuple(item["enum"]) for item in case_schemas} == {
+        ("rsv2-preflight-001",),
+        ("rsv2-preflight-002",),
     }
     for item in variants:
         assert item["required"] == ["case_id", "labels", "justifications"]
@@ -669,9 +671,36 @@ def test_v2_model_output_schema_matches_assigned_view(tmp_path: Path):
         evidence = justifications["properties"]["routing.task_class"]["properties"][
             "decisive_case_evidence"
         ]
-        assert evidence["minItems"] == 1
-        assert evidence["maxItems"] == 3
+        assert "minItems" not in evidence
+        assert "maxItems" not in evidence
         assert evidence["items"]["maxLength"] == 320
+
+    serialized = json.dumps(schema, sort_keys=True)
+    assert '"const"' not in serialized
+    assert '"minItems"' not in serialized
+    assert '"maxItems"' not in serialized
+
+
+def test_v2_post_generation_justification_cardinality_remains_fail_closed():
+    valid = {
+        "decisive_case_evidence": ["case-grounded fact"],
+        "rubric_rule": "frozen rule",
+        "ambiguity": "none",
+    }
+    inspect_runtime._validate_justification(
+        "routing.task_class",
+        valid,
+        case_id="case-1",
+    )
+
+    for evidence in ([], ["a", "b", "c", "d"]):
+        invalid = {**valid, "decisive_case_evidence": evidence}
+        with pytest.raises(WorkflowError, match="1-3 decisive_case_evidence"):
+            inspect_runtime._validate_justification(
+                "routing.task_class",
+                invalid,
+                case_id="case-1",
+            )
 
 
 def test_v2_whole_completion_parser_rejects_prose_prefixed_json():
