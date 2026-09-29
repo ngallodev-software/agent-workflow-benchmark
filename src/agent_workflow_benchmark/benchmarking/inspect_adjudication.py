@@ -56,6 +56,7 @@ INSPECT_QUALIFICATION_SCHEMA_V2 = (
 )
 V2_ADJUDICATION_MODEL = "openai-api/codex-lb/deepseek-flash"
 V2_ADJUDICATION_MODEL_ARGS = {"responses_api": True}
+V2_OUTPUT_SCHEMA_STRATEGY = "eligibility-grouped-case-enum/v1"
 
 
 def _utc() -> str:
@@ -781,15 +782,26 @@ def _v2_justification_output_schema() -> dict[str, Any]:
 def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
     view, expected, _ = _load_view(Path(view_path), study="routing-semantic-v2")
     decisions = _decision_specs(view)
-    variants: list[dict[str, Any]] = []
+
+    # Group cases by the decision seams they must emit rather than repeating
+    # the complete record schema once per case. Exact case coverage remains a
+    # deterministic post-generation invariant; the model-facing schema only
+    # needs to constrain each emitted case_id to the allowed ids for its seam
+    # shape.
+    groups: dict[tuple[str, ...], list[str]] = {}
     for case_id, decision_ids in expected.items():
-        ordered = sorted(decision_ids)
+        ordered = tuple(sorted(decision_ids))
+        groups.setdefault(ordered, []).append(case_id)
+
+    variants: list[dict[str, Any]] = []
+    for ordered in sorted(groups):
+        case_ids = sorted(groups[ordered])
         variants.append(
             {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "case_id": {"type": "string", "enum": [case_id]},
+                    "case_id": {"type": "string", "enum": case_ids},
                     "labels": {
                         "type": "object",
                         "additionalProperties": False,
@@ -800,7 +812,7 @@ def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
                             )
                             for decision_id in ordered
                         },
-                        "required": ordered,
+                        "required": list(ordered),
                     },
                     "justifications": {
                         "type": "object",
@@ -809,7 +821,7 @@ def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
                             decision_id: _v2_justification_output_schema()
                             for decision_id in ordered
                         },
-                        "required": ordered,
+                        "required": list(ordered),
                     },
                 },
                 "required": ["case_id", "labels", "justifications"],
@@ -2362,6 +2374,16 @@ def run_inspect_live_qualification(
             "evidence": {
                 "inspect_ai_version": runtime_lock["inspect_ai_version"],
                 "inspect_swe_version": runtime_lock["inspect_swe_version"],
+                **(
+                    {
+                        "agent_workflow_benchmark_version": _package_version(
+                            "agent-workflow-benchmark"
+                        ),
+                        "v2_output_schema_strategy": V2_OUTPUT_SCHEMA_STRATEGY,
+                    }
+                    if study_id == "routing-semantic-v2"
+                    else {}
+                ),
                 "codex_cli": dict(runtime_lock["codex_cli"]),
                 **(
                     {
