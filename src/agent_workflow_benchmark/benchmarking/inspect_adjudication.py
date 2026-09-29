@@ -1988,6 +1988,7 @@ def run_v2_evidence_preflight(
         log_dir=root / "inspect-logs" / "primary",
         max_samples=2,
         log_model_api=False,
+        output_schema=_v2_model_output_schema(view_path),
     )
     by_id = {str(sample.id): sample for sample in log.samples or []}
     if set(by_id) != {"A", "B"}:
@@ -2071,6 +2072,7 @@ def run_v2_evidence_preflight(
         log_dir=root / "inspect-logs" / "tiebreaker",
         max_samples=1,
         log_model_api=False,
+        output_schema=_v2_model_output_schema(dispute_path),
     )
     c_result = (c_log.samples or [None])[0]
     if c_result is None or c_result.error:
@@ -2147,6 +2149,19 @@ def run_v2_evidence_preflight(
                     "a": validations["A"],
                     "b": validations["B"],
                     "c": validations["C"],
+                    "structured_output_enforced": True,
+                    "primary_output_schema_sha256": sha256_file(
+                        root
+                        / "inspect-logs"
+                        / "primary"
+                        / "codex-output-schema.json"
+                    ),
+                    "c_output_schema_sha256": sha256_file(
+                        root
+                        / "inspect-logs"
+                        / "tiebreaker"
+                        / "codex-output-schema.json"
+                    ),
                     "c_view_has_no_a_b_labels_or_justifications": no_ab_leakage,
                     "human_resolution_renderer": renderer,
                 },
@@ -2174,6 +2189,18 @@ def run_v2_evidence_preflight(
             "c_pass": str(c_path),
             "resolution_review": renderer["review"],
             "resolution_review_md": renderer["markdown"],
+            "primary_output_schema": str(
+                root / "inspect-logs" / "primary" / "codex-output-schema.json"
+            ),
+            "primary_output_schema_sha256": sha256_file(
+                root / "inspect-logs" / "primary" / "codex-output-schema.json"
+            ),
+            "c_output_schema": str(
+                root / "inspect-logs" / "tiebreaker" / "codex-output-schema.json"
+            ),
+            "c_output_schema_sha256": sha256_file(
+                root / "inspect-logs" / "tiebreaker" / "codex-output-schema.json"
+            ),
         },
         "real_cohort_ready": False,
         "blocking_reason": (
