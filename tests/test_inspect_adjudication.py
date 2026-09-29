@@ -463,6 +463,74 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
         )
 
 
+def test_v2_real_runs_require_current_schema_strategy_qualification(tmp_path: Path):
+    module = validate_abc_adjudication_module(V2_MODULE)
+    model = inspect_runtime.V2_ADJUDICATION_MODEL
+    runtime_lock = tmp_path / "runtime-lock.json"
+    runtime_lock.write_text('{"frozen":true}\n', encoding="utf-8")
+
+    gates = {
+        f"IA-{number}": {"status": "pass"}
+        for number in range(1, 12)
+    }
+    gates["IA-1"]["evidence"] = {
+        "agent_workflow_benchmark_version": "0.6.3",
+        "v2_output_schema_strategy": inspect_runtime.V2_OUTPUT_SCHEMA_STRATEGY,
+    }
+    gates["IA-2"]["evidence"] = {"model": model}
+
+    qualification = tmp_path / "qualification.json"
+    value = {
+        "schema": inspect_runtime.INSPECT_QUALIFICATION_SCHEMA_V2,
+        "created_at": "2026-09-29T00:00:00+00:00",
+        "module_id": module["module_id"],
+        "module_sha256": module["module_sha256"],
+        "runtime_lock_sha256": inspect_runtime.sha256_file(runtime_lock),
+        "qualified": True,
+        "gates": gates,
+    }
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="benchmark version"):
+        inspect_runtime._require_passing_qualification(
+            qualification,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            model=model,
+            allow_unqualified=False,
+        )
+
+    value["gates"]["IA-1"]["evidence"][
+        "agent_workflow_benchmark_version"
+    ] = inspect_runtime._package_version("agent-workflow-benchmark")
+    value["gates"]["IA-1"]["evidence"][
+        "v2_output_schema_strategy"
+    ] = "per-case-anyof/v0"
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="output-schema strategy"):
+        inspect_runtime._require_passing_qualification(
+            qualification,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            model=model,
+            allow_unqualified=False,
+        )
+
+    value["gates"]["IA-1"]["evidence"][
+        "v2_output_schema_strategy"
+    ] = inspect_runtime.V2_OUTPUT_SCHEMA_STRATEGY
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    inspect_runtime._require_passing_qualification(
+        qualification,
+        module=module,
+        runtime_lock_path=runtime_lock,
+        model=model,
+        allow_unqualified=False,
+    )
+
+
 def test_resolve_codex_npm_latest_uses_exact_registry_version(
     monkeypatch: pytest.MonkeyPatch,
 ):
