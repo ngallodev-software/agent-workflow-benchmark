@@ -2367,6 +2367,15 @@ def run_inspect_live_qualification(
                 "inspect_ai_version": runtime_lock["inspect_ai_version"],
                 "inspect_swe_version": runtime_lock["inspect_swe_version"],
                 "codex_cli": dict(runtime_lock["codex_cli"]),
+                **(
+                    {
+                        "structured_output": dict(
+                            runtime_lock["structured_output"]
+                        )
+                    }
+                    if "structured_output" in runtime_lock
+                    else {}
+                ),
                 "docker": dict(runtime_lock["docker"]),
             },
         },
@@ -2375,6 +2384,15 @@ def run_inspect_live_qualification(
             "evidence": {
                 "synthetic_primary_completed": True,
                 "model": model,
+                **(
+                    {
+                        "structured_output_schema_sha256": primary[
+                            "structured_output_schema_sha256"
+                        ]
+                    }
+                    if "structured_output_schema_sha256" in primary
+                    else {}
+                ),
                 "host_provider_bridge_required_by_sandbox_network_none": True,
             },
         },
@@ -2409,6 +2427,15 @@ def run_inspect_live_qualification(
             "evidence": {
                 "dispute_view_sha256": dispute["sha256"],
                 "c_pass_sha256": c_validation["pass_sha256"],
+                **(
+                    {
+                        "structured_output_schema_sha256": c_result[
+                            "structured_output_schema_sha256"
+                        ]
+                    }
+                    if "structured_output_schema_sha256" in c_result
+                    else {}
+                ),
                 "disputed_cases": dispute["disputed_cases"],
                 "disputed_seams": dispute["disputed_seams"],
             },
