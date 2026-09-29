@@ -727,6 +727,113 @@ class InspectRunConfig:
     allow_unqualified: bool = False
 
 
+def _v2_label_output_schema(
+    decision_id: str,
+    *,
+    decisions: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    seam = decisions.get(decision_id)
+    if seam is None:
+        raise WorkflowError(f"unknown v2 decision seam for output schema: {decision_id}")
+    oracle_type = seam.get("oracle_type")
+    if oracle_type == "categorical":
+        return {"type": "string", "enum": list(seam.get("labels") or [])}
+    if oracle_type == "boolean":
+        return {"type": "boolean"}
+    if oracle_type == "ordinal":
+        return {"type": "integer", "enum": list(seam.get("levels") or [])}
+    raise WorkflowError(
+        f"unsupported v2 oracle_type for output schema {decision_id}: {oracle_type!r}"
+    )
+
+
+def _v2_justification_output_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "decisive_case_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320,
+                },
+            },
+            "rubric_rule": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320,
+            },
+            "ambiguity": {
+                "type": "string",
+                "enum": ["none", "material", "insufficient_evidence"],
+            },
+        },
+        "required": [
+            "decisive_case_evidence",
+            "rubric_rule",
+            "ambiguity",
+        ],
+    }
+
+
+def _v2_model_output_schema(view_path: Path) -> dict[str, Any]:
+    view, expected, _ = _load_view(Path(view_path), study="routing-semantic-v2")
+    decisions = _decision_specs(view)
+    variants: list[dict[str, Any]] = []
+    for case_id, decision_ids in expected.items():
+        ordered = sorted(decision_ids)
+        variants.append(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "case_id": {"const": case_id},
+                    "labels": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            decision_id: _v2_label_output_schema(
+                                decision_id,
+                                decisions=decisions,
+                            )
+                            for decision_id in ordered
+                        },
+                        "required": ordered,
+                    },
+                    "justifications": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            decision_id: _v2_justification_output_schema()
+                            for decision_id in ordered
+                        },
+                        "required": ordered,
+                    },
+                },
+                "required": ["case_id", "labels", "justifications"],
+            }
+        )
+    if not variants:
+        raise WorkflowError("v2 output schema requires at least one assigned case")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "records": {
+                "type": "array",
+                "minItems": len(expected),
+                "maxItems": len(expected),
+                "items": {"anyOf": variants},
+            }
+        },
+        "required": ["records"],
+    }
+
+
 def _inspect_sandbox_spec() -> Any:
     from inspect_ai.util import ComposeConfig, ComposeService, SandboxEnvironmentSpec
 
@@ -761,13 +868,24 @@ def _inspect_eval(
     log_dir: Path,
     max_samples: int,
     log_model_api: bool,
+    output_schema: Mapping[str, Any] | None = None,
 ) -> Any:
-    inspect_ai, inspect_swe = _require_inspect_dependencies()
+    inspect_ai, inspect_swe = _require_inspect_dependencies(
+        require_output_schema=output_schema is not None
+    )
     from inspect_ai import Task
     from inspect_swe import codex_cli
 
+    structured_schema = (
+        copy.deepcopy(dict(output_schema)) if output_schema is not None else None
+    )
+    if structured_schema is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(log_dir / "codex-output-schema.json", structured_schema)
+
     solver = codex_cli(
         version=codex_version,
+        output_schema=structured_schema,
         web_search="disabled",
         goals=False,
         attempts=1,
