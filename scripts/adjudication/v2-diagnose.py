@@ -118,12 +118,13 @@ def _completion_class(text: str) -> str:
     return "non_json"
 
 
-def _attempt_paths(root: Path, attempt: str) -> tuple[Path, Path, Path]:
+def _attempt_paths(root: Path, attempt: str) -> tuple[Path, Path, Path, Path]:
     if attempt == "current":
         return (
             root / "inspect-qualification",
             root / "qualification.json",
             root / "qualification-run.log",
+            root / "attempt.json",
         )
     if not attempt.startswith("retry:"):
         raise SystemExit("attempt must be 'current' or 'retry:<UTC-stamp>'")
@@ -135,11 +136,12 @@ def _attempt_paths(root: Path, attempt: str) -> tuple[Path, Path, Path]:
         retry / "inspect-qualification",
         retry / "qualification.json",
         retry / "qualification-run.log",
+        retry / "attempt.json",
     )
 
 
 def _list_attempts(root: Path) -> None:
-    current_evidence, current_qualification, current_runlog = _attempt_paths(
+    current_evidence, current_qualification, current_runlog, current_meta = _attempt_paths(
         root, "current"
     )
     print(
@@ -147,19 +149,37 @@ def _list_attempts(root: Path) -> None:
         f"\tevidence={'present' if current_evidence.is_dir() else 'absent'}"
         f"\tqualification={'present' if current_qualification.is_file() else 'absent'}"
         f"\trunlog={'present' if current_runlog.is_file() else 'absent'}"
+        f"\tmeta={'present' if current_meta.is_file() else 'absent'}"
     )
     retries = root / "retries"
     if not retries.is_dir():
         return
     for item in sorted(path for path in retries.iterdir() if path.is_dir()):
         attempt = f"retry:{item.name}"
-        evidence, qualification, runlog = _attempt_paths(root, attempt)
+        evidence, qualification, runlog, meta = _attempt_paths(root, attempt)
         print(
             f"{attempt}"
             f"\tevidence={'present' if evidence.is_dir() else 'absent'}"
             f"\tqualification={'present' if qualification.is_file() else 'absent'}"
             f"\trunlog={'present' if runlog.is_file() else 'absent'}"
+            f"\tmeta={'present' if meta.is_file() else 'absent'}"
         )
+
+
+def _attempt_meta(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"exists": False}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"exists": True, "error": str(exc)}
+    if not isinstance(value, Mapping):
+        return {"exists": True, "error": "attempt metadata is not an object"}
+    allowed = {"attempt_id", "model", "log_model_api", "status", "exit_status"}
+    return {
+        "exists": True,
+        **{key: value.get(key) for key in sorted(allowed) if key in value},
+    }
 
 
 def _qualification_summary(path: Path) -> dict[str, Any]:
@@ -246,7 +266,7 @@ def _sample_summary(sample: Any) -> dict[str, Any]:
 
 
 def _collect(attempt: str, root: Path) -> dict[str, Any]:
-    evidence_root, qualification_path, runlog_path = _attempt_paths(root, attempt)
+    evidence_root, qualification_path, runlog_path, meta_path = _attempt_paths(root, attempt)
     result: dict[str, Any] = {
         "attempt": attempt,
         "root": str(root),
@@ -254,6 +274,7 @@ def _collect(attempt: str, root: Path) -> dict[str, Any]:
         "evidence_exists": evidence_root.is_dir(),
         "qualification_path": str(qualification_path),
         "qualification": _qualification_summary(qualification_path),
+        "attempt_meta": _attempt_meta(meta_path),
         "run_log": {
             "path": str(runlog_path),
             "exists": runlog_path.is_file(),
@@ -311,6 +332,17 @@ def _collect(attempt: str, root: Path) -> dict[str, Any]:
 def _print_text(result: Mapping[str, Any]) -> None:
     print(f"attempt: {result['attempt']}")
     print(f"evidence_exists: {result['evidence_exists']}")
+    meta = result.get("attempt_meta") or {"exists": False}
+    print(f"attempt_meta_exists: {meta.get('exists')}")
+    if meta.get("exists"):
+        print(
+            "attempt_meta:"
+            f" id={meta.get('attempt_id')}"
+            f" status={meta.get('status')}"
+            f" model={meta.get('model')}"
+            f" log_model_api={meta.get('log_model_api')}"
+            f" exit_status={meta.get('exit_status')}"
+        )
     q = result["qualification"]
     print(f"qualification_exists: {q['exists']}")
     print(f"qualified: {q['qualified']}")
