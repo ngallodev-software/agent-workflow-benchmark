@@ -155,7 +155,7 @@ def _list_attempts(root: Path) -> None:
         attempt = f"retry:{item.name}"
         evidence, qualification, runlog = _attempt_paths(root, attempt)
         print(
-            attempt
+            f"{attempt}"
             f"\tevidence={'present' if evidence.is_dir() else 'absent'}"
             f"\tqualification={'present' if qualification.is_file() else 'absent'}"
             f"\trunlog={'present' if runlog.is_file() else 'absent'}"
