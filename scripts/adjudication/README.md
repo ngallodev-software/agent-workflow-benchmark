@@ -64,6 +64,33 @@ retry against the same runtime lock:
 FORCE_V2_QUALIFICATION=1 bash scripts/adjudication/v2-qualify.sh
 ~~~
 
+The v2 qualifier keeps the terminal intentionally compact. Inspect/model-API output
+is written to the private qualification root as `qualification-run.log` rather
+than streamed to stdout. On a forced retry that log is archived beside the
+corresponding `inspect-qualification` directory and any qualification manifest.
+
+Enable raw model-API evidence capture for a diagnostic retry without flooding the
+console:
+
+~~~bash
+V2_LOG_MODEL_API=1 FORCE_V2_QUALIFICATION=1 \
+  bash scripts/adjudication/v2-qualify.sh
+~~~
+
+Use the repository-owned non-leaking diagnostic instead of ad-hoc `rglob`
+snippets:
+
+~~~bash
+python scripts/adjudication/v2-diagnose.py --attempt current
+python scripts/adjudication/v2-diagnose.py --list-attempts
+python scripts/adjudication/v2-diagnose.py --attempt retry:<UTC-stamp>
+~~~
+
+The diagnostic never falls back from `current` to an archived retry. It reports
+only qualification state, sample status, completion classification, and
+structured-output request/schema metadata; it does not print prompts, full model
+answers, response bodies, tool arguments, or secrets.
+
 The earlier standalone `routing-semantic-v2-preflight/preflight.json` remains
 historical development evidence; the full qualifier deliberately produces fresh
 IA-9/10/11 evidence under the final frozen identities.
