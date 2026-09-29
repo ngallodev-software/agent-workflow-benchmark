@@ -37,6 +37,7 @@ MODULE="${V2_MODULE:-$BENCH_REPO/modules/abc-adjudication/routing-semantic-v2.in
 RUNTIME_LOCK="${V2_RUNTIME_LOCK:-$PRIVATE_ROOT/runtime-lock.json}"
 QUALIFICATION="${V2_QUALIFICATION:-$PRIVATE_ROOT/qualification.json}"
 RUN_LOG="$PRIVATE_ROOT/qualification-run.log"
+ATTEMPT_META="$PRIVATE_ROOT/attempt.json"
 DIAGNOSE="$SCRIPT_DIR/v2-diagnose.py"
 
 [[ -f "$MODULE" ]] || { echo "error: v2 Inspect module not found: $MODULE" >&2; exit 1; }
@@ -57,7 +58,7 @@ PY
 mkdir -p "$PRIVATE_ROOT"
 retry_root=""
 
-if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RUN_LOG" ]]; then
+if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RUN_LOG" || -f "$ATTEMPT_META" ]]; then
   if [[ "${FORCE_V2_QUALIFICATION:-0}" != "1" ]]; then
     echo "error: v2 qualification evidence already exists; preserve it or set FORCE_V2_QUALIFICATION=1 for an archived retry" >&2
     echo "qualification: $QUALIFICATION" >&2
@@ -69,6 +70,7 @@ if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RU
   [[ ! -f "$QUALIFICATION" ]] || mv "$QUALIFICATION" "$retry_root/qualification.json"
   [[ ! -d "$PRIVATE_ROOT/inspect-qualification" ]] || mv "$PRIVATE_ROOT/inspect-qualification" "$retry_root/inspect-qualification"
   [[ ! -f "$RUN_LOG" ]] || mv "$RUN_LOG" "$retry_root/qualification-run.log"
+  [[ ! -f "$ATTEMPT_META" ]] || mv "$ATTEMPT_META" "$retry_root/attempt.json"
   echo "Archived prior qualification attempt: $retry_root"
 fi
 
@@ -113,6 +115,22 @@ if [[ "$runtime_lock_valid" != "1" ]]; then
     "$RUNTIME_LOCK"
 fi
 
+attempt_id="$(date -u +%Y%m%dT%H%M%SZ)"
+"$PYTHON" - "$ATTEMPT_META" "$attempt_id" "$MODEL" "${V2_LOG_MODEL_API:-0}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+record = {
+    "attempt_id": sys.argv[2],
+    "model": sys.argv[3],
+    "log_model_api": sys.argv[4] == "1",
+    "status": "running",
+}
+path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
 qualify_args=()
 if [[ "${V2_LOG_MODEL_API:-0}" == "1" ]]; then
   qualify_args+=(--log-model-api)
@@ -135,12 +153,34 @@ qualify_status=$?
 set -e
 
 if [[ "$qualify_status" != "0" ]]; then
+  "$PYTHON" - "$ATTEMPT_META" "$qualify_status" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+record = json.loads(path.read_text(encoding="utf-8"))
+record["status"] = "failed"
+record["exit_status"] = int(sys.argv[2])
+path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
   echo "routing-semantic-v2 full qualification: FAIL"
   echo "Agent-Workflow exit status: $qualify_status"
   "$PYTHON" "$DIAGNOSE" --root "$PRIVATE_ROOT" --attempt current || true
   echo "Full private output retained at: $RUN_LOG"
   exit "$qualify_status"
 fi
+
+"$PYTHON" - "$ATTEMPT_META" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+record = json.loads(path.read_text(encoding="utf-8"))
+record["status"] = "command-complete"
+path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
 
 "$PYTHON" - "$QUALIFICATION" "$MODULE" "$RUNTIME_LOCK" <<'PY'
 import hashlib
