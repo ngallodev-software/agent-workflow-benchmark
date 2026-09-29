@@ -42,6 +42,7 @@ INGRESS_CAPTURE="$PRIVATE_ROOT/codex-lb-ingress.jsonl"
 INGRESS_PROXY_LOG="$PRIVATE_ROOT/codex-lb-ingress-proxy.log"
 DIAGNOSE="$SCRIPT_DIR/v2-diagnose.py"
 INGRESS_PROXY="$SCRIPT_DIR/v2-codex-lb-ingress-capture.py"
+INGRESS_VERIFY="$SCRIPT_DIR/v2-verify-ingress.py"
 
 [[ -f "$MODULE" ]] || { echo "error: v2 Inspect module not found: $MODULE" >&2; exit 1; }
 
@@ -121,7 +122,7 @@ if [[ "$runtime_lock_valid" != "1" ]]; then
 fi
 
 attempt_id="$(date -u +%Y%m%dT%H%M%SZ)"
-"$PYTHON" - "$ATTEMPT_META" "$attempt_id" "$MODEL" "${V2_LOG_MODEL_API:-0}" "${V2_CAPTURE_CODEX_LB_INGRESS:-0}" <<'PY'
+"$PYTHON" - "$ATTEMPT_META" "$attempt_id" "$MODEL" "${V2_LOG_MODEL_API:-0}" "${V2_CAPTURE_CODEX_LB_INGRESS:-1}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -147,7 +148,7 @@ cleanup_capture_proxy() {
 }
 trap cleanup_capture_proxy EXIT
 
-if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-0}" == "1" ]]; then
+if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-1}" == "1" ]]; then
   if [[ "$CODEX_LB_BASE_URL" != "http://127.0.0.1:2455/v1" ]]; then
     echo "error: sanitized ingress capture currently requires CODEX_LB_BASE_URL=http://127.0.0.1:2455/v1" >&2
     exit 1
@@ -305,6 +306,12 @@ print("runtime_lock:", runtime_lock_path)
 print("qualification:", qualification_path)
 PY
 
-if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-0}" == "1" ]]; then
+if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-1}" == "1" ]]; then
+  "$PYTHON" "$INGRESS_VERIFY" \
+    --capture "$INGRESS_CAPTURE" \
+    --schema-root "$PRIVATE_ROOT/inspect-qualification" \
+    --model deepseek-flash
   "$PYTHON" "$DIAGNOSE" --root "$PRIVATE_ROOT" --attempt current
+else
+  echo "warning: sanitized ingress capture was disabled; this qualification cannot authorize the real v2 cohort" >&2
 fi
