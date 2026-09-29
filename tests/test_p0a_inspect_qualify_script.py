@@ -35,7 +35,7 @@ def test_v2_qualifier_runs_all_eleven_gates_under_one_runtime_lock() -> None:
     assert "adjudication-inspect-runtime-lock" in text
     assert "adjudication-inspect-qualify-live" in text
     assert "openai-api/codex-lb/deepseek-flash" in text
-    assert "agent-workflow-benchmark" in text and "0.6.1" in text
+    assert "agent-workflow-benchmark" in text and "0.6.2" in text
     assert "agent-workflow-comparative-eval" in text and "0.3.1" in text
     assert "range(1, 12)" in text
     assert "FORCE_V2_QUALIFICATION" in text
