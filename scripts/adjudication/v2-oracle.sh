@@ -573,7 +573,7 @@ run_ab() {
   mkdir -p "$ORACLE_RUN"
   chmod 700 "$ORACLE_RUN"
 
-  run_private "run-ab"     "$AW" benchmark adjudication-inspect-run-primary       "$MODULE"       "$ORACLE_VIEW"       "$ORACLE_PROTOCOL"       "$RUNTIME_LOCK"       "$QUALIFICATION"       "$ORACLE_RUN"       --model "$MODEL"       --model-arg responses_api=true
+  run_model_private "run-ab" "$ORACLE_RUN/inspect-logs/primary/codex-output-schema.json" "$AW" benchmark adjudication-inspect-run-primary "$MODULE" "$ORACLE_VIEW" "$ORACLE_PROTOCOL" "$RUNTIME_LOCK" "$QUALIFICATION" "$ORACLE_RUN" --model "$MODEL" --model-arg responses_api=true
 
   validate_pass "$ORACLE_VIEW" "$A_PASS"
   validate_pass "$ORACLE_VIEW" "$B_PASS"
@@ -605,7 +605,7 @@ run_c() {
   fi
   [[ ! -e "$C_PASS" ]] || die "C adjudication already exists: $C_PASS"
 
-  run_private "run-c"     "$AW" benchmark adjudication-inspect-run-c       "$MODULE"       "$DISPUTE_VIEW"       "$ORACLE_PROTOCOL"       "$RUNTIME_LOCK"       "$QUALIFICATION"       "$ORACLE_RUN"       --model "$MODEL"       --model-arg responses_api=true
+  run_model_private "run-c" "$ORACLE_RUN/inspect-logs/tiebreaker/codex-output-schema.json" "$AW" benchmark adjudication-inspect-run-c "$MODULE" "$DISPUTE_VIEW" "$ORACLE_PROTOCOL" "$RUNTIME_LOCK" "$QUALIFICATION" "$ORACLE_RUN" --model "$MODEL" --model-arg responses_api=true
 
   validate_pass "$DISPUTE_VIEW" "$C_PASS"
   echo "C: PASS"
