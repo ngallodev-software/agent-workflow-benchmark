@@ -561,6 +561,7 @@ verify_frozen_inputs() {
 
   "$PYTHON" - "$MODULE" "$ORACLE_VIEW" "$ORACLE_PROTOCOL" "$CORPUS" <<'PY'
 import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -577,13 +578,20 @@ def sha256(path: Path) -> str:
             h.update(block)
     return h.hexdigest()
 
-module = validate_abc_adjudication_module(module_path)
-if module.get("study_id") != "routing-semantic-v2":
+module_summary = validate_abc_adjudication_module(module_path)
+if module_summary.get("study_id") != "routing-semantic-v2":
     raise SystemExit("not a routing-semantic-v2 module")
 
+# validate_abc_adjudication_module() intentionally returns a compact summary
+# (including required_files as a count), not the original module document.
+# Read the already-validated document for frozen-file and task fields.
+module = json.loads(module_path.read_text(encoding="utf-8"))
+required_files = module.get("required_files")
+if not isinstance(required_files, list):
+    raise SystemExit("validated v2 module has no required_files list")
 required = {
     str(item["id"]): item
-    for item in module.get("required_files", [])
+    for item in required_files
 }
 observed = {
     "oracle-view": view_path,
