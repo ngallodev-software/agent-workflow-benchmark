@@ -39,6 +39,38 @@ def test_routing_semantic_abc_module_validates():
     assert result["guardrails"]["cross_agent_visibility"] is False
 
 
+def test_routing_semantic_v2_module_pair_binds_frozen_inputs():
+    direct = ROOT / "modules" / "abc-adjudication" / "routing-semantic-v2.module.json"
+    inspect = (
+        ROOT
+        / "modules"
+        / "abc-adjudication"
+        / "routing-semantic-v2.inspect.module.json"
+    )
+    direct_value = json.loads(direct.read_text(encoding="utf-8"))
+    inspect_value = json.loads(inspect.read_text(encoding="utf-8"))
+
+    assert validate_abc_adjudication_module(direct)["valid"] is True
+    assert validate_abc_adjudication_module(inspect)["valid"] is True
+    for key in ("study_id", "dataset_version", "protocol_version"):
+        assert direct_value["task"][key] == inspect_value["task"][key]
+    assert direct_value["prompt"]["template"] == "docker/adjudication/START_PROMPT.v2.template.md"
+    assert inspect_value["prompt"]["template"] == direct_value["prompt"]["template"]
+    assert direct_value["output"]["pass_schema"].endswith("/v2")
+    assert inspect_value["output"]["pass_schema"] == direct_value["output"]["pass_schema"]
+
+    direct_files = {item["id"]: item for item in direct_value["required_files"]}
+    inspect_files = {item["id"]: item for item in inspect_value["required_files"]}
+    expected = {
+        "oracle-view": "88a18b5e1a1132a25da41bee5fabbeeaa8a687be395fc28bd39c0b4d6a9a2617",
+        "oracle-protocol": "ff165c964fd032e95160ff760a0f46e661e88d41fd22a376f9b0767e24ba793e",
+        "routing-corpus": "99f113ce05c2921a45534e3e7cf17f410379589208cf95415a57c47caff61236",
+    }
+    for file_id, digest in expected.items():
+        assert direct_files[file_id]["sha256"] == digest
+        assert inspect_files[file_id]["sha256"] == digest
+
+
 def test_module_requires_distinct_adjudicator_ids(tmp_path: Path):
     def mutate(value):
         value["roles"]["tiebreaker"]["adjudicator_id"] = "codex-a"

@@ -535,7 +535,7 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
         "schema": "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
         "created_at": "2026-09-27T00:00:00+00:00",
         "study_id": "routing-semantic-v2",
-        "protocol_version": "routing-semantic-oracle-v2-draft.1",
+        "protocol_version": "routing-semantic-oracle-v2.0.0",
         "codex_version": "1.2.3",
         "model": "openai-api/codex-lb/deepseek-flash",
         "model_args": {"responses_api": True},
@@ -559,6 +559,24 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
         "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
         artifact="test",
     )
+
+
+def test_v2_deterministic_wrapper_fixture_preserves_justifications(tmp_path: Path):
+    view_path = tmp_path / "view.json"
+    inspect_runtime._synthetic_v2_evidence_view(view_path)
+
+    output = inspect_runtime._deterministic_output_for_view(
+        view_path,
+        study="routing-semantic-v2",
+    )
+
+    assert output["records"]
+    first = output["records"][0]
+    assert set(first["justifications"]) == set(first["labels"])
+    for value in first["justifications"].values():
+        assert 1 <= len(value["decisive_case_evidence"]) <= 3
+        assert value["rubric_rule"]
+        assert value["ambiguity"] == "none"
 
 
 def test_v2_preflight_prompt_is_packaged_and_matches_docker_source():

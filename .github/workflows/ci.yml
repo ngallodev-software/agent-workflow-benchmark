@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install build 'pytest>=8,<10' 'jsonschema>=4.18,<5' 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@master'
-      - run: python -c "from importlib import metadata; assert metadata.version('agent-workflow') == '0.11.11'; assert metadata.version('agent-workflow-comparative-eval') == '0.3.0'"
+      - run: python -m pip install build 'pytest>=8,<10' 'jsonschema>=4.18,<5' 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@release/0.11.12-v2-qualification'
+      - run: python -c "from importlib import metadata; assert metadata.version('agent-workflow') == '0.11.12'; assert metadata.version('agent-workflow-comparative-eval') == '0.3.1'"
       - run: python -m pip install --no-deps .
       - run: python -m pytest -q tests
       - run: python -m build --sdist --wheel
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@master'
+      - run: python -m pip install 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@release/0.11.12-v2-qualification'
       - run: python -m pip install '.[inspect]'
       - run: python -c "from importlib import metadata; from inspect_ai.log import EvalSample; assert metadata.version('inspect-ai') == '0.3.268'; assert metadata.version('inspect-swe') == '0.2.70'; assert 'error_retries' in EvalSample.model_fields; assert 'retries' not in EvalSample.model_fields; import agent_workflow_benchmark.benchmarking.inspect_adjudication"
       - run: python -c "from agent_workflow_benchmark.benchmarking.inspect_adjudication import _inspect_sandbox_spec; spec=_inspect_sandbox_spec(); assert spec.type == 'docker'; service=spec.config.services['default']; assert service.cap_drop == ['ALL']; assert service.cap_add == ['CHOWN', 'FOWNER']"
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@master'
+      - run: python -m pip install 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@master' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@release/0.11.12-v2-qualification'
       - run: python -m pip install '.[agentic-jev]'
       - run: python -c "from importlib import metadata; from typesafe_sdk import TypeSafeClient; import agent_workflow_benchmark.benchmarking.agentic_jev as a; assert metadata.version('typesafe-sdk') == '0.6.0'; assert a.agentic_jev_skill_path().is_file(); assert len(a.agentic_jev_skill_sha256()) == 64"
       - run: python -c "from agent_workflow_benchmark.benchmarking.agentic_jev import pilot_treatment_manifest; m=pilot_treatment_manifest(); assert [x['arm_id'] for x in m['arms']] == ['A-baseline','B-skill-only','C-skill-plus-jev']; assert m['tool']['execution_location'] == 'host'"

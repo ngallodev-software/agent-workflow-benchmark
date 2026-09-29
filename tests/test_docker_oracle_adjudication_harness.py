@@ -45,6 +45,51 @@ def test_generated_model_schema_is_bound_to_all_frozen_cases_and_seams():
     ]
 
 
+def test_generated_v2_model_schema_requires_structured_justifications():
+    helper = _helper()
+    view = comparative.oracle_authoring_view(
+        comparative.load_study_corpus("routing-semantic-v2")
+    )
+    records = helper.expected_records(view)
+    schema = helper.model_output_schema(
+        records,
+        pass_schema=helper.ADJUDICATION_PASS_SCHEMA_V2,
+    )
+
+    item = schema["properties"]["records"]["items"]
+    assert "justifications" in item["required"]
+    justifications = item["properties"]["justifications"]
+    assert justifications["required"] == [
+        "routing.task_class",
+        "routing.interaction_required",
+        "routing.semantic_risk",
+    ]
+    evidence = justifications["properties"]["routing.task_class"]["properties"][
+        "decisive_case_evidence"
+    ]
+    assert evidence["minItems"] == 1
+    assert evidence["maxItems"] == 3
+    assert evidence["items"]["maxLength"] == 320
+
+
+def test_v2_study_config_is_bound_to_frozen_module_hashes():
+    helper = _helper()
+    config = helper.study_config("routing-semantic-v2")
+
+    assert config["dataset_version"] == "routing-semantic-corpus-v2.0.0"
+    assert config["protocol_version"] == "routing-semantic-oracle-v2.0.0"
+    assert config["pass_schema"] == helper.ADJUDICATION_PASS_SCHEMA_V2
+    assert config["view_sha256"] == (
+        "88a18b5e1a1132a25da41bee5fabbeeaa8a687be395fc28bd39c0b4d6a9a2617"
+    )
+    assert config["protocol_sha256"] == (
+        "ff165c964fd032e95160ff760a0f46e661e88d41fd22a376f9b0767e24ba793e"
+    )
+    assert config["corpus_sha256"] == (
+        "99f113ce05c2921a45534e3e7cf17f410379589208cf95415a57c47caff61236"
+    )
+
+
 def test_prepare_agent_writes_private_prompt_schema_and_hash_bound_metadata(tmp_path: Path):
     helper = _helper()
     view = comparative.oracle_authoring_view(
@@ -74,6 +119,37 @@ def test_prepare_agent_writes_private_prompt_schema_and_hash_bound_metadata(tmp_
     assert "codex-a" in prompt
     assert "TypeSafe/Jev output" in prompt
     assert (input_dir / "model-output.schema.json").is_file()
+
+
+def test_prepare_agent_v2_writes_pass_schema_and_v2_prompt(tmp_path: Path):
+    helper = _helper()
+    view = comparative.oracle_authoring_view(
+        comparative.load_study_corpus("routing-semantic-v2")
+    )
+    view_path = tmp_path / "view-v2.json"
+    protocol_path = tmp_path / "protocol-v2.md"
+    view_path.write_text(json.dumps(view, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    protocol_path.write_text("# Frozen v2 protocol\n", encoding="utf-8")
+
+    helper.prepare_agent(
+        destination=tmp_path / "a-v2",
+        view_path=view_path,
+        protocol_path=protocol_path,
+        adjudicator_id="codex-v2-a",
+        study_id="routing-semantic-v2",
+    )
+
+    input_dir = tmp_path / "a-v2" / "input"
+    metadata = json.loads((input_dir / "pass-metadata.json").read_text(encoding="utf-8"))
+    schema = json.loads((input_dir / "model-output.schema.json").read_text(encoding="utf-8"))
+    prompt = (input_dir / "START_PROMPT.md").read_text(encoding="utf-8")
+
+    assert metadata["study_id"] == "routing-semantic-v2"
+    assert metadata["dataset_version"] == "routing-semantic-corpus-v2.0.0"
+    assert metadata["protocol_version"] == "routing-semantic-oracle-v2.0.0"
+    assert metadata["adjudication_pass_schema"] == helper.ADJUDICATION_PASS_SCHEMA_V2
+    assert "decisive_case_evidence" in prompt
+    assert "justifications" in schema["properties"]["records"]["items"]["required"]
 
 
 def test_prepare_c_shape_uses_only_disputed_seams():
@@ -130,6 +206,18 @@ def test_adjudicator_codex_config_rejects_context_expanding_features(tmp_path: P
     )
     with pytest.raises(SystemExit, match="not permitted"):
         helper.validate_codex_config(argparse.Namespace(config=bad))
+
+
+def test_docker_runner_supports_frozen_v2_study_selection():
+    runner = RUNNER_PATH.read_text(encoding="utf-8")
+
+    assert 'ADJUDICATION_STUDY:-routing-semantic-v1' in runner
+    assert 'routing-semantic-v2)' in runner
+    assert 'DEFAULT_ORACLE_VERSION="routing-semantic-oracle-v2.0.0"' in runner
+    assert '--study "${STUDY_ID}"' in runner
+    assert 'ADJUDICATOR_A="codex-v2-a"' in runner
+    assert 'ADJUDICATOR_B="codex-v2-b"' in runner
+    assert 'ADJUDICATOR_C="codex-v2-c"' in runner
 
 
 def test_docker_adjudication_runner_has_valid_bash_syntax():

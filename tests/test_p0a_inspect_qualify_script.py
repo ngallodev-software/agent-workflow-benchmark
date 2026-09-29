@@ -28,6 +28,21 @@ def test_adjudication_shell_scripts_have_valid_bash_syntax() -> None:
         assert result.returncode == 0, f"{script}: {result.stderr}"
 
 
+def test_v2_qualifier_runs_all_eleven_gates_under_one_runtime_lock() -> None:
+    text = (SCRIPT_DIR / "v2-qualify.sh").read_text(encoding="utf-8")
+
+    assert "routing-semantic-v2.inspect.module.json" in text
+    assert "adjudication-inspect-runtime-lock" in text
+    assert "adjudication-inspect-qualify-live" in text
+    assert "openai-api/codex-lb/deepseek-flash" in text
+    assert "agent-workflow-benchmark" in text and "0.6.0" in text
+    assert "agent-workflow-comparative-eval" in text and "0.3.1" in text
+    assert "range(1, 12)" in text
+    assert "FORCE_V2_QUALIFICATION" in text
+    assert 'if [[ -f "$RUNTIME_LOCK" ]]; then' in text
+    assert 'rm -f "$RUNTIME_LOCK"' not in text
+
+
 def test_p0a_defaults_to_deepseek_and_explicitly_passes_selected_model() -> None:
     text = P0A.read_text(encoding="utf-8")
 
