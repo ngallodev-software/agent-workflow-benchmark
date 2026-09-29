@@ -54,6 +54,8 @@ RESOLUTION_REVIEW="$ORACLE_RUN/resolution-review.json"
 RESOLUTION_REVIEW_MD="$ORACLE_RUN/resolution-review.md"
 ORACLE="$ORACLE_RUN/oracle.json"
 LOG_DIR="$ORACLE_ROOT/logs/$(basename "$ORACLE_RUN")"
+DIAG_DIR="$ORACLE_ROOT/diagnostics/$(basename "$ORACLE_RUN")"
+INGRESS_PROXY="$SCRIPT_DIR/v2-codex-lb-ingress-capture.py"
 
 STUDY="routing-semantic-v2"
 MODEL="openai-api/codex-lb/deepseek-flash"
@@ -81,13 +83,23 @@ require_clean_new_run() {
   fi
 }
 
+archive_existing_log() {
+  local log="$1"
+  [[ -e "$log" ]] || return 0
+  local archive_dir stamp
+  archive_dir="$(dirname "$log")/archive"
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir -p "$archive_dir"
+  mv "$log" "$archive_dir/$(basename "$log" .log)-$stamp.log"
+}
+
 run_private() {
   local stage="$1"
   shift
   mkdir -p "$LOG_DIR"
   chmod 700 "$ORACLE_ROOT" "$LOG_DIR" 2>/dev/null || true
   local log="$LOG_DIR/$stage.log"
-  [[ ! -e "$log" ]] || die "private stage log already exists: $log"
+  archive_existing_log "$log"
 
   set +e
   "$@" >"$log" 2>&1
@@ -102,6 +114,161 @@ run_private() {
 
   echo "$stage: PASS"
   echo "private log: $log"
+}
+
+summarize_ingress_capture() {
+  local capture="$1"
+  local schema_path="$2"
+  require_file "$capture"
+  require_file "$schema_path"
+
+  "$PYTHON" - "$capture" "$schema_path" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+capture_path, schema_path = map(Path, sys.argv[1:3])
+
+schema = json.loads(schema_path.read_text(encoding="utf-8"))
+schema_payload = json.dumps(
+    schema,
+    sort_keys=True,
+    separators=(",", ":"),
+).encode("utf-8")
+expected_sha = hashlib.sha256(schema_payload).hexdigest()
+
+records = []
+for line_no, raw in enumerate(capture_path.read_text(encoding="utf-8").splitlines(), start=1):
+    if not raw.strip():
+        continue
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise SystemExit(f"capture line {line_no} is not an object")
+    if value.get("method") != "POST" or value.get("path") != "/v1/responses":
+        continue
+    if value.get("model") != "deepseek-flash":
+        continue
+    records.append((line_no, value))
+
+if not records:
+    raise SystemExit("no DeepSeek /v1/responses requests were captured")
+
+failures = []
+for line_no, value in records:
+    fmt = value.get("text_format")
+    if not isinstance(fmt, dict):
+        failures.append(f"line {line_no}: missing text_format")
+        continue
+    if fmt.get("type") != "json_schema":
+        failures.append(f"line {line_no}: type={fmt.get('type')!r}")
+    if fmt.get("strict") is not True:
+        failures.append(f"line {line_no}: strict={fmt.get('strict')!r}")
+    if fmt.get("schema_sha256") != expected_sha:
+        failures.append(
+            f"line {line_no}: schema_sha256={fmt.get('schema_sha256')!r}, expected={expected_sha}"
+        )
+
+print(f"structured_requests: {len(records)}")
+print(f"schema_sha256: {expected_sha}")
+print(f"json_schema_strict: {'pass' if not failures else 'fail'}")
+if failures:
+    for failure in failures:
+        print(f"  {failure}")
+    raise SystemExit("sanitized ingress capture did not match the frozen stage schema")
+PY
+}
+
+run_model_private() {
+  local stage="$1"
+  local schema_path="$2"
+  shift 2
+
+  mkdir -p "$LOG_DIR" "$DIAG_DIR"
+  chmod 700 "$ORACLE_ROOT" "$LOG_DIR" "$DIAG_DIR" 2>/dev/null || true
+
+  local log="$LOG_DIR/$stage.log"
+  local capture="$DIAG_DIR/$stage-codex-lb-ingress.jsonl"
+  local proxy_log="$DIAG_DIR/$stage-codex-lb-ingress-proxy.log"
+
+  [[ ! -e "$log" ]] || die "model-stage log already exists; do not retry this real cohort in place: $log"
+  [[ ! -e "$capture" ]] || die "model-stage capture already exists; do not retry this real cohort in place: $capture"
+  [[ ! -e "$proxy_log" ]] || die "model-stage proxy log already exists; do not retry this real cohort in place: $proxy_log"
+
+  if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-1}" != "1" ]]; then
+    set +e
+    "$@" >"$log" 2>&1
+    local direct_status=$?
+    set -e
+    if [[ "$direct_status" -ne 0 ]]; then
+      echo "$stage: FAIL"
+      echo "private log: $log"
+      exit "$direct_status"
+    fi
+    echo "$stage: PASS"
+    echo "private log: $log"
+    return
+  fi
+
+  [[ "$CODEX_LB_BASE_URL" == "http://127.0.0.1:2455/v1" ]] ||     die "sanitized ingress capture requires CODEX_LB_BASE_URL=http://127.0.0.1:2455/v1"
+
+  local capture_port="${V2_CODEX_LB_CAPTURE_PORT:-2456}"
+  "$PYTHON" "$INGRESS_PROXY"     --listen-host 127.0.0.1     --listen-port "$capture_port"     --upstream http://127.0.0.1:2455     --output "$capture"     >"$proxy_log" 2>&1 &
+  local proxy_pid=$!
+
+  "$PYTHON" - "$capture_port" "$proxy_pid" <<'PY'
+import os
+import socket
+import sys
+import time
+
+port = int(sys.argv[1])
+pid = int(sys.argv[2])
+deadline = time.monotonic() + 10
+while time.monotonic() < deadline:
+    try:
+        os.kill(pid, 0)
+    except OSError as exc:
+        raise SystemExit(f"ingress capture proxy exited before readiness: {exc}")
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            break
+    except OSError:
+        time.sleep(0.1)
+else:
+    raise SystemExit("timed out waiting for ingress capture proxy")
+PY
+
+  set +e
+  CODEX_LB_BASE_URL="http://127.0.0.1:$capture_port/v1" "$@" >"$log" 2>&1
+  local status=$?
+  set -e
+
+  kill "$proxy_pid" 2>/dev/null || true
+  wait "$proxy_pid" 2>/dev/null || true
+
+  local capture_status=0
+  if [[ -f "$schema_path" && -f "$capture" ]]; then
+    set +e
+    summarize_ingress_capture "$capture" "$schema_path"
+    capture_status=$?
+    set -e
+  else
+    capture_status=1
+    echo "structured_requests: unavailable"
+    echo "json_schema_strict: fail"
+  fi
+
+  if [[ "$status" -ne 0 || "$capture_status" -ne 0 ]]; then
+    echo "$stage: FAIL"
+    echo "private log: $log"
+    echo "sanitized ingress: $capture"
+    exit "$([[ "$status" -ne 0 ]] && echo "$status" || echo "$capture_status")"
+  fi
+
+  echo "$stage: PASS"
+  echo "private log: $log"
+  echo "sanitized ingress: $capture"
 }
 
 verify_packages() {
