@@ -560,7 +560,10 @@ def build_agentic_jev_solver(
         ) from exc
 
     arm = pilot_arm(arm_id)
-    skills = [agentic_jev_skill_path()] if arm.typesafe_skill else None
+    # Inspect's skills contract accepts skill directories, not the SKILL.md file.
+    # Keep agentic_jev_skill_path() as the canonical frozen file for hashing, while
+    # mounting its parent directory into the Codex harness.
+    skills = [agentic_jev_skill_path().parent] if arm.typesafe_skill else None
     bridged_tools = (
         [
             BridgedToolsSpec(
