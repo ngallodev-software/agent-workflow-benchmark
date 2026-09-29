@@ -17,6 +17,9 @@ DATASET_VERSION = "routing-semantic-corpus-v1.0.0"
 PROTOCOL_VERSION = "routing-semantic-oracle-v1.0.0"
 CANONICAL_VIEW_SHA256 = "a5a40224793a50d9371e9ae437e144b15812829ba1cd56a5564dc6ba28846a0a"
 CANONICAL_CORPUS_SHA256 = "e4b33df3b3752b32cdb362833765cc8f0c9cc024473071209563d73284011280"
+ADJUDICATION_PASS_SCHEMA_V1 = "agent-workflow-benchmark/decision-study-adjudication-pass/v1"
+ADJUDICATION_PASS_SCHEMA_V2 = "agent-workflow-benchmark/decision-study-adjudication-pass/v2"
+SUPPORTED_STUDIES = {"routing-semantic-v1", "routing-semantic-v2"}
 
 TASK_CLASS = ["implementation", "diagnosis", "review", "documentation", "other"]
 DECISION_ORDER = [
@@ -56,6 +59,92 @@ def read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise SystemExit(f"expected JSON object: {path}")
     return value
+
+
+def study_config(study_id: str) -> dict[str, Any]:
+    if study_id not in SUPPORTED_STUDIES:
+        raise SystemExit(f"unsupported adjudication study: {study_id}")
+    module_path = (
+        repo_root()
+        / "modules"
+        / "abc-adjudication"
+        / f"{study_id}.module.json"
+    )
+    module = read_json(module_path)
+    task = module.get("task") or {}
+    if task.get("study_id") != study_id:
+        raise SystemExit(f"adjudication module study_id mismatch: {module_path}")
+    required = {
+        str(item["id"]): item
+        for item in module.get("required_files") or []
+        if isinstance(item, dict) and item.get("id")
+    }
+    for required_id in ("oracle-view", "oracle-protocol", "routing-corpus"):
+        if required_id not in required:
+            raise SystemExit(
+                f"adjudication module missing required file {required_id}: {module_path}"
+            )
+        if not required[required_id].get("sha256"):
+            raise SystemExit(
+                f"adjudication module must freeze SHA-256 for {required_id}: {module_path}"
+            )
+    output = module.get("output") or {}
+    pass_schema = output.get("pass_schema")
+    if pass_schema not in {ADJUDICATION_PASS_SCHEMA_V1, ADJUDICATION_PASS_SCHEMA_V2}:
+        raise SystemExit(
+            f"unsupported adjudication pass schema in {module_path}: {pass_schema!r}"
+        )
+    prompt = module.get("prompt") or {}
+    template = prompt.get("template")
+    if not isinstance(template, str) or not template:
+        raise SystemExit(f"adjudication module has no prompt template: {module_path}")
+    return {
+        "module_path": module_path,
+        "study_id": study_id,
+        "dataset_version": str(task.get("dataset_version") or ""),
+        "protocol_version": str(task.get("protocol_version") or ""),
+        "prompt_template": template,
+        "pass_schema": pass_schema,
+        "view_source_path": str(required["oracle-view"]["source_path"]),
+        "view_sha256": str(required["oracle-view"]["sha256"]),
+        "protocol_source_path": str(required["oracle-protocol"]["source_path"]),
+        "protocol_sha256": str(required["oracle-protocol"]["sha256"]),
+        "corpus_source_path": str(required["routing-corpus"]["source_path"]),
+        "corpus_sha256": str(required["routing-corpus"]["sha256"]),
+    }
+
+
+def justification_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "decisive_case_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320,
+                },
+            },
+            "rubric_rule": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320,
+            },
+            "ambiguity": {
+                "type": "string",
+                "enum": ["none", "material", "insufficient_evidence"],
+            },
+        },
+        "required": [
+            "decisive_case_evidence",
+            "rubric_rule",
+            "ambiguity",
+        ],
+    }
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -116,7 +205,11 @@ def decision_schema(decision_id: str) -> dict[str, Any]:
     raise SystemExit(f"unsupported decision seam: {decision_id}")
 
 
-def model_output_schema(records: list[dict[str, Any]]) -> dict[str, Any]:
+def model_output_schema(
+    records: list[dict[str, Any]],
+    *,
+    pass_schema: str = ADJUDICATION_PASS_SCHEMA_V1,
+) -> dict[str, Any]:
     grouped: dict[tuple[str, ...], list[str]] = {}
     for record in records:
         decision_ids = tuple(record["decision_ids"])
@@ -139,8 +232,31 @@ def model_output_schema(records: list[dict[str, Any]]) -> dict[str, Any]:
                         },
                         "required": list(decision_ids),
                     },
+                    **(
+                        {
+                            "justifications": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    decision_id: justification_schema()
+                                    for decision_id in decision_ids
+                                },
+                                "required": list(decision_ids),
+                            }
+                        }
+                        if pass_schema == ADJUDICATION_PASS_SCHEMA_V2
+                        else {}
+                    ),
                 },
-                "required": ["case_id", "labels"],
+                "required": [
+                    "case_id",
+                    "labels",
+                    *(
+                        ["justifications"]
+                        if pass_schema == ADJUDICATION_PASS_SCHEMA_V2
+                        else []
+                    ),
+                ],
             }
         )
 
@@ -166,10 +282,9 @@ def model_output_schema(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def render_prompt(adjudicator_id: str) -> str:
-    template = (
-        repo_root() / "docker" / "adjudication" / "START_PROMPT.template.md"
-    ).read_text(encoding="utf-8")
+def render_prompt(adjudicator_id: str, *, study_id: str = STUDY_ID) -> str:
+    config = study_config(study_id)
+    template = (repo_root() / config["prompt_template"]).read_text(encoding="utf-8")
     return template.replace("{{ADJUDICATOR_ID}}", adjudicator_id)
 
 
@@ -179,6 +294,7 @@ def prepare_agent(
     view_path: Path,
     protocol_path: Path,
     adjudicator_id: str,
+    study_id: str = STUDY_ID,
 ) -> dict[str, Any]:
     input_dir = destination / "input"
     output_dir = destination / "output"
@@ -187,6 +303,7 @@ def prepare_agent(
     os.chmod(input_dir, stat.S_IRWXU)
     os.chmod(output_dir, stat.S_IRWXU)
 
+    config = study_config(study_id)
     view = read_json(view_path)
     records = expected_records(view)
     view_sha256 = sha256_file(view_path)
@@ -194,7 +311,7 @@ def prepare_agent(
     copy_private(view_path, input_dir / "oracle-view.json")
     copy_private(protocol_path, input_dir / "oracle-protocol.md")
     (input_dir / "START_PROMPT.md").write_text(
-        render_prompt(adjudicator_id), encoding="utf-8"
+        render_prompt(adjudicator_id, study_id=study_id), encoding="utf-8"
     )
     os.chmod(input_dir / "START_PROMPT.md", stat.S_IRUSR | stat.S_IWUSR)
 
@@ -206,20 +323,24 @@ def prepare_agent(
         "input_view_sha256": view_sha256,
         "adjudicator_id": adjudicator_id,
         "expected_records": records,
+        "adjudication_pass_schema": config["pass_schema"],
     }
-    if metadata["study_id"] != STUDY_ID:
+    if metadata["study_id"] != config["study_id"]:
         raise SystemExit(f"unexpected study_id in adjudication view: {metadata['study_id']!r}")
-    if metadata["dataset_version"] != DATASET_VERSION:
+    if metadata["dataset_version"] != config["dataset_version"]:
         raise SystemExit(
             f"unexpected dataset_version in adjudication view: {metadata['dataset_version']!r}"
         )
-    if metadata["protocol_version"] != PROTOCOL_VERSION:
+    if metadata["protocol_version"] != config["protocol_version"]:
         raise SystemExit(
             f"unexpected protocol_version in adjudication view: {metadata['protocol_version']!r}"
         )
 
     write_json(input_dir / "pass-metadata.json", metadata)
-    write_json(input_dir / "model-output.schema.json", model_output_schema(records))
+    write_json(
+        input_dir / "model-output.schema.json",
+        model_output_schema(records, pass_schema=config["pass_schema"]),
+    )
 
     return {
         "adjudicator_id": adjudicator_id,
@@ -232,6 +353,7 @@ def prepare_agent(
 
 
 def prepare_ab(args: argparse.Namespace) -> None:
+    config = study_config(args.study)
     root = args.root.resolve()
     comparative = args.comparative_eval_repo.resolve()
     if root.exists():
@@ -239,20 +361,10 @@ def prepare_ab(args: argparse.Namespace) -> None:
             raise SystemExit(f"adjudication root already exists: {root}")
         shutil.rmtree(root)
 
-    artifact_dir = (
-        comparative / "docs" / "studies" / "artifacts" / STUDY_ID
-    )
-    view_path = artifact_dir / "oracle-authoring-view.json"
-    manifest_path = artifact_dir / "oracle-authoring-view.manifest.json"
-    protocol_path = comparative / "docs" / "studies" / f"{STUDY_ID}-oracle-protocol.md"
-    corpus_path = (
-        comparative
-        / "src"
-        / "agent_workflow_comparative_eval"
-        / "resources"
-        / "studies"
-        / f"{STUDY_ID}.corpus.json"
-    )
+    view_path = comparative / config["view_source_path"]
+    manifest_path = view_path.with_name("oracle-authoring-view.manifest.json")
+    protocol_path = comparative / config["protocol_source_path"]
+    corpus_path = comparative / config["corpus_source_path"]
 
     for path in (view_path, manifest_path, protocol_path, corpus_path):
         if not path.is_file():
@@ -261,22 +373,24 @@ def prepare_ab(args: argparse.Namespace) -> None:
     manifest = read_json(manifest_path)
     view = read_json(view_path)
     actual_view_sha = sha256_file(view_path)
+    actual_protocol_sha = sha256_file(protocol_path)
     actual_corpus_sha = sha256_file(corpus_path)
 
-    if actual_view_sha != CANONICAL_VIEW_SHA256:
-        raise SystemExit(
-            f"canonical oracle view hash mismatch: expected {CANONICAL_VIEW_SHA256}, "
-            f"got {actual_view_sha}"
-        )
-    if actual_corpus_sha != CANONICAL_CORPUS_SHA256:
-        raise SystemExit(
-            f"canonical corpus hash mismatch: expected {CANONICAL_CORPUS_SHA256}, "
-            f"got {actual_corpus_sha}"
-        )
+    for label, observed, expected in (
+        ("oracle view", actual_view_sha, config["view_sha256"]),
+        ("oracle protocol", actual_protocol_sha, config["protocol_sha256"]),
+        ("routing corpus", actual_corpus_sha, config["corpus_sha256"]),
+    ):
+        if observed != expected:
+            raise SystemExit(
+                f"canonical {label} hash mismatch: expected {expected}, got {observed}"
+            )
     if manifest.get("oracle_authoring_view", {}).get("sha256") != actual_view_sha:
         raise SystemExit("oracle authoring manifest does not match the view bytes")
     if manifest.get("corpus", {}).get("sha256") != actual_corpus_sha:
         raise SystemExit("oracle authoring manifest does not match the corpus bytes")
+    if manifest.get("oracle_protocol", {}).get("sha256") != actual_protocol_sha:
+        raise SystemExit("oracle authoring manifest does not match the protocol bytes")
     if len(view.get("cases", [])) != 120:
         raise SystemExit("frozen oracle authoring view must contain exactly 120 cases")
 
@@ -293,12 +407,14 @@ def prepare_ab(args: argparse.Namespace) -> None:
             view_path=view_path,
             protocol_path=protocol_path,
             adjudicator_id=args.adjudicator_a,
+            study_id=args.study,
         ),
         prepare_agent(
             destination=root / "b",
             view_path=view_path,
             protocol_path=protocol_path,
             adjudicator_id=args.adjudicator_b,
+            study_id=args.study,
         ),
     ]
     if agents[0]["view_sha256"] != agents[1]["view_sha256"]:
@@ -306,9 +422,10 @@ def prepare_ab(args: argparse.Namespace) -> None:
 
     run_manifest = {
         "schema": "agent-workflow-benchmark/docker-oracle-adjudication-run/v1",
-        "study_id": STUDY_ID,
-        "dataset_version": DATASET_VERSION,
-        "protocol_version": PROTOCOL_VERSION,
+        "study_id": config["study_id"],
+        "dataset_version": config["dataset_version"],
+        "protocol_version": config["protocol_version"],
+        "adjudication_pass_schema": config["pass_schema"],
         "corpus_sha256": actual_corpus_sha,
         "oracle_authoring_view_sha256": actual_view_sha,
         "comparative_eval_repo": str(comparative),
@@ -326,12 +443,17 @@ def prepare_ab(args: argparse.Namespace) -> None:
 
 
 def prepare_c(args: argparse.Namespace) -> None:
+    config = study_config(args.study)
     root = args.root.resolve()
     dispute = args.dispute_view.resolve()
     if not dispute.is_file():
         raise SystemExit(f"C dispute view not found: {dispute}")
 
     view = read_json(dispute)
+    if view.get("study_id") != config["study_id"]:
+        raise SystemExit(
+            f"C dispute view belongs to {view.get('study_id')!r}, expected {config['study_id']!r}"
+        )
     cases = view.get("cases")
     if not isinstance(cases, list):
         raise SystemExit("C dispute view has no cases array")
@@ -356,6 +478,7 @@ def prepare_c(args: argparse.Namespace) -> None:
         view_path=dispute,
         protocol_path=protocol,
         adjudicator_id=args.adjudicator_c,
+        study_id=args.study,
     )
     result["requires_c"] = True
     result["disputed_cases"] = len(cases)
@@ -399,6 +522,7 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
 
     ab = commands.add_parser("prepare-ab")
+    ab.add_argument("--study", choices=sorted(SUPPORTED_STUDIES), default=STUDY_ID)
     ab.add_argument("--root", type=Path, default=root_default)
     ab.add_argument("--comparative-eval-repo", type=Path, default=comparative_default)
     ab.add_argument("--adjudicator-a", default="codex-a")
@@ -407,6 +531,7 @@ def parser() -> argparse.ArgumentParser:
     ab.set_defaults(func=prepare_ab)
 
     c = commands.add_parser("prepare-c")
+    c.add_argument("--study", choices=sorted(SUPPORTED_STUDIES), default=STUDY_ID)
     c.add_argument("--root", type=Path, default=root_default)
     c.add_argument(
         "--dispute-view",
