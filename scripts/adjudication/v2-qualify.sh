@@ -38,7 +38,10 @@ RUNTIME_LOCK="${V2_RUNTIME_LOCK:-$PRIVATE_ROOT/runtime-lock.json}"
 QUALIFICATION="${V2_QUALIFICATION:-$PRIVATE_ROOT/qualification.json}"
 RUN_LOG="$PRIVATE_ROOT/qualification-run.log"
 ATTEMPT_META="$PRIVATE_ROOT/attempt.json"
+INGRESS_CAPTURE="$PRIVATE_ROOT/codex-lb-ingress.jsonl"
+INGRESS_PROXY_LOG="$PRIVATE_ROOT/codex-lb-ingress-proxy.log"
 DIAGNOSE="$SCRIPT_DIR/v2-diagnose.py"
+INGRESS_PROXY="$SCRIPT_DIR/v2-codex-lb-ingress-capture.py"
 
 [[ -f "$MODULE" ]] || { echo "error: v2 Inspect module not found: $MODULE" >&2; exit 1; }
 
@@ -58,7 +61,7 @@ PY
 mkdir -p "$PRIVATE_ROOT"
 retry_root=""
 
-if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RUN_LOG" || -f "$ATTEMPT_META" ]]; then
+if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RUN_LOG" || -f "$ATTEMPT_META" || -f "$INGRESS_CAPTURE" || -f "$INGRESS_PROXY_LOG" ]]; then
   if [[ "${FORCE_V2_QUALIFICATION:-0}" != "1" ]]; then
     echo "error: v2 qualification evidence already exists; preserve it or set FORCE_V2_QUALIFICATION=1 for an archived retry" >&2
     echo "qualification: $QUALIFICATION" >&2
@@ -71,6 +74,8 @@ if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" || -f "$RU
   [[ ! -d "$PRIVATE_ROOT/inspect-qualification" ]] || mv "$PRIVATE_ROOT/inspect-qualification" "$retry_root/inspect-qualification"
   [[ ! -f "$RUN_LOG" ]] || mv "$RUN_LOG" "$retry_root/qualification-run.log"
   [[ ! -f "$ATTEMPT_META" ]] || mv "$ATTEMPT_META" "$retry_root/attempt.json"
+  [[ ! -f "$INGRESS_CAPTURE" ]] || mv "$INGRESS_CAPTURE" "$retry_root/codex-lb-ingress.jsonl"
+  [[ ! -f "$INGRESS_PROXY_LOG" ]] || mv "$INGRESS_PROXY_LOG" "$retry_root/codex-lb-ingress-proxy.log"
   echo "Archived prior qualification attempt: $retry_root"
 fi
 
@@ -116,7 +121,7 @@ if [[ "$runtime_lock_valid" != "1" ]]; then
 fi
 
 attempt_id="$(date -u +%Y%m%dT%H%M%SZ)"
-"$PYTHON" - "$ATTEMPT_META" "$attempt_id" "$MODEL" "${V2_LOG_MODEL_API:-0}" <<'PY'
+"$PYTHON" - "$ATTEMPT_META" "$attempt_id" "$MODEL" "${V2_LOG_MODEL_API:-0}" "${V2_CAPTURE_CODEX_LB_INGRESS:-0}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -126,10 +131,62 @@ record = {
     "attempt_id": sys.argv[2],
     "model": sys.argv[3],
     "log_model_api": sys.argv[4] == "1",
+    "capture_codex_lb_ingress": sys.argv[5] == "1",
     "status": "running",
 }
 path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
+
+capture_proxy_pid=""
+cleanup_capture_proxy() {
+  if [[ -n "$capture_proxy_pid" ]]; then
+    kill "$capture_proxy_pid" 2>/dev/null || true
+    wait "$capture_proxy_pid" 2>/dev/null || true
+    capture_proxy_pid=""
+  fi
+}
+trap cleanup_capture_proxy EXIT
+
+if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-0}" == "1" ]]; then
+  if [[ "$CODEX_LB_BASE_URL" != "http://127.0.0.1:2455/v1" ]]; then
+    echo "error: sanitized ingress capture currently requires CODEX_LB_BASE_URL=http://127.0.0.1:2455/v1" >&2
+    exit 1
+  fi
+  capture_port="${V2_CODEX_LB_CAPTURE_PORT:-2456}"
+  "$PYTHON" "$INGRESS_PROXY" \
+    --listen-host 127.0.0.1 \
+    --listen-port "$capture_port" \
+    --upstream http://127.0.0.1:2455 \
+    --output "$INGRESS_CAPTURE" \
+    >"$INGRESS_PROXY_LOG" 2>&1 &
+  capture_proxy_pid=$!
+
+  "$PYTHON" - "$capture_port" "$capture_proxy_pid" <<'PY'
+import os
+import socket
+import sys
+import time
+
+port = int(sys.argv[1])
+pid = int(sys.argv[2])
+deadline = time.monotonic() + 10
+while time.monotonic() < deadline:
+    try:
+        os.kill(pid, 0)
+    except OSError as exc:
+        raise SystemExit(f"Codex-LB ingress capture proxy exited before readiness: {exc}")
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            break
+    except OSError:
+        time.sleep(0.1)
+else:
+    raise SystemExit("timed out waiting for Codex-LB ingress capture proxy")
+PY
+
+  export CODEX_LB_BASE_URL="http://127.0.0.1:$capture_port/v1"
+  echo "Codex-LB ingress capture: enabled (sanitized private artifact)"
+fi
 
 qualify_args=()
 if [[ "${V2_LOG_MODEL_API:-0}" == "1" ]]; then
