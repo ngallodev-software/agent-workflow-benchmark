@@ -69,7 +69,7 @@ def main() -> int:
 
     try:
         inspect_swe.codex_cli(
-            output_schema={"type": "string", "enum": [{"not": {"json"}}]}
+            output_schema={"type": "string", "enum": [{"not-json"}]}
         )
     except ValueError as exc:
         assert "JSON serializable" in str(exc)
