@@ -45,6 +45,9 @@ RUNTIME_LOCK_SCHEMA = "agent-workflow-benchmark/adjudication-runtime-lock/v1"
 INSPECT_QUALIFICATION_SCHEMA = (
     "agent-workflow-benchmark/inspect-adjudication-qualification/v1"
 )
+INSPECT_QUALIFICATION_SCHEMA_V2 = (
+    "agent-workflow-benchmark/inspect-adjudication-qualification/v2"
+)
 V2_ADJUDICATION_MODEL = "openai-api/codex-lb/deepseek-flash"
 V2_ADJUDICATION_MODEL_ARGS = {"responses_api": True}
 
@@ -299,9 +302,15 @@ def _require_passing_qualification(
             "real Inspect adjudication requires a passing P0A qualification manifest"
         )
     value = _read_json(Path(qualification_path))
+    study_id = str(module.get("task", {}).get("study_id") or "")
+    qualification_schema = (
+        INSPECT_QUALIFICATION_SCHEMA_V2
+        if study_id == "routing-semantic-v2"
+        else INSPECT_QUALIFICATION_SCHEMA
+    )
     validate_instance(
         value,
-        INSPECT_QUALIFICATION_SCHEMA,
+        qualification_schema,
         artifact=str(qualification_path),
     )
     if value.get("qualified") is not True:
@@ -1225,8 +1234,12 @@ test -x "$root/dst/codex"
     return safe_report
 
 
-def _deterministic_output_for_view(view_path: Path) -> dict[str, Any]:
-    view, expected, _ = _load_view(view_path, study="routing-semantic-v1")
+def _deterministic_output_for_view(
+    view_path: Path,
+    *,
+    study: str = "routing-semantic-v1",
+) -> dict[str, Any]:
+    view, expected, _ = _load_view(view_path, study=study)
     del view
     records: list[dict[str, Any]] = []
     defaults: dict[str, Any] = {
@@ -1235,15 +1248,27 @@ def _deterministic_output_for_view(view_path: Path) -> dict[str, Any]:
         "routing.semantic_risk": 0,
     }
     for case_id, decision_ids in expected.items():
-        records.append(
-            {
-                "case_id": case_id,
-                "labels": {
-                    decision_id: defaults[decision_id]
-                    for decision_id in sorted(decision_ids)
-                },
+        record: dict[str, Any] = {
+            "case_id": case_id,
+            "labels": {
+                decision_id: defaults[decision_id]
+                for decision_id in sorted(decision_ids)
+            },
+        }
+        if _adjudication_pass_schema(_study_spec(study)) == ADJUDICATION_PASS_SCHEMA_V2:
+            record["justifications"] = {
+                decision_id: {
+                    "decisive_case_evidence": [
+                        "Synthetic wrapper-parity fixture for qualification only."
+                    ],
+                    "rubric_rule": (
+                        "Use the frozen decision schema while validating wrapper parity."
+                    ),
+                    "ambiguity": "none",
+                }
+                for decision_id in sorted(decision_ids)
             }
-        )
+        records.append(record)
     return {"records": records}
 
 
@@ -1262,6 +1287,7 @@ def _direct_wrapper_parity(
     runtime_lock_path: Path,
     view_path: Path,
     output_root: Path,
+    study: str = "routing-semantic-v1",
 ) -> dict[str, Any]:
     module = validate_abc_adjudication_module(module_path)
     runtime_lock = _load_runtime_lock(runtime_lock_path, module)
@@ -1304,14 +1330,15 @@ def _direct_wrapper_parity(
 
     view, expected, view_sha256 = _load_view(
         view_path,
-        study="routing-semantic-v1",
+        study=study,
     )
     metadata_record = {
         "study_id": view["study_id"],
         "dataset_version": view["dataset_version"],
-        "protocol_version": _study_spec("routing-semantic-v1")["oracle_policy"][
+        "protocol_version": _study_spec(study)["oracle_policy"][
             "protocol_version"
         ],
+        "adjudication_pass_schema": _adjudication_pass_schema(_study_spec(study)),
         "input_view_sha256": view_sha256,
         "adjudicator_id": "qualification-direct",
         "expected_records": [
@@ -1322,7 +1349,7 @@ def _direct_wrapper_parity(
             for case_id, decision_ids in expected.items()
         ],
     }
-    deterministic_output = _deterministic_output_for_view(view_path)
+    deterministic_output = _deterministic_output_for_view(view_path, study=study)
     atomic_write_json(input_dir / "pass-metadata.json", metadata_record)
     atomic_write_json(output_dir / "model-output.json", deterministic_output)
 
@@ -1362,7 +1389,7 @@ def _direct_wrapper_parity(
         view_path,
         deterministic_output,
         adjudicator_id="qualification-direct",
-        study="routing-semantic-v1",
+        study=study,
     )
     direct_normalized = copy.deepcopy(direct_contract)
     inspect_normalized = copy.deepcopy(inspect_contract)
@@ -1391,6 +1418,7 @@ def _forced_disagreement_passes(
     view_path: Path,
     primary_manifest: Mapping[str, Any],
     output_root: Path,
+    study: str = "routing-semantic-v1",
 ) -> tuple[Path, Path]:
     a_source = Path(primary_manifest["outputs"]["A"]["path"])
     a = _read_json(a_source)
@@ -1412,8 +1440,8 @@ def _forced_disagreement_passes(
     b_path = forced_root / "adjudication-b.json"
     atomic_write_json(a_path, forced_a)
     atomic_write_json(b_path, forced_b)
-    validate_adjudication_pass(view_path, a_path, study="routing-semantic-v1")
-    validate_adjudication_pass(view_path, b_path, study="routing-semantic-v1")
+    validate_adjudication_pass(view_path, a_path, study=study)
+    validate_adjudication_pass(view_path, b_path, study=study)
     return a_path, b_path
 
 
