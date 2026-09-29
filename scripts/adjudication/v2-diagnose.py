@@ -265,6 +265,26 @@ def _collect(attempt: str, root: Path) -> dict[str, Any]:
     if not evidence_root.is_dir():
         return result
 
+    schema_artifacts: list[dict[str, Any]] = []
+    for path in sorted(evidence_root.rglob("codex-output-schema.json")):
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            summary = _schema_summary(value)
+            schema_artifacts.append(
+                {
+                    "path": str(path.relative_to(root)),
+                    **summary,
+                }
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            schema_artifacts.append(
+                {
+                    "path": str(path.relative_to(root)),
+                    "read_error": str(exc),
+                }
+            )
+    result["schema_artifacts"] = schema_artifacts
+
     logs = sorted(evidence_root.rglob("*.eval"), key=lambda p: p.stat().st_mtime)
     for path in logs:
         try:
@@ -306,6 +326,29 @@ def _print_text(result: Mapping[str, Any]) -> None:
         if runlog["exists"]
         else "absent",
     )
+    artifacts = result.get("schema_artifacts") or []
+    print(f"schema_artifacts: {len(artifacts)}")
+    for artifact in artifacts:
+        print(f"  schema_artifact: {artifact['path']}")
+        if "read_error" in artifact:
+            print(f"    read_error: {artifact['read_error']}")
+            continue
+        print(
+            "    schema:"
+            f" sha256={artifact['sha256']}"
+            f" empty_nodes={len(artifact['empty_schema_paths'])}"
+            f" unsupported={len(artifact['unsupported_keyword_paths'])}"
+        )
+        if artifact["empty_schema_paths"]:
+            print("      empty_schema_paths:", artifact["empty_schema_paths"])
+        if artifact["unsupported_keyword_paths"]:
+            print(
+                "      unsupported_keyword_paths:",
+                artifact["unsupported_keyword_paths"],
+            )
+        if artifact["case_id_schemas"]:
+            print("      case_id_schemas:", artifact["case_id_schemas"])
+
     print(f"eval_logs: {len(result['eval_logs'])}")
 
     for log in result["eval_logs"]:
