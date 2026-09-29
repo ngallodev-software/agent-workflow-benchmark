@@ -85,6 +85,32 @@
     },
     "frozen_for_cohort": {
       "const": true
+    },
+    "structured_output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "codex-output-schema"
+        },
+        "capability": {
+          "const": "agent-workflow-benchmark/inspect-swe-codex-output-schema/v1"
+        },
+        "inspect_swe_source_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "upstream_git_blob_sha1": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "required": [
+        "mode",
+        "capability",
+        "inspect_swe_source_sha256",
+        "upstream_git_blob_sha1"
+      ]
     }
   },
   "required": [
