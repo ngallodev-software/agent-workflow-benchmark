@@ -21,6 +21,12 @@ MODULE = (
     / "abc-adjudication"
     / "routing-semantic-v1.inspect.module.json"
 )
+V2_MODULE = (
+    ROOT
+    / "modules"
+    / "abc-adjudication"
+    / "routing-semantic-v2.inspect.module.json"
+)
 
 
 def _authoring_view(tmp_path: Path) -> Path:
@@ -62,6 +68,19 @@ def test_inspect_module_v2_validates_and_uses_cohort_latest_policy():
     assert value["runtime"]["network"]["sandbox_network"] == "none"
     assert value["runtime"]["network"]["provider_credentials_location"] == "host-only"
     assert value["credentials"]["secrets_in_sandbox"] is False
+
+
+def test_validated_module_study_id_uses_flat_validator_summary():
+    validated = validate_abc_adjudication_module(V2_MODULE)
+
+    assert validated["study_id"] == "routing-semantic-v2"
+    assert "task" not in validated
+    assert inspect_runtime._validated_module_study_id(validated) == "routing-semantic-v2"
+
+
+def test_validated_module_study_id_fails_closed_when_identity_missing():
+    with pytest.raises(WorkflowError, match="unsupported Inspect qualification study: empty"):
+        inspect_runtime._validated_module_study_id({})
 
 
 def test_version_key_orders_moving_codex_releases():
