@@ -21,6 +21,11 @@ import agent_workflow_comparative_eval as comparative
 from agent_workflow.errors import WorkflowError
 from agent_workflow.util import atomic_write_json, sha256_file
 
+from agent_workflow_benchmark.compat.inspect_swe_output_schema import (
+    CAPABILITY_ID as INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+    assert_runtime_capability as assert_inspect_swe_output_schema_capability,
+)
+
 from .adjudication_module import validate_abc_adjudication_module
 from .schema_contracts import validate_instance
 from .resolution_review import render_resolution_review
@@ -39,7 +44,7 @@ from .oracle_adjudication import (
 )
 
 INSPECT_AI_VERSION = "0.3.268"
-INSPECT_SWE_VERSION = "0.2.70"
+INSPECT_SWE_VERSION = "0.2.71"
 CODEX_VERSION_POLICY = "latest-at-cohort-start"
 RUNTIME_LOCK_SCHEMA = "agent-workflow-benchmark/adjudication-runtime-lock/v1"
 INSPECT_QUALIFICATION_SCHEMA = (
