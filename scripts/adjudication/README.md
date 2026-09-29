@@ -34,7 +34,7 @@ bash scripts/adjudication/v2-qualify.sh
 
 The runner:
 
-1. requires benchmark `0.6.0` and comparative-eval `0.3.1`;
+1. requires benchmark `0.6.4` and comparative-eval `0.3.1`;
 2. uses `routing-semantic-v2.inspect.module.json`, whose authoring-view, protocol,
    and corpus inputs are hash-pinned;
 3. creates the v2 runtime lock once and reuses it on qualification retries;
@@ -43,6 +43,11 @@ The runner:
    frozen `routing-semantic-oracle-v2.0.0` protocol, and DeepSeek model identity;
 6. emits one `inspect-adjudication-qualification/v2` artifact that can report
    `qualified=true` only when all eleven gates pass.
+
+The 0.6.4 qualification also binds IA-1 evidence to
+`v2_output_schema_strategy=eligibility-grouped-case-enum/v1`. This prevents a
+passing qualification produced by the earlier per-case schema generator from
+authorizing the real cohort after the grouped-schema scale hardening.
 
 The expected terminal boundary is:
 
@@ -132,7 +137,7 @@ bash scripts/adjudication/v2-oracle.sh verify
 
 The verifier requires:
 
-- Agent-Workflow `0.11.12`, benchmark `0.6.3`, and comparative-eval `0.3.1`;
+- Agent-Workflow `0.11.12`, benchmark `0.6.4`, and comparative-eval `0.3.1`;
 - no tracked or staged changes in the benchmark or comparative-eval checkouts;
 - installed benchmark adjudication/compat source files to byte-match the benchmark checkout;
 - installed v2 comparative study/corpus resources to byte-match the comparative-eval checkout;
