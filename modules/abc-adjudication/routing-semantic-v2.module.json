@@ -6,7 +6,7 @@
     "study_id": "routing-semantic-v2",
     "dataset_version": "routing-semantic-corpus-v2.0.0",
     "protocol_version": "routing-semantic-oracle-v2.0.0",
-    "description": "Provide the direct-Docker reference executor for the frozen routing-semantic-v2 oracle contract."
+    "description": "Produce the frozen routing-semantic-v2 methodological-replication oracle using isolated A/B/C adjudicators with structured decision evidence."
   },
   "runtime": {
     "kind": "oci-docker",
