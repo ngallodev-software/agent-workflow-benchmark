@@ -2,6 +2,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 V2_ORACLE = ROOT / "scripts" / "adjudication" / "v2-oracle.sh"
+V2_INGRESS_VERIFY = ROOT / "scripts" / "adjudication" / "v2-verify-ingress.py"
 P0B_PREPARE = ROOT / "scripts" / "adjudication" / "p0b-prepare-resolutions.sh"
 
 
@@ -15,9 +16,10 @@ def test_v2_oracle_driver_is_versioned_and_fail_closed():
     assert text.count('--study "$STUDY"') >= 4
     assert 'V2_CAPTURE_CODEX_LB_INGRESS:-1' in text
     assert 'V2_CAPTURE_OVERRIDE_REASON' in text
-    assert 'fmt.get("type") != "json_schema"' in text
-    assert 'fmt.get("strict") is not True' in text
-    assert 'schema_sha256' in text
+    ingress_text = V2_INGRESS_VERIFY.read_text(encoding="utf-8")
+    assert 'fmt.get("type") != "json_schema"' in ingress_text
+    assert 'fmt.get("strict") is not True' in ingress_text
+    assert 'schema_sha256' in ingress_text
     assert 'do not retry this real cohort in place' in text
     assert 'validate-ab' in text
     assert 'validate-c' in text
