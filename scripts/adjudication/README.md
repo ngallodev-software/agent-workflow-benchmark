@@ -74,20 +74,30 @@ is written to the private qualification root as `qualification-run.log` rather
 than streamed to stdout. On a forced retry that log is archived beside the
 corresponding `inspect-qualification` directory and any qualification manifest.
 
-For structured-output transport diagnosis, prefer the sanitized Codex-LB ingress
-capture. It forwards each request body byte-for-byte to the already-running local
-Codex-LB but records only method/path/model plus the structured-output format
-controls and a canonical schema SHA-256. It never records prompts, input/messages,
-tool arguments, header values, model responses, or full schemas:
+Sanitized Codex-LB ingress capture is enabled by default for v2
+qualification because it is part of the authorization evidence for the real
+cohort, not merely an optional diagnostic. The loopback observer forwards each
+request body byte-for-byte to the already-running local Codex-LB but records only
+method/path/model plus the structured-output format controls and a canonical
+schema SHA-256. It never records prompts, input/messages, tool arguments, header
+values, model responses, or full schemas.
+
+On a passing qualification, the repository-owned
+`v2-verify-ingress.py` verifier requires every captured DeepSeek
+`POST /v1/responses` request to use `json_schema` with `strict=true`, rejects
+schema hashes that do not match a persisted `codex-output-schema.json`, and
+requires every persisted primary/C qualification schema to have been observed at
+ingress. The private capture is `codex-lb-ingress.jsonl`.
+
+Capture can still be disabled for a deliberately non-authorizing diagnostic run:
 
 ~~~bash
-V2_CAPTURE_CODEX_LB_INGRESS=1 FORCE_V2_QUALIFICATION=1 \
+V2_CAPTURE_CODEX_LB_INGRESS=0 FORCE_V2_QUALIFICATION=1 \
   bash scripts/adjudication/v2-qualify.sh
 ~~~
 
-The private capture is `codex-lb-ingress.jsonl`; the diagnostic compares its
-schema hashes against the persisted primary and C `codex-output-schema.json`
-artifacts and labels matching requests as `primary` or `C`.
+Such a qualification is retained as evidence if otherwise successful, but
+`v2-oracle.sh verify` rejects it as authority for real A/B/C.
 
 Raw Inspect model-API logging remains available when specifically needed and is
 still captured only in the private run log:
@@ -144,6 +154,10 @@ The verifier requires:
 - `qualified=true`;
 - IA-1 through IA-11 all `pass`;
 - the qualification module/runtime-lock hashes to match the supplied files;
+- the matching `attempt.json` to record sanitized ingress capture as enabled and
+  command-complete;
+- the qualification ingress capture to pass strict schema verification against
+  every persisted primary/C qualification schema;
 - model `openai-api/codex-lb/deepseek-flash`;
 - the real v2 authoring view, oracle protocol, and corpus SHA-256 values to
   match the frozen module.
@@ -162,8 +176,9 @@ bash scripts/adjudication/v2-oracle.sh run-ab
 
 Before the first provider call the driver writes immutable private
 `run-identity.json` evidence binding the cohort to the benchmark/comparative
-Git heads, package versions, runtime-lock bytes, qualification bytes and
-qualification attempt id, module bytes, and frozen view/protocol/corpus hashes.
+Git heads, package versions, runtime-lock bytes, qualification bytes,
+qualification-attempt bytes/id, qualification-ingress bytes, module bytes, and
+frozen view/protocol/corpus hashes.
 
 The model-stage console stays compact. Full Inspect/Codex output is retained
 under the private v2 oracle log root. By default the driver also places the
