@@ -146,7 +146,6 @@ def handle_benchmark_command(
             args.destination,
             model=args.model,
             model_args=model_args,
-            evidence_preflight_path=args.evidence_preflight,
             log_model_api=bool(args.log_model_api),
             force=args.force,
         )
