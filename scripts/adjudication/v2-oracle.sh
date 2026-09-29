@@ -427,7 +427,7 @@ comp_repo = Path(sys.argv[2]).resolve()
 
 expected = {
     "agent-workflow": "0.11.12",
-    "agent-workflow-benchmark": "0.6.3",
+    "agent-workflow-benchmark": "0.6.4",
     "agent-workflow-comparative-eval": "0.3.1",
 }
 for name, wanted in expected.items():
@@ -543,6 +543,18 @@ model = (
 if model != expected_model:
     raise SystemExit(
         f"qualification model mismatch: observed={model!r}, expected={expected_model!r}"
+    )
+
+ia1 = gates.get("IA-1", {}).get("evidence", {})
+if ia1.get("agent_workflow_benchmark_version") != "0.6.4":
+    raise SystemExit(
+        "qualification benchmark version mismatch: "
+        f"{ia1.get('agent_workflow_benchmark_version')!r}"
+    )
+if ia1.get("v2_output_schema_strategy") != "eligibility-grouped-case-enum/v1":
+    raise SystemExit(
+        "qualification output-schema strategy mismatch: "
+        f"{ia1.get('v2_output_schema_strategy')!r}"
     )
 
 print("qualification: PASS")
