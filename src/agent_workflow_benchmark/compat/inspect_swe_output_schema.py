@@ -13,6 +13,8 @@ INSPECT_SWE_VERSION = "0.2.71"
 UPSTREAM_CODEX_CLI_GIT_BLOB_SHA1 = "a5c5f21207d2fee496b8ef775c07757e2c524725"
 CAPABILITY_ID = "agent-workflow-benchmark/inspect-swe-codex-output-schema/v2"
 PATCH_MARKER = f'AW_CODEX_OUTPUT_SCHEMA_COMPAT = "{CAPABILITY_ID}"'
+LEGACY_CAPABILITY_ID = "agent-workflow-benchmark/inspect-swe-codex-output-schema/v1"
+LEGACY_PATCH_MARKER = f'AW_CODEX_OUTPUT_SCHEMA_COMPAT = "{LEGACY_CAPABILITY_ID}"'
 
 _ANNOTATIVE_SCHEMA_KEYWORDS = frozenset(
     {"title", "$schema", "$id", "$comment", "deprecated", "readOnly", "writeOnly"}
@@ -135,6 +137,13 @@ def prepare_output_schema(output_schema: object) -> str | None:
 def patch_source_text(text: str) -> str:
     if PATCH_MARKER in text:
         return text
+    if LEGACY_PATCH_MARKER in text:
+        raise InspectSweOutputSchemaPatchError(
+            "legacy Inspect-SWE output-schema capability v1 is installed; "
+            "restore pristine inspect-swe 0.2.71 bytes (for example with "
+            "`python -m pip install --force-reinstall --no-deps inspect-swe==0.2.71`) "
+            "before applying capability v2"
+        )
 
     observed_blob = _git_blob_sha1(text.encode("utf-8"))
     if observed_blob != UPSTREAM_CODEX_CLI_GIT_BLOB_SHA1:
