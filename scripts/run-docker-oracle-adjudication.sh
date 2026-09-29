@@ -3,13 +3,36 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HELPER="${REPO_ROOT}/scripts/prepare-docker-oracle-adjudication.py"
-ROOT="${ADJUDICATION_ROOT:-${REPO_ROOT}/.adjudication/routing-semantic-v1}"
+STUDY_ID="${ADJUDICATION_STUDY:-routing-semantic-v1}"
+
+case "$STUDY_ID" in
+    routing-semantic-v1)
+        DEFAULT_ROOT="${REPO_ROOT}/.adjudication/routing-semantic-v1"
+        DEFAULT_ORACLE_VERSION="routing-semantic-oracle-v1.0.0"
+        ADJUDICATOR_A="codex-a"
+        ADJUDICATOR_B="codex-b"
+        ADJUDICATOR_C="codex-c"
+        ;;
+    routing-semantic-v2)
+        DEFAULT_ROOT="${REPO_ROOT}/.adjudication/routing-semantic-v2"
+        DEFAULT_ORACLE_VERSION="routing-semantic-oracle-v2.0.0"
+        ADJUDICATOR_A="codex-v2-a"
+        ADJUDICATOR_B="codex-v2-b"
+        ADJUDICATOR_C="codex-v2-c"
+        ;;
+    *)
+        echo "error: unsupported ADJUDICATION_STUDY=$STUDY_ID" >&2
+        exit 1
+        ;;
+esac
+
+ROOT="${ADJUDICATION_ROOT:-$DEFAULT_ROOT}"
 COMPARATIVE_EVAL_REPO="${COMPARATIVE_EVAL_REPO:-${REPO_ROOT}/../agent-workflow-comparative-eval}"
 IMAGE="${ADJUDICATION_IMAGE:-agent-workflow-oracle-adjudicator:local}"
 CODEX_VERSION="${CODEX_VERSION:-latest}"
 DOCKER_NETWORK="${ADJUDICATION_DOCKER_NETWORK:-bridge}"
 PYTHON="${PYTHON:-python3}"
-ORACLE_VERSION="${ORACLE_VERSION:-routing-semantic-oracle-v1.0.0}"
+ORACLE_VERSION="${ORACLE_VERSION:-$DEFAULT_ORACLE_VERSION}"
 
 if [[ -n "${AGENT_WORKFLOW_BIN:-}" ]]; then
     AW="${AGENT_WORKFLOW_BIN}"
@@ -37,6 +60,7 @@ Environment:
   AGENT_WORKFLOW_VENV=/path/to/shared/venv       # optional
   AGENT_WORKFLOW_BIN=/path/to/agent-workflow     # optional
   COMPARATIVE_EVAL_REPO=/path/to/agent-workflow-comparative-eval
+  ADJUDICATION_STUDY=routing-semantic-v1        # or routing-semantic-v2
   ADJUDICATION_ROOT=/private/runtime/path
   CODEX_VERSION=latest                          # resolve current CLI when the cohort image is built
   ADJUDICATION_IMAGE=agent-workflow-oracle-adjudicator:local
@@ -159,6 +183,7 @@ prepare_ab() {
         force=(--force)
     fi
     "${PYTHON}" "${HELPER}" prepare-ab \
+        --study "${STUDY_ID}" \
         --root "${ROOT}" \
         --comparative-eval-repo "${COMPARATIVE_EVAL_REPO}" \
         "${force[@]}"
@@ -171,9 +196,9 @@ run_ab() {
 
     echo "starting independent adjudicators A and B in separate containers"
     set +e
-    run_agent a codex-a >"${ROOT}/a/container.log" 2>&1 &
+    run_agent a "${ADJUDICATOR_A}" >"${ROOT}/a/container.log" 2>&1 &
     local pid_a=$!
-    run_agent b codex-b >"${ROOT}/b/container.log" 2>&1 &
+    run_agent b "${ADJUDICATOR_B}" >"${ROOT}/b/container.log" 2>&1 &
     local pid_b=$!
 
     wait "${pid_a}"
@@ -191,10 +216,12 @@ run_ab() {
     "${AW}" benchmark decision-study-adjudication-validate \
         "${ROOT}/coordinator/oracle-authoring-view.json" \
         "${ROOT}/a/output/adjudication.json" \
+        --study "${STUDY_ID}" \
         > "${ROOT}/coordinator/validation-a.json"
     "${AW}" benchmark decision-study-adjudication-validate \
         "${ROOT}/coordinator/oracle-authoring-view.json" \
         "${ROOT}/b/output/adjudication.json" \
+        --study "${STUDY_ID}" \
         > "${ROOT}/coordinator/validation-b.json"
 
     echo "A/B completed and validated independently."
@@ -213,9 +240,11 @@ compare_ab() {
         "${ROOT}/a/output/adjudication.json" \
         "${ROOT}/b/output/adjudication.json" \
         "${dispute}" \
+        --study "${STUDY_ID}" \
         > "${ROOT}/coordinator/dispute-summary.json"
 
     "${PYTHON}" "${HELPER}" prepare-c \
+        --study "${STUDY_ID}" \
         --root "${ROOT}" \
         --dispute-view "${dispute}" \
         > "${ROOT}/coordinator/c-preparation.json"
@@ -244,10 +273,11 @@ run_c() {
         return 0
     fi
 
-    run_agent c codex-c >"${ROOT}/c/container.log" 2>&1
+    run_agent c "${ADJUDICATOR_C}" >"${ROOT}/c/container.log" 2>&1
     "${AW}" benchmark decision-study-adjudication-validate \
         "${dispute}" \
         "${ROOT}/c/output/adjudication.json" \
+        --study "${STUDY_ID}" \
         > "${ROOT}/coordinator/validation-c.json"
     echo "C completed and validated against the blinded dispute-only view."
 }
@@ -270,6 +300,7 @@ freeze_oracle() {
         benchmark decision-study-oracle-freeze
         "${view}" "${a}" "${b}" "${oracle}"
         --oracle-version "${ORACLE_VERSION}"
+        --study "${STUDY_ID}"
     )
 
     if [[ -f "${dispute}" ]]; then
@@ -287,7 +318,7 @@ freeze_oracle() {
     fi
 
     "${AW}" "${args[@]}" > "${ROOT}/coordinator/freeze-result.json"
-    "${AW}" benchmark decision-study-validate "${corpus}" --oracle "${oracle}" \
+    "${AW}" benchmark decision-study-validate "${corpus}" --oracle "${oracle}" --study "${STUDY_ID}" \
         > "${ROOT}/coordinator/final-validation.json"
 
     echo "frozen oracle: ${oracle}"
@@ -295,6 +326,7 @@ freeze_oracle() {
 }
 
 status() {
+    echo "study: ${STUDY_ID}"
     echo "root: ${ROOT}"
     for slot in a b c; do
         if [[ -f "${ROOT}/${slot}/output/adjudication.json" ]]; then
