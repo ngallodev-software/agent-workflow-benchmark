@@ -1,6 +1,6 @@
 # Inspect oracle adjudication scripts
 
-These scripts make the `routing-semantic-v1` P0A/P0B oracle procedure reproducible without copying command blocks from the operator guide.
+These scripts preserve the historical `routing-semantic-v1` P0A/P0B oracle procedure and provide the separately versioned `routing-semantic-v2` full qualification entrypoint.
 
 ## Layout
 
@@ -18,6 +18,55 @@ These scripts make the `routing-semantic-v1` P0A/P0B oracle procedure reproducib
 - `p0b-freeze.sh` — prepare/check three-way resolutions when needed, then freeze the oracle.
 - `p0b-validate-oracle.sh` — validate the final oracle against the frozen corpus.
 - `run-all.sh` — end-to-end driver. It creates P0A when missing, retries an incomplete/invalid P0A after archiving it, and verifies/preserves an existing passing qualification.
+- `v2-qualify.sh` — freeze/reuse the routing-semantic-v2 runtime lock and run the complete frozen-protocol IA-1 through IA-11 qualification without starting the real 120-case cohort.
+
+## routing-semantic-v2 full qualification
+
+The successful development preflight is the gate that permits freezing the real-v2
+study/dataset/protocol/module identities. It is not reused as the final qualification
+evidence because it predates those frozen identities.
+
+After the v2 identities and module pair are frozen, run:
+
+~~~bash
+bash scripts/adjudication/v2-qualify.sh
+~~~
+
+The runner:
+
+1. requires benchmark `0.6.0` and comparative-eval `0.3.1`;
+2. uses `routing-semantic-v2.inspect.module.json`, whose authoring-view, protocol,
+   and corpus inputs are hash-pinned;
+3. creates the v2 runtime lock once and reuses it on qualification retries;
+4. runs IA-1 through IA-8 under that locked runtime;
+5. reruns the IA-9/10/11 evidence preflight under the same locked Codex version,
+   frozen `routing-semantic-oracle-v2.0.0` protocol, and DeepSeek model identity;
+6. emits one `inspect-adjudication-qualification/v2` artifact that can report
+   `qualified=true` only when all eleven gates pass.
+
+The expected terminal boundary is:
+
+~~~text
+routing-semantic-v2 full qualification: PASS
+IA-1 pass
+...
+IA-11 pass
+qualified: True
+~~~
+
+This still does **not** start real A/B/C adjudication. Inspect the generated runtime
+lock and qualification artifact before authorizing the 120-case cohort.
+
+A failed attempt is preserved. To archive its generated qualification evidence and
+retry against the same runtime lock:
+
+~~~bash
+FORCE_V2_QUALIFICATION=1 bash scripts/adjudication/v2-qualify.sh
+~~~
+
+The earlier standalone `routing-semantic-v2-preflight/preflight.json` remains
+historical development evidence; the full qualifier deliberately produces fresh
+IA-9/10/11 evidence under the final frozen identities.
 
 ## Model selection
 
