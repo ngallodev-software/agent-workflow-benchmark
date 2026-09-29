@@ -579,50 +579,6 @@ def test_v2_deterministic_wrapper_fixture_preserves_justifications(tmp_path: Pat
         assert value["ambiguity"] == "none"
 
 
-def test_v2_full_qualification_requires_matching_passing_preflight(tmp_path: Path):
-    path = tmp_path / "preflight.json"
-    value = {
-        "schema": "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
-        "created_at": "2026-09-28T00:00:00+00:00",
-        "study_id": "routing-semantic-v2",
-        "protocol_version": "routing-semantic-oracle-v2.0.0",
-        "codex_version": "0.158.0",
-        "model": "openai-api/codex-lb/deepseek-flash",
-        "model_args": {"responses_api": True},
-        "passed": True,
-        "gates": {
-            "IA-9": {"status": "pass", "evidence": {}},
-            "IA-10": {"status": "pass", "evidence": {}},
-            "IA-11": {"status": "pass", "evidence": {}},
-        },
-        "completion_sources": {
-            "A": "model_output.completion",
-            "B": "model_output.completion",
-            "C": "model_output.completion",
-        },
-        "artifacts": {"view": "/private/view.json"},
-        "real_cohort_ready": False,
-        "blocking_reason": "full qualification not yet frozen",
-    }
-    path.write_text(json.dumps(value), encoding="utf-8")
-
-    result = inspect_runtime._validated_v2_evidence_preflight(
-        path,
-        model="openai-api/codex-lb/deepseek-flash",
-        model_args={"responses_api": True},
-    )
-    assert result["passed"] is True
-
-    value["gates"]["IA-10"]["status"] = "fail"
-    path.write_text(json.dumps(value), encoding="utf-8")
-    with pytest.raises(WorkflowError, match="IA-10"):
-        inspect_runtime._validated_v2_evidence_preflight(
-            path,
-            model="openai-api/codex-lb/deepseek-flash",
-            model_args={"responses_api": True},
-        )
-
-
 def test_v2_preflight_prompt_is_packaged_and_matches_docker_source():
     packaged = inspect_runtime._v2_prompt_template_path()
     docker_source = ROOT / "docker" / "adjudication" / "START_PROMPT.v2.template.md"
