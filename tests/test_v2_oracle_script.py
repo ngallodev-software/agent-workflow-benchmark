@@ -30,6 +30,10 @@ def test_v2_oracle_driver_is_versioned_and_fail_closed():
     assert '"agent-workflow": "0.11.12"' in text
     assert '"agent-workflow-benchmark": "0.6.4"' in text
     assert "eligibility-grouped-case-enum/v1" in text
+    assert "module_summary = validate_abc_adjudication_module(module_path)" in text
+    assert 'module = json.loads(module_path.read_text(encoding="utf-8"))' in text
+    assert "for item in required_files" in text
+    assert "for item in module.get(\"required_files\", [])" not in text
     assert "routing-semantic-v1" not in text
 
 
