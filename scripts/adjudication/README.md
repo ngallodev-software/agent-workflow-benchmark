@@ -115,6 +115,96 @@ The earlier standalone `routing-semantic-v2-preflight/preflight.json` remains
 historical development evidence; the full qualifier deliberately produces fresh
 IA-9/10/11 evidence under the final frozen identities.
 
+## routing-semantic-v2 real oracle cohort
+
+After `v2-qualify.sh` produces a passing
+`inspect-adjudication-qualification/v2` manifest, use the dedicated v2 driver.
+Do not reuse the historical `p0b-*` entrypoints for v2: those remain the
+versioned v1 workflow and their defaults intentionally target
+`routing-semantic-v1`.
+
+First verify the private qualification and exact frozen inputs without making a
+model call:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh verify
+~~~
+
+The verifier requires:
+
+- benchmark `0.6.3` and comparative-eval `0.3.1`;
+- `qualified=true`;
+- IA-1 through IA-11 all `pass`;
+- the qualification module/runtime-lock hashes to match the supplied files;
+- model `openai-api/codex-lb/deepseek-flash`;
+- the real v2 authoring view, oracle protocol, and corpus SHA-256 values to
+  match the frozen module.
+
+The default private real-cohort root is:
+
+~~~text
+~/.local/share/agent-workflow/routing-semantic-v2-oracle/run-01
+~~~
+
+Run the real independent A/B cohort:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh run-ab
+~~~
+
+The model-stage console stays compact. Full Inspect/Codex output is retained
+under the private v2 oracle log root. By default the driver also places the
+sanitized loopback Codex-LB ingress observer in the same path qualified by the
+successful v2 retry. For each real model stage it requires every observed
+DeepSeek `POST /v1/responses` request to carry:
+
+- `text.format.type=json_schema`;
+- `strict=true`;
+- the exact SHA-256 of the persisted stage `codex-output-schema.json`.
+
+The sanitized observer retains no prompts, input/messages, tool arguments,
+header values, model responses, or full schemas. Set
+`V2_CAPTURE_CODEX_LB_INGRESS=0` only for an explicitly documented reason; the
+default keeps the diagnostic evidence needed if the intermittent v20
+structured-output failure recurs.
+
+Continue only after A/B pass validation:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh compute-disputes
+bash scripts/adjudication/v2-oracle.sh run-c
+~~~
+
+`run-c` exits cleanly without a model call when the blinded dispute view
+contains no cases. When C is required, the same strict ingress and whole-output
+boundaries apply.
+
+For a staged end-to-end run:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh run-all
+~~~
+
+`run-all` deliberately stops if any three-way conflict requires human
+resolution. It writes the private review worksheet and machine resolution
+artifact; after review, continue with:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh freeze
+bash scripts/adjudication/v2-oracle.sh validate-oracle
+~~~
+
+At every stage, inspect compact state with:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh status
+~~~
+
+The real model stages are never retried in place. If A/B or C fails after a
+provider call, preserve that run and choose a new explicit `V2_ORACLE_RUN`
+only as part of a documented methodological decision. Deterministic validation
+stage logs may be rerun; previous logs are archived rather than overwritten.
+
 ## Model selection
 
 P0A is the point where an adjudicator model is selected.
