@@ -23,6 +23,7 @@ from agent_workflow.util import atomic_write_json, sha256_file
 
 from agent_workflow_benchmark.compat.inspect_swe_output_schema import (
     CAPABILITY_ID as INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+    InspectSweOutputSchemaPatchError,
     assert_runtime_capability as assert_inspect_swe_output_schema_capability,
 )
 
@@ -87,7 +88,10 @@ def _package_version(name: str) -> str | None:
         return None
 
 
-def _require_inspect_dependencies() -> tuple[Any, Any]:
+def _require_inspect_dependencies(
+    *,
+    require_output_schema: bool = False,
+) -> tuple[Any, Any]:
     inspect_version = _package_version("inspect-ai")
     inspect_swe_version = _package_version("inspect-swe")
     missing = [
@@ -119,6 +123,14 @@ def _require_inspect_dependencies() -> tuple[Any, Any]:
         import inspect_swe
     except ImportError as exc:
         raise WorkflowError(f"unable to import Inspect adjudication runtime: {exc}") from exc
+    if require_output_schema:
+        try:
+            assert_inspect_swe_output_schema_capability()
+        except InspectSweOutputSchemaPatchError as exc:
+            raise WorkflowError(
+                "routing-semantic-v2 requires the pinned Inspect-SWE Codex "
+                f"output-schema capability: {exc}"
+            ) from exc
     return inspect_ai, inspect_swe
 
 
@@ -235,7 +247,14 @@ def create_inspect_runtime_lock(
     if destination.exists() and (destination.is_dir() or destination.is_symlink()):
         raise WorkflowError(f"adjudication runtime lock must be a regular file: {destination}")
 
-    _require_inspect_dependencies()
+    study_id = str(module.get("study_id") or "")
+    require_output_schema = study_id == "routing-semantic-v2"
+    _require_inspect_dependencies(require_output_schema=require_output_schema)
+    structured_output = (
+        assert_inspect_swe_output_schema_capability()
+        if require_output_schema
+        else None
+    )
     codex = resolve_latest_codex_cli()
     docker = _docker_identity()
     record = {
@@ -248,6 +267,20 @@ def create_inspect_runtime_lock(
         "inspect_ai_version": INSPECT_AI_VERSION,
         "inspect_swe_version": INSPECT_SWE_VERSION,
         "codex_cli": codex,
+        **(
+            {
+                "structured_output": {
+                    "mode": "codex-output-schema",
+                    "capability": INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+                    "inspect_swe_source_sha256": structured_output["source_sha256"],
+                    "upstream_git_blob_sha1": structured_output[
+                        "upstream_git_blob_sha1"
+                    ],
+                }
+            }
+            if structured_output is not None
+            else {}
+        ),
         "docker": docker,
         "frozen_for_cohort": True,
     }
@@ -289,6 +322,30 @@ def _load_runtime_lock(path: Path, module: Mapping[str, Any]) -> dict[str, Any]:
         raise WorkflowError("runtime lock Inspect AI version does not match installed policy")
     if value.get("inspect_swe_version") != INSPECT_SWE_VERSION:
         raise WorkflowError("runtime lock Inspect SWE version does not match installed policy")
+    if str(module.get("study_id") or "") == "routing-semantic-v2":
+        structured = value.get("structured_output")
+        if not isinstance(structured, Mapping):
+            raise WorkflowError(
+                "routing-semantic-v2 runtime lock lacks structured-output enforcement"
+            )
+        if structured.get("mode") != "codex-output-schema":
+            raise WorkflowError(
+                "routing-semantic-v2 runtime lock has unsupported structured-output mode"
+            )
+        try:
+            capability = assert_inspect_swe_output_schema_capability()
+        except InspectSweOutputSchemaPatchError as exc:
+            raise WorkflowError(
+                f"installed Inspect-SWE structured-output capability is invalid: {exc}"
+            ) from exc
+        if structured.get("capability") != capability["capability"]:
+            raise WorkflowError(
+                "runtime lock structured-output capability does not match installed runtime"
+            )
+        if structured.get("inspect_swe_source_sha256") != capability["source_sha256"]:
+            raise WorkflowError(
+                "runtime lock Inspect-SWE patched source hash does not match installed runtime"
+            )
     return value
 
 
