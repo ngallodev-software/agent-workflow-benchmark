@@ -32,7 +32,10 @@ export AGENTIC_JEV_RUN="${AGENTIC_JEV_RUN:-$AGENTIC_JEV_ROOT/pilot-run}"
 # Reasoning effort is an Inspect generation option, not a provider model_arg.
 export AGENTIC_JEV_MODEL="${AGENTIC_JEV_MODEL:-openai-api/codex-lb/gpt-6-luna}"
 export AGENTIC_JEV_REASONING_EFFORT="${AGENTIC_JEV_REASONING_EFFORT:-high}"
-export AGENTIC_JEV_MODEL_ARGS_JSON="${AGENTIC_JEV_MODEL_ARGS_JSON:-{\"responses_api\":true}}"
+if [[ -z "${AGENTIC_JEV_MODEL_ARGS_JSON:-}" ]]; then
+  AGENTIC_JEV_MODEL_ARGS_JSON='{"responses_api":true}'
+fi
+export AGENTIC_JEV_MODEL_ARGS_JSON
 # Empty means TypeSafe selects its configured/default System One model.
 export AGENTIC_JEV_JEV_MODEL="${AGENTIC_JEV_JEV_MODEL:-}"
 
