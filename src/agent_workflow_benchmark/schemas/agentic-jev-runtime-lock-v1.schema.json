@@ -18,7 +18,7 @@
       "const": "0.3.268"
     },
     "inspect_swe_version": {
-      "const": "0.2.70"
+      "const": "0.2.71"
     },
     "codex_cli": {
       "type": "object"
