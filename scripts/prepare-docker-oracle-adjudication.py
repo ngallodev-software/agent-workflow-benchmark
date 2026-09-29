@@ -84,10 +84,15 @@ def study_config(study_id: str) -> dict[str, Any]:
             raise SystemExit(
                 f"adjudication module missing required file {required_id}: {module_path}"
             )
+    for required_id in ("oracle-view", "routing-corpus"):
         if not required[required_id].get("sha256"):
             raise SystemExit(
                 f"adjudication module must freeze SHA-256 for {required_id}: {module_path}"
             )
+    if study_id == "routing-semantic-v2" and not required["oracle-protocol"].get("sha256"):
+        raise SystemExit(
+            f"routing-semantic-v2 module must freeze oracle-protocol SHA-256: {module_path}"
+        )
     output = module.get("output") or {}
     pass_schema = output.get("pass_schema")
     if pass_schema not in {ADJUDICATION_PASS_SCHEMA_V1, ADJUDICATION_PASS_SCHEMA_V2}:
@@ -108,7 +113,11 @@ def study_config(study_id: str) -> dict[str, Any]:
         "view_source_path": str(required["oracle-view"]["source_path"]),
         "view_sha256": str(required["oracle-view"]["sha256"]),
         "protocol_source_path": str(required["oracle-protocol"]["source_path"]),
-        "protocol_sha256": str(required["oracle-protocol"]["sha256"]),
+        "protocol_sha256": (
+            str(required["oracle-protocol"]["sha256"])
+            if required["oracle-protocol"].get("sha256")
+            else None
+        ),
         "corpus_source_path": str(required["routing-corpus"]["source_path"]),
         "corpus_sha256": str(required["routing-corpus"]["sha256"]),
     }
@@ -381,7 +390,7 @@ def prepare_ab(args: argparse.Namespace) -> None:
         ("oracle protocol", actual_protocol_sha, config["protocol_sha256"]),
         ("routing corpus", actual_corpus_sha, config["corpus_sha256"]),
     ):
-        if observed != expected:
+        if expected is not None and observed != expected:
             raise SystemExit(
                 f"canonical {label} hash mismatch: expected {expected}, got {observed}"
             )
@@ -389,7 +398,10 @@ def prepare_ab(args: argparse.Namespace) -> None:
         raise SystemExit("oracle authoring manifest does not match the view bytes")
     if manifest.get("corpus", {}).get("sha256") != actual_corpus_sha:
         raise SystemExit("oracle authoring manifest does not match the corpus bytes")
-    if manifest.get("oracle_protocol", {}).get("sha256") != actual_protocol_sha:
+    if (
+        config["protocol_sha256"] is not None
+        and manifest.get("oracle_protocol", {}).get("sha256") != actual_protocol_sha
+    ):
         raise SystemExit("oracle authoring manifest does not match the protocol bytes")
     if len(view.get("cases", [])) != 120:
         raise SystemExit("frozen oracle authoring view must contain exactly 120 cases")
