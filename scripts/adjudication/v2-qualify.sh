@@ -110,12 +110,19 @@ if [[ "$runtime_lock_valid" != "1" ]]; then
     "$RUNTIME_LOCK"
 fi
 
+qualify_args=()
+if [[ "${V2_LOG_MODEL_API:-0}" == "1" ]]; then
+  qualify_args+=(--log-model-api)
+  echo "Inspect model-API logging enabled for this qualification retry"
+fi
+
 "$AW" benchmark adjudication-inspect-qualify-live \
   "$MODULE" \
   "$RUNTIME_LOCK" \
   "$QUALIFICATION" \
   --model "$MODEL" \
-  --model-arg responses_api=true
+  --model-arg responses_api=true \
+  "${qualify_args[@]}"
 
 "$PYTHON" - "$QUALIFICATION" "$MODULE" "$RUNTIME_LOCK" <<'PY'
 import hashlib
