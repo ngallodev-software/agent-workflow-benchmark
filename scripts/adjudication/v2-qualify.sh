@@ -36,6 +36,8 @@ PRIVATE_ROOT="${V2_QUALIFICATION_ROOT:-$DATA_HOME/agent-workflow/routing-semanti
 MODULE="${V2_MODULE:-$BENCH_REPO/modules/abc-adjudication/routing-semantic-v2.inspect.module.json}"
 RUNTIME_LOCK="${V2_RUNTIME_LOCK:-$PRIVATE_ROOT/runtime-lock.json}"
 QUALIFICATION="${V2_QUALIFICATION:-$PRIVATE_ROOT/qualification.json}"
+RUN_LOG="$PRIVATE_ROOT/qualification-run.log"
+DIAGNOSE="$SCRIPT_DIR/v2-diagnose.py"
 
 [[ -f "$MODULE" ]] || { echo "error: v2 Inspect module not found: $MODULE" >&2; exit 1; }
 
@@ -66,6 +68,7 @@ if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" ]]; then
   mkdir -p "$retry_root"
   [[ ! -f "$QUALIFICATION" ]] || mv "$QUALIFICATION" "$retry_root/qualification.json"
   [[ ! -d "$PRIVATE_ROOT/inspect-qualification" ]] || mv "$PRIVATE_ROOT/inspect-qualification" "$retry_root/inspect-qualification"
+  [[ ! -f "$RUN_LOG" ]] || mv "$RUN_LOG" "$retry_root/qualification-run.log"
   echo "Archived prior qualification attempt: $retry_root"
 fi
 
@@ -113,16 +116,31 @@ fi
 qualify_args=()
 if [[ "${V2_LOG_MODEL_API:-0}" == "1" ]]; then
   qualify_args+=(--log-model-api)
-  echo "Inspect model-API logging enabled for this qualification retry"
+  echo "Model-API evidence capture: enabled (private log only)"
 fi
 
+echo "Qualification evidence: $PRIVATE_ROOT/inspect-qualification"
+echo "Private run log: $RUN_LOG"
+
+set +e
 "$AW" benchmark adjudication-inspect-qualify-live \
   "$MODULE" \
   "$RUNTIME_LOCK" \
   "$QUALIFICATION" \
   --model "$MODEL" \
   --model-arg responses_api=true \
-  "${qualify_args[@]}"
+  "${qualify_args[@]}" \
+  >"$RUN_LOG" 2>&1
+qualify_status=$?
+set -e
+
+if [[ "$qualify_status" != "0" ]]; then
+  echo "routing-semantic-v2 full qualification: FAIL"
+  echo "Agent-Workflow exit status: $qualify_status"
+  "$PYTHON" "$DIAGNOSE" --root "$PRIVATE_ROOT" --attempt current || true
+  echo "Full private output retained at: $RUN_LOG"
+  exit "$qualify_status"
+fi
 
 "$PYTHON" - "$QUALIFICATION" "$MODULE" "$RUNTIME_LOCK" <<'PY'
 import hashlib
