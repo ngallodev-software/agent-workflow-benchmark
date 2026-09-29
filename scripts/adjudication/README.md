@@ -69,8 +69,23 @@ is written to the private qualification root as `qualification-run.log` rather
 than streamed to stdout. On a forced retry that log is archived beside the
 corresponding `inspect-qualification` directory and any qualification manifest.
 
-Enable raw model-API evidence capture for a diagnostic retry without flooding the
-console:
+For structured-output transport diagnosis, prefer the sanitized Codex-LB ingress
+capture. It forwards each request body byte-for-byte to the already-running local
+Codex-LB but records only method/path/model plus the structured-output format
+controls and a canonical schema SHA-256. It never records prompts, input/messages,
+tool arguments, header values, model responses, or full schemas:
+
+~~~bash
+V2_CAPTURE_CODEX_LB_INGRESS=1 FORCE_V2_QUALIFICATION=1 \
+  bash scripts/adjudication/v2-qualify.sh
+~~~
+
+The private capture is `codex-lb-ingress.jsonl`; the diagnostic compares its
+schema hashes against the persisted primary and C `codex-output-schema.json`
+artifacts and labels matching requests as `primary` or `C`.
+
+Raw Inspect model-API logging remains available when specifically needed and is
+still captured only in the private run log:
 
 ~~~bash
 V2_LOG_MODEL_API=1 FORCE_V2_QUALIFICATION=1 \
