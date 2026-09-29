@@ -212,7 +212,12 @@ bash scripts/adjudication/v2-oracle.sh validate-ab
 bash scripts/adjudication/v2-oracle.sh validate-c
 ~~~
 
-`run-c` exits cleanly without a model call when the blinded dispute view
+Before any C provider call, `run-c` deterministically revalidates A/B and
+requires the persisted blinded dispute view to match the exact current A/B
+disagreement seam set, the frozen authoring-view hash, and the no-A/B-label
+blinding flags. A stale or altered dispute view therefore fails before inference.
+
+`run-c` exits cleanly without a model call when that verified dispute view
 contains no cases. When C is required, the same strict ingress and whole-output
 boundaries apply.
 
