@@ -34,7 +34,7 @@ bash scripts/adjudication/v2-qualify.sh
 
 The runner:
 
-1. requires benchmark `0.6.0` and comparative-eval `0.3.1`;
+1. requires benchmark `0.6.4` and comparative-eval `0.3.1`;
 2. uses `routing-semantic-v2.inspect.module.json`, whose authoring-view, protocol,
    and corpus inputs are hash-pinned;
 3. creates the v2 runtime lock once and reuses it on qualification retries;
@@ -43,6 +43,11 @@ The runner:
    frozen `routing-semantic-oracle-v2.0.0` protocol, and DeepSeek model identity;
 6. emits one `inspect-adjudication-qualification/v2` artifact that can report
    `qualified=true` only when all eleven gates pass.
+
+The 0.6.4 qualification also binds IA-1 evidence to
+`v2_output_schema_strategy=eligibility-grouped-case-enum/v1`. This prevents a
+passing qualification produced by the earlier per-case schema generator from
+authorizing the real cohort after the grouped-schema scale hardening.
 
 The expected terminal boundary is:
 
@@ -69,20 +74,30 @@ is written to the private qualification root as `qualification-run.log` rather
 than streamed to stdout. On a forced retry that log is archived beside the
 corresponding `inspect-qualification` directory and any qualification manifest.
 
-For structured-output transport diagnosis, prefer the sanitized Codex-LB ingress
-capture. It forwards each request body byte-for-byte to the already-running local
-Codex-LB but records only method/path/model plus the structured-output format
-controls and a canonical schema SHA-256. It never records prompts, input/messages,
-tool arguments, header values, model responses, or full schemas:
+Sanitized Codex-LB ingress capture is enabled by default for v2
+qualification because it is part of the authorization evidence for the real
+cohort, not merely an optional diagnostic. The loopback observer forwards each
+request body byte-for-byte to the already-running local Codex-LB but records only
+method/path/model plus the structured-output format controls and a canonical
+schema SHA-256. It never records prompts, input/messages, tool arguments, header
+values, model responses, or full schemas.
+
+On a passing qualification, the repository-owned
+`v2-verify-ingress.py` verifier requires every captured DeepSeek
+`POST /v1/responses` request to use `json_schema` with `strict=true`, rejects
+schema hashes that do not match a persisted `codex-output-schema.json`, and
+requires every persisted primary/C qualification schema to have been observed at
+ingress. The private capture is `codex-lb-ingress.jsonl`.
+
+Capture can still be disabled for a deliberately non-authorizing diagnostic run:
 
 ~~~bash
-V2_CAPTURE_CODEX_LB_INGRESS=1 FORCE_V2_QUALIFICATION=1 \
+V2_CAPTURE_CODEX_LB_INGRESS=0 FORCE_V2_QUALIFICATION=1 \
   bash scripts/adjudication/v2-qualify.sh
 ~~~
 
-The private capture is `codex-lb-ingress.jsonl`; the diagnostic compares its
-schema hashes against the persisted primary and C `codex-output-schema.json`
-artifacts and labels matching requests as `primary` or `C`.
+Such a qualification is retained as evidence if otherwise successful, but
+`v2-oracle.sh verify` rejects it as authority for real A/B/C.
 
 Raw Inspect model-API logging remains available when specifically needed and is
 still captured only in the private run log:
@@ -114,6 +129,123 @@ print prompts, full model answers, response bodies, tool arguments, or secrets.
 The earlier standalone `routing-semantic-v2-preflight/preflight.json` remains
 historical development evidence; the full qualifier deliberately produces fresh
 IA-9/10/11 evidence under the final frozen identities.
+
+## routing-semantic-v2 real oracle cohort
+
+After `v2-qualify.sh` produces a passing
+`inspect-adjudication-qualification/v2` manifest, use the dedicated v2 driver.
+Do not reuse the historical `p0b-*` entrypoints for v2: those remain the
+versioned v1 workflow and their defaults intentionally target
+`routing-semantic-v1`.
+
+First verify the private qualification and exact frozen inputs without making a
+model call:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh verify
+~~~
+
+The verifier requires:
+
+- Agent-Workflow `0.11.12`, benchmark `0.6.4`, and comparative-eval `0.3.1`;
+- no tracked or staged changes in the benchmark or comparative-eval checkouts;
+- installed benchmark adjudication/compat source files to byte-match the benchmark checkout;
+- installed v2 comparative study/corpus resources to byte-match the comparative-eval checkout;
+- `qualified=true`;
+- IA-1 through IA-11 all `pass`;
+- the qualification module/runtime-lock hashes to match the supplied files;
+- the matching `attempt.json` to record sanitized ingress capture as enabled and
+  command-complete;
+- the qualification ingress capture to pass strict schema verification against
+  every persisted primary/C qualification schema;
+- model `openai-api/codex-lb/deepseek-flash`;
+- the real v2 authoring view, oracle protocol, and corpus SHA-256 values to
+  match the frozen module.
+
+The default private real-cohort root is:
+
+~~~text
+~/.local/share/agent-workflow/routing-semantic-v2-oracle/run-01
+~~~
+
+Run the real independent A/B cohort:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh run-ab
+~~~
+
+Before the first provider call the driver writes immutable private
+`run-identity.json` evidence binding the cohort to the benchmark/comparative
+Git heads, package versions, runtime-lock bytes, qualification bytes,
+qualification-attempt bytes/id, qualification-ingress bytes, module bytes, and
+frozen view/protocol/corpus hashes.
+
+The model-stage console stays compact. Full Inspect/Codex output is retained
+under the private v2 oracle log root. By default the driver also places the
+sanitized loopback Codex-LB ingress observer in the same path qualified by the
+successful v2 retry. For each real model stage it requires every observed
+DeepSeek `POST /v1/responses` request to carry:
+
+- `text.format.type=json_schema`;
+- `strict=true`;
+- the exact SHA-256 of the persisted stage `codex-output-schema.json`.
+
+The sanitized observer retains no prompts, input/messages, tool arguments,
+header values, model responses, or full schemas. Set
+`V2_CAPTURE_CODEX_LB_INGRESS=0` only for an explicitly documented reason;
+the driver requires a non-empty `V2_CAPTURE_OVERRIDE_REASON` when capture is
+disabled. The default keeps the diagnostic evidence needed if the intermittent
+v20 structured-output failure recurs.
+
+Continue only after A/B pass validation:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh compute-disputes
+bash scripts/adjudication/v2-oracle.sh run-c
+~~~
+
+If a later code fix affects only deterministic validation, revalidate already
+preserved model outputs without another provider call:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh validate-ab
+bash scripts/adjudication/v2-oracle.sh validate-c
+~~~
+
+Before any C provider call, `run-c` deterministically revalidates A/B and
+requires the persisted blinded dispute view to match the exact current A/B
+disagreement seam set, the frozen authoring-view hash, and the no-A/B-label
+blinding flags. A stale or altered dispute view therefore fails before inference.
+
+`run-c` exits cleanly without a model call when that verified dispute view
+contains no cases. When C is required, the same strict ingress and whole-output
+boundaries apply.
+
+For a staged end-to-end run:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh run-all
+~~~
+
+`run-all` deliberately stops if any three-way conflict requires human
+resolution. It writes the private review worksheet and machine resolution
+artifact; after review, continue with:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh freeze
+bash scripts/adjudication/v2-oracle.sh validate-oracle
+~~~
+
+At every stage, inspect compact state with:
+
+~~~bash
+bash scripts/adjudication/v2-oracle.sh status
+~~~
+
+The real model stages are never retried in place. If A/B or C fails after a
+provider call, preserve that run and choose a new explicit `V2_ORACLE_RUN`
+only as part of a documented methodological decision. Deterministic validation
+stage logs may be rerun; previous logs are archived rather than overwritten.
 
 ## Model selection
 

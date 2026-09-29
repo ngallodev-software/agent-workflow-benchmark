@@ -220,5 +220,5 @@ else
   echo "  unresolved -> keep label absent, replace the TODO rationale, and record participants"
   echo
   echo "Then rerun:"
-  echo "  bash scripts/adjudication/p0b-freeze.sh"
+  echo "  ${FREEZE_RERUN_COMMAND:-bash scripts/adjudication/p0b-freeze.sh}"
 fi

@@ -463,6 +463,74 @@ def test_passing_qualification_is_required_for_real_runs(tmp_path: Path):
         )
 
 
+def test_v2_real_runs_require_current_schema_strategy_qualification(tmp_path: Path):
+    module = validate_abc_adjudication_module(V2_MODULE)
+    model = inspect_runtime.V2_ADJUDICATION_MODEL
+    runtime_lock = tmp_path / "runtime-lock.json"
+    runtime_lock.write_text('{"frozen":true}\n', encoding="utf-8")
+
+    gates = {
+        f"IA-{number}": {"status": "pass"}
+        for number in range(1, 12)
+    }
+    gates["IA-1"]["evidence"] = {
+        "agent_workflow_benchmark_version": "0.6.3",
+        "v2_output_schema_strategy": inspect_runtime.V2_OUTPUT_SCHEMA_STRATEGY,
+    }
+    gates["IA-2"]["evidence"] = {"model": model}
+
+    qualification = tmp_path / "qualification.json"
+    value = {
+        "schema": inspect_runtime.INSPECT_QUALIFICATION_SCHEMA_V2,
+        "created_at": "2026-09-29T00:00:00+00:00",
+        "module_id": module["module_id"],
+        "module_sha256": module["module_sha256"],
+        "runtime_lock_sha256": inspect_runtime.sha256_file(runtime_lock),
+        "qualified": True,
+        "gates": gates,
+    }
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="benchmark version"):
+        inspect_runtime._require_passing_qualification(
+            qualification,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            model=model,
+            allow_unqualified=False,
+        )
+
+    value["gates"]["IA-1"]["evidence"][
+        "agent_workflow_benchmark_version"
+    ] = inspect_runtime._package_version("agent-workflow-benchmark")
+    value["gates"]["IA-1"]["evidence"][
+        "v2_output_schema_strategy"
+    ] = "per-case-anyof/v0"
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="output-schema strategy"):
+        inspect_runtime._require_passing_qualification(
+            qualification,
+            module=module,
+            runtime_lock_path=runtime_lock,
+            model=model,
+            allow_unqualified=False,
+        )
+
+    value["gates"]["IA-1"]["evidence"][
+        "v2_output_schema_strategy"
+    ] = inspect_runtime.V2_OUTPUT_SCHEMA_STRATEGY
+    qualification.write_text(json.dumps(value), encoding="utf-8")
+
+    inspect_runtime._require_passing_qualification(
+        qualification,
+        module=module,
+        runtime_lock_path=runtime_lock,
+        model=model,
+        allow_unqualified=False,
+    )
+
+
 def test_resolve_codex_npm_latest_uses_exact_registry_version(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -641,44 +709,68 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
     )
 
 
-def test_v2_model_output_schema_matches_assigned_view(tmp_path: Path):
+def test_v2_model_output_schema_groups_identical_eligibility_shapes(tmp_path: Path):
     view_path = tmp_path / "view.json"
     inspect_runtime._synthetic_v2_evidence_view(view_path)
 
     schema = inspect_runtime._v2_model_output_schema(view_path)
 
+    assert inspect_runtime.V2_OUTPUT_SCHEMA_STRATEGY == (
+        "eligibility-grouped-case-enum/v1"
+    )
     assert schema["type"] == "object"
     records = schema["properties"]["records"]
     assert "minItems" not in records
     assert "maxItems" not in records
     variants = records["items"]["anyOf"]
-    case_schemas = [item["properties"]["case_id"] for item in variants]
-    assert {item["type"] for item in case_schemas} == {"string"}
-    assert {tuple(item["enum"]) for item in case_schemas} == {
-        ("rsv2-preflight-001",),
-        ("rsv2-preflight-002",),
+    assert len(variants) == 1
+
+    item = variants[0]
+    case_schema = item["properties"]["case_id"]
+    assert case_schema["type"] == "string"
+    assert tuple(case_schema["enum"]) == (
+        "rsv2-preflight-001",
+        "rsv2-preflight-002",
+    )
+    assert item["required"] == ["case_id", "labels", "justifications"]
+    labels = item["properties"]["labels"]
+    justifications = item["properties"]["justifications"]
+    assert set(labels["required"]) == {
+        "routing.task_class",
+        "routing.interaction_required",
+        "routing.semantic_risk",
     }
-    for item in variants:
-        assert item["required"] == ["case_id", "labels", "justifications"]
-        labels = item["properties"]["labels"]
-        justifications = item["properties"]["justifications"]
-        assert set(labels["required"]) == {
-            "routing.task_class",
-            "routing.interaction_required",
-            "routing.semantic_risk",
-        }
-        assert justifications["required"] == labels["required"]
-        evidence = justifications["properties"]["routing.task_class"]["properties"][
-            "decisive_case_evidence"
-        ]
-        assert "minItems" not in evidence
-        assert "maxItems" not in evidence
-        assert evidence["items"]["maxLength"] == 320
+    assert justifications["required"] == labels["required"]
+    evidence = justifications["properties"]["routing.task_class"]["properties"][
+        "decisive_case_evidence"
+    ]
+    assert "minItems" not in evidence
+    assert "maxItems" not in evidence
+    assert evidence["items"]["maxLength"] == 320
 
     serialized = json.dumps(schema, sort_keys=True)
     assert '"const"' not in serialized
     assert '"minItems"' not in serialized
     assert '"maxItems"' not in serialized
+
+
+def test_v2_real_schema_collapses_120_identical_case_shapes(tmp_path: Path):
+    view = comparative.oracle_authoring_view(
+        comparative.load_study_corpus("routing-semantic-v2")
+    )
+    view_path = tmp_path / "routing-semantic-v2-view.json"
+    view_path.write_text(
+        json.dumps(view, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    schema = inspect_runtime._v2_model_output_schema(view_path)
+    variants = schema["properties"]["records"]["items"]["anyOf"]
+
+    assert len(view["cases"]) == 120
+    assert len(variants) == 1
+    assert len(variants[0]["properties"]["case_id"]["enum"]) == 120
+    assert len(json.dumps(schema, sort_keys=True)) < 10_000
 
 
 def test_v2_post_generation_justification_cardinality_remains_fail_closed():

@@ -1,0 +1,72 @@
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+V2_ORACLE = ROOT / "scripts" / "adjudication" / "v2-oracle.sh"
+V2_INGRESS_VERIFY = ROOT / "scripts" / "adjudication" / "v2-verify-ingress.py"
+P0B_PREPARE = ROOT / "scripts" / "adjudication" / "p0b-prepare-resolutions.sh"
+
+
+def test_v2_oracle_driver_is_versioned_and_fail_closed():
+    text = V2_ORACLE.read_text(encoding="utf-8")
+
+    assert 'STUDY="routing-semantic-v2"' in text
+    assert 'MODEL="openai-api/codex-lb/deepseek-flash"' in text
+    assert 'required = [f"IA-{n}" for n in range(1, 12)]' in text
+    assert '--oracle-version routing-semantic-oracle-v2.0.0' in text
+    assert text.count('--study "$STUDY"') >= 4
+    assert 'V2_CAPTURE_CODEX_LB_INGRESS:-1' in text
+    assert 'V2_CAPTURE_OVERRIDE_REASON' in text
+    ingress_text = V2_INGRESS_VERIFY.read_text(encoding="utf-8")
+    assert 'fmt.get("type") != "json_schema"' in ingress_text
+    assert 'fmt.get("strict") is not True' in ingress_text
+    assert 'schema_sha256' in ingress_text
+    assert 'do not retry this real cohort in place' in text
+    assert 'validate-ab' in text
+    assert 'validate-c' in text
+    assert 'run-identity.json' in text
+    assert 'routing-semantic-v2-real-oracle-run/v1' in text
+    assert 'tracked working-tree changes present' in text
+    assert 'installed benchmark source differs from checkout' in text
+    assert '"agent-workflow": "0.11.12"' in text
+    assert '"agent-workflow-benchmark": "0.6.4"' in text
+    assert "eligibility-grouped-case-enum/v1" in text
+    assert "module_summary = validate_abc_adjudication_module(module_path)" in text
+    assert 'module = json.loads(module_path.read_text(encoding="utf-8"))' in text
+    assert "for item in required_files" in text
+    assert "for item in module.get(\"required_files\", [])" not in text
+    assert "routing-semantic-v1" not in text
+
+
+def test_v2_oracle_driver_uses_separate_private_roots():
+    text = V2_ORACLE.read_text(encoding="utf-8")
+
+    assert "routing-semantic-v2-qualification" in text
+    assert "routing-semantic-v2-oracle" in text
+    assert 'ORACLE_RUN="${V2_ORACLE_RUN:-$ORACLE_ROOT/run-01}"' in text
+    assert 'LOG_DIR="$ORACLE_ROOT/logs/$(basename "$ORACLE_RUN")"' in text
+    assert 'DIAG_DIR="$ORACLE_ROOT/diagnostics/$(basename "$ORACLE_RUN")"' in text
+    assert 'RUN_IDENTITY="$ORACLE_RUN/run-identity.json"' in text
+
+
+def test_resolution_helper_keeps_v1_default_but_allows_versioned_override():
+    text = P0B_PREPARE.read_text(encoding="utf-8")
+
+    assert (
+        '${FREEZE_RERUN_COMMAND:-bash scripts/adjudication/p0b-freeze.sh}'
+        in text
+    )
+
+
+def test_v2_c_runner_verifies_current_ab_dispute_view_before_model_call():
+    text = V2_ORACLE.read_text(encoding="utf-8")
+    start = text.index("run_c() {")
+    end = text.index("\nrun_all() {", start)
+    run_c = text[start:end]
+
+    validate_ab = run_c.index("validate_ab")
+    verify_dispute = run_c.index("verify_dispute_view")
+    model_call = run_c.index('run_model_private "run-c"')
+
+    assert validate_ab < verify_dispute < model_call
+    assert "C dispute view seam set does not match current A/B disagreements" in text
+    assert "a_b_labels_included" in text
