@@ -26,6 +26,8 @@ def test_v2_oracle_driver_is_versioned_and_fail_closed():
     assert 'tracked working-tree changes present' in text
     assert 'installed benchmark source differs from checkout' in text
     assert '"agent-workflow": "0.11.12"' in text
+    assert '"agent-workflow-benchmark": "0.6.4"' in text
+    assert "eligibility-grouped-case-enum/v1" in text
     assert "routing-semantic-v1" not in text
 
 
