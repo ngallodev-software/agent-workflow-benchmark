@@ -86,10 +86,15 @@ python scripts/adjudication/v2-diagnose.py --list-attempts
 python scripts/adjudication/v2-diagnose.py --attempt retry:<UTC-stamp>
 ~~~
 
-The diagnostic never falls back from `current` to an archived retry. It reports
-only qualification state, sample status, completion classification, and
-structured-output request/schema metadata; it does not print prompts, full model
-answers, response bodies, tool arguments, or secrets.
+The diagnostic never falls back from `current` to an archived retry. New runs
+also write a private `attempt.json` containing the explicit UTC attempt id,
+model, model-API logging mode, and terminal status; forced retries archive that
+identity beside the matching evidence.
+
+The diagnostic reports only qualification state, sample status, completion
+classification, persisted structured-output schema hashes/content constraints,
+and structured-output request metadata when Inspect exposes it. It does not
+print prompts, full model answers, response bodies, tool arguments, or secrets.
 
 The earlier standalone `routing-semantic-v2-preflight/preflight.json` remains
 historical development evidence; the full qualifier deliberately produces fresh
