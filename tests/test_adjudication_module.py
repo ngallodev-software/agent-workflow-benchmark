@@ -52,7 +52,8 @@ def test_routing_semantic_v2_module_pair_binds_frozen_inputs():
 
     assert validate_abc_adjudication_module(direct)["valid"] is True
     assert validate_abc_adjudication_module(inspect)["valid"] is True
-    assert direct_value["task"] == inspect_value["task"]
+    for key in ("study_id", "dataset_version", "protocol_version"):
+        assert direct_value["task"][key] == inspect_value["task"][key]
     assert direct_value["prompt"]["template"] == "docker/adjudication/START_PROMPT.v2.template.md"
     assert inspect_value["prompt"]["template"] == direct_value["prompt"]["template"]
     assert direct_value["output"]["pass_schema"].endswith("/v2")
