@@ -94,7 +94,7 @@
           "const": "codex-output-schema"
         },
         "capability": {
-          "const": "agent-workflow-benchmark/inspect-swe-codex-output-schema/v1"
+          "const": "agent-workflow-benchmark/inspect-swe-codex-output-schema/v2"
         },
         "inspect_swe_source_sha256": {
           "type": "string",
