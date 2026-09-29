@@ -196,6 +196,10 @@ run_model_private() {
   [[ ! -e "$proxy_log" ]] || die "model-stage proxy log already exists; do not retry this real cohort in place: $proxy_log"
 
   if [[ "${V2_CAPTURE_CODEX_LB_INGRESS:-1}" != "1" ]]; then
+    [[ -n "${V2_CAPTURE_OVERRIDE_REASON:-}" ]] || \
+      die "disabling sanitized ingress capture requires V2_CAPTURE_OVERRIDE_REASON"
+    echo "sanitized ingress capture: disabled"
+    echo "override reason: $V2_CAPTURE_OVERRIDE_REASON"
     set +e
     "$@" >"$log" 2>&1
     local direct_status=$?
@@ -292,10 +296,20 @@ PY
 }
 
 verify_packages() {
-  "$PYTHON" - <<'PY'
+  "$PYTHON" - "$BENCH_REPO" "$COMP_REPO" <<'PY'
+import hashlib
+import sys
 from importlib import metadata
+from pathlib import Path
+
+import agent_workflow_benchmark
+import agent_workflow_comparative_eval
+
+bench_repo = Path(sys.argv[1]).resolve()
+comp_repo = Path(sys.argv[2]).resolve()
 
 expected = {
+    "agent-workflow": "0.11.12",
     "agent-workflow-benchmark": "0.6.3",
     "agent-workflow-comparative-eval": "0.3.1",
 }
@@ -303,6 +317,48 @@ for name, wanted in expected.items():
     observed = metadata.version(name)
     if observed != wanted:
         raise SystemExit(f"{name} {observed} installed; expected {wanted}")
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+bench_installed = Path(agent_workflow_benchmark.__file__).resolve().parent
+bench_checkout = bench_repo / "src" / "agent_workflow_benchmark"
+bench_files = [
+    "benchmarking/inspect_adjudication.py",
+    "benchmarking/oracle_adjudication.py",
+    "benchmarking/adjudication_module.py",
+    "benchmarking/schema_contracts.py",
+    "compat/inspect_swe_output_schema.py",
+]
+for rel in bench_files:
+    installed = bench_installed / rel
+    checkout = bench_checkout / rel
+    if sha256(installed) != sha256(checkout):
+        raise SystemExit(
+            f"installed benchmark source differs from checkout: {rel}; "
+            "reinstall this checkout before running the real cohort"
+        )
+
+comp_installed = Path(agent_workflow_comparative_eval.__file__).resolve().parent
+comp_checkout = comp_repo / "src" / "agent_workflow_comparative_eval"
+comp_files = [
+    "resources/studies/routing-semantic-v2.study.json",
+    "resources/studies/routing-semantic-v2.corpus.json",
+]
+for rel in comp_files:
+    installed = comp_installed / rel
+    checkout = comp_checkout / rel
+    if sha256(installed) != sha256(checkout):
+        raise SystemExit(
+            f"installed comparative-eval source differs from checkout: {rel}; "
+            "reinstall the comparative-eval checkout before running the real cohort"
+        )
+
+print("installed source parity: PASS")
 PY
 }
 
@@ -507,8 +563,7 @@ PY
 }
 
 freeze_oracle() {
-  require_file "$A_PASS"
-  require_file "$B_PASS"
+  validate_ab
   require_file "$DISPUTE_VIEW"
   [[ ! -e "$ORACLE" ]] || die "oracle already exists: $ORACLE"
 
@@ -523,7 +578,7 @@ freeze_oracle() {
   )
 
   if [[ "$(requires_c)" == "true" ]]; then
-    require_file "$C_PASS"
+    validate_c
     args+=(--c-view "$DISPUTE_VIEW" --c-pass "$C_PASS")
 
     if [[ ! -f "$RESOLUTIONS" ]]; then
@@ -587,6 +642,24 @@ status() {
   echo "oracle_manifest: $([[ -f "$ORACLE.manifest.json" ]] && echo present || echo absent)"
 }
 
+validate_ab() {
+  verify_ready
+  validate_pass "$ORACLE_VIEW" "$A_PASS"
+  validate_pass "$ORACLE_VIEW" "$B_PASS"
+  echo "A/B validation: PASS"
+}
+
+validate_c() {
+  verify_ready
+  require_file "$DISPUTE_VIEW"
+  if [[ "$(requires_c)" != "true" ]]; then
+    echo "C validation: not required"
+    return
+  fi
+  validate_pass "$DISPUTE_VIEW" "$C_PASS"
+  echo "C validation: PASS"
+}
+
 run_ab() {
   verify_ready
   require_clean_new_run
@@ -595,15 +668,13 @@ run_ab() {
 
   run_model_private "run-ab" "$ORACLE_RUN/inspect-logs/primary/codex-output-schema.json" "$AW" benchmark adjudication-inspect-run-primary "$MODULE" "$ORACLE_VIEW" "$ORACLE_PROTOCOL" "$RUNTIME_LOCK" "$QUALIFICATION" "$ORACLE_RUN" --model "$MODEL" --model-arg responses_api=true
 
-  validate_pass "$ORACLE_VIEW" "$A_PASS"
-  validate_pass "$ORACLE_VIEW" "$B_PASS"
+  validate_ab
   echo "A/B: PASS"
 }
 
 compute_disputes() {
   verify_ready
-  require_file "$A_PASS"
-  require_file "$B_PASS"
+  validate_ab
   [[ ! -e "$DISPUTE_VIEW" ]] || die "dispute view already exists: $DISPUTE_VIEW"
 
   run_private "compute-disputes"     "$AW" benchmark decision-study-oracle-disputes       "$ORACLE_VIEW" "$A_PASS" "$B_PASS" "$DISPUTE_VIEW"       --study "$STUDY"
@@ -627,7 +698,7 @@ run_c() {
 
   run_model_private "run-c" "$ORACLE_RUN/inspect-logs/tiebreaker/codex-output-schema.json" "$AW" benchmark adjudication-inspect-run-c "$MODULE" "$DISPUTE_VIEW" "$ORACLE_PROTOCOL" "$RUNTIME_LOCK" "$QUALIFICATION" "$ORACLE_RUN" --model "$MODEL" --model-arg responses_api=true
 
-  validate_pass "$DISPUTE_VIEW" "$C_PASS"
+  validate_c
   echo "C: PASS"
 }
 
@@ -671,8 +742,10 @@ Commands:
   verify              Verify package versions, IA-1..IA-11 qualification, and frozen inputs.
   status              Show which private v2 oracle artifacts currently exist.
   run-ab              Run and validate independent real A/B adjudication.
+  validate-ab         Re-run deterministic A/B pass validation without a model call.
   compute-disputes    Create the blinded C-only dispute view.
   run-c               Run and validate C only when A/B disputes require it.
+  validate-c          Re-run deterministic C pass validation without a model call.
   prepare-resolutions Build the private human-review artifacts for three-way conflicts.
   freeze              Freeze the v2 oracle; blocks on unresolved/TODO resolutions by default.
   validate-oracle     Validate the frozen v2 oracle against the frozen v2 corpus.
@@ -684,6 +757,10 @@ Environment:
   V2_QUALIFICATION_ROOT
                        Existing qualified runtime root from v2-qualify.sh
   COMP_REPO            Comparative-eval checkout when not a sibling repository
+  V2_CAPTURE_CODEX_LB_INGRESS
+                       Defaults to 1 for real model stages.
+  V2_CAPTURE_OVERRIDE_REASON
+                       Required when ingress capture is explicitly disabled.
 
 The script is intentionally fail-closed. It never retries an existing real run in place.
 Choose a new V2_ORACLE_RUN for any deliberate rerun.
@@ -701,11 +778,17 @@ case "$command" in
   run-ab)
     run_ab
     ;;
+  validate-ab)
+    validate_ab
+    ;;
   compute-disputes)
     compute_disputes
     ;;
   run-c)
     run_c
+    ;;
+  validate-c)
+    validate_c
     ;;
   prepare-resolutions)
     verify_ready
