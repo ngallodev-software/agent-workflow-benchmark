@@ -1927,9 +1927,9 @@ def run_v2_evidence_preflight(
         },
         "real_cohort_ready": False,
         "blocking_reason": (
-            "The real routing-semantic-v2 dataset identity, canonical blinded "
-            "authoring view, adjudication module, runtime lock, and full IA-1..IA-11 "
-            "qualification have not yet been frozen."
+            "This artifact is a synthetic evidence-contract preflight. It does not "
+            "by itself bind the frozen real-cohort module/runtime or establish "
+            "complete IA-1..IA-11 qualification."
         ),
     }
     validate_instance(
