@@ -53,6 +53,7 @@ RESOLUTIONS="$ORACLE_RUN/resolutions.json"
 RESOLUTION_REVIEW="$ORACLE_RUN/resolution-review.json"
 RESOLUTION_REVIEW_MD="$ORACLE_RUN/resolution-review.md"
 ORACLE="$ORACLE_RUN/oracle.json"
+RUN_IDENTITY="$ORACLE_RUN/run-identity.json"
 LOG_DIR="$ORACLE_ROOT/logs/$(basename "$ORACLE_RUN")"
 DIAG_DIR="$ORACLE_ROOT/diagnostics/$(basename "$ORACLE_RUN")"
 INGRESS_PROXY="$SCRIPT_DIR/v2-codex-lb-ingress-capture.py"
@@ -81,6 +82,122 @@ require_clean_new_run() {
       die "V2_ORACLE_RUN already contains evidence; choose a new V2_ORACLE_RUN: $ORACLE_RUN"
     fi
   fi
+}
+
+verify_repo_state() {
+  local repo
+  for repo in "$BENCH_REPO" "$COMP_REPO"; do
+    git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
+      die "not a Git checkout: $repo"
+    git -C "$repo" diff --quiet --ignore-submodules -- || \
+      die "tracked working-tree changes present; preserve a clean cohort source: $repo"
+    git -C "$repo" diff --cached --quiet --ignore-submodules -- || \
+      die "staged changes present; preserve a clean cohort source: $repo"
+  done
+}
+
+write_run_identity() {
+  [[ ! -e "$RUN_IDENTITY" ]] || die "run identity already exists: $RUN_IDENTITY"
+  local bench_head comp_head
+  bench_head="$(git -C "$BENCH_REPO" rev-parse HEAD)"
+  comp_head="$(git -C "$COMP_REPO" rev-parse HEAD)"
+
+  "$PYTHON" - \
+    "$RUN_IDENTITY" \
+    "$MODULE" \
+    "$RUNTIME_LOCK" \
+    "$QUALIFICATION" \
+    "$ORACLE_VIEW" \
+    "$ORACLE_PROTOCOL" \
+    "$CORPUS" \
+    "$bench_head" \
+    "$comp_head" \
+    "${V2_CAPTURE_CODEX_LB_INGRESS:-1}" \
+    "${V2_CAPTURE_OVERRIDE_REASON:-}" <<'PY'
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+from importlib import metadata
+from pathlib import Path
+
+(
+    identity_path,
+    module_path,
+    runtime_lock_path,
+    qualification_path,
+    view_path,
+    protocol_path,
+    corpus_path,
+) = map(Path, sys.argv[1:8])
+bench_head = sys.argv[8]
+comp_head = sys.argv[9]
+capture_enabled = sys.argv[10] == "1"
+capture_override_reason = sys.argv[11] or None
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
+qualification_attempt = None
+attempt_path = qualification_path.parent / "attempt.json"
+if attempt_path.is_file():
+    attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+    if isinstance(attempt, dict):
+        qualification_attempt = attempt.get("attempt_id")
+
+record = {
+    "schema": "agent-workflow-benchmark/routing-semantic-v2-real-oracle-run/v1",
+    "created_at": datetime.now(timezone.utc).isoformat(),
+    "study_id": "routing-semantic-v2",
+    "dataset_version": "routing-semantic-corpus-v2.0.0",
+    "protocol_version": "routing-semantic-oracle-v2.0.0",
+    "model": "openai-api/codex-lb/deepseek-flash",
+    "model_args": {"responses_api": True},
+    "benchmark_git_head": bench_head,
+    "comparative_eval_git_head": comp_head,
+    "package_versions": {
+        name: metadata.version(name)
+        for name in (
+            "agent-workflow",
+            "agent-workflow-benchmark",
+            "agent-workflow-comparative-eval",
+            "inspect-ai",
+            "inspect-swe",
+        )
+    },
+    "module_sha256": sha256(module_path),
+    "runtime_lock_sha256": sha256(runtime_lock_path),
+    "qualification_sha256": sha256(qualification_path),
+    "qualification_attempt_id": qualification_attempt,
+    "qualification_qualified": qualification.get("qualified") is True,
+    "qualification_gates": {
+        f"IA-{number}": (qualification.get("gates", {}).get(f"IA-{number}") or {}).get("status")
+        for number in range(1, 12)
+    },
+    "oracle_view_sha256": sha256(view_path),
+    "oracle_protocol_sha256": sha256(protocol_path),
+    "corpus_sha256": sha256(corpus_path),
+    "sanitized_ingress_capture": {
+        "enabled": capture_enabled,
+        "override_reason": capture_override_reason,
+    },
+}
+
+identity_path.parent.mkdir(parents=True, exist_ok=True)
+with identity_path.open("x", encoding="utf-8") as stream:
+    json.dump(record, stream, indent=2, sort_keys=True)
+    stream.write("\n")
+
+print(f"run_identity: {identity_path}")
+print(f"benchmark_git_head: {bench_head}")
+print(f"comparative_eval_git_head: {comp_head}")
+print(f"qualification_sha256: {record['qualification_sha256']}")
+PY
 }
 
 archive_existing_log() {
@@ -498,6 +615,7 @@ PY
 }
 
 verify_ready() {
+  verify_repo_state
   verify_packages
   verify_qualification
   verify_frozen_inputs
@@ -633,6 +751,7 @@ status() {
   echo "qualification: $QUALIFICATION"
   echo "runtime_lock: $RUNTIME_LOCK"
   echo "oracle_run: $ORACLE_RUN"
+  echo "run_identity: $([[ -f "$RUN_IDENTITY" ]] && echo present || echo absent)"
   echo "A: $([[ -f "$A_PASS" ]] && echo present || echo absent)"
   echo "B: $([[ -f "$B_PASS" ]] && echo present || echo absent)"
   echo "disputes: $([[ -f "$DISPUTE_VIEW" ]] && echo present || echo absent)"
@@ -665,6 +784,7 @@ run_ab() {
   require_clean_new_run
   mkdir -p "$ORACLE_RUN"
   chmod 700 "$ORACLE_RUN"
+  write_run_identity
 
   run_model_private "run-ab" "$ORACLE_RUN/inspect-logs/primary/codex-output-schema.json" "$AW" benchmark adjudication-inspect-run-primary "$MODULE" "$ORACLE_VIEW" "$ORACLE_PROTOCOL" "$RUNTIME_LOCK" "$QUALIFICATION" "$ORACLE_RUN" --model "$MODEL" --model-arg responses_api=true
 
