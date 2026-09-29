@@ -971,6 +971,11 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
 
     config.output_root.mkdir(parents=True, exist_ok=True)
     log_dir = config.output_root / "inspect-logs" / "primary"
+    structured_schema = (
+        _v2_model_output_schema(config.view_path)
+        if study_id == "routing-semantic-v2"
+        else None
+    )
     log = _inspect_eval(
         samples=samples,
         codex_version=str(runtime_lock["codex_cli"]["resolved"]),
@@ -979,6 +984,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         log_dir=log_dir,
         max_samples=2,
         log_model_api=config.log_model_api,
+        output_schema=structured_schema,
     )
 
     by_id = {str(sample.id): sample for sample in log.samples or []}
@@ -1010,6 +1016,7 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         if pass_path.exists():
             raise WorkflowError(f"Inspect adjudication result already exists: {pass_path}")
         atomic_write_json(pass_path, contract)
+        structured_schema_path = log_dir / "codex-output-schema.json"
         provenance = {
             "backend": "inspect-ai",
             "role": role,
@@ -1023,6 +1030,16 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
             "sample_total_time": sample.total_time,
             "sample_working_time": sample.working_time,
             "model": getattr(sample.output, "model", None),
+            **(
+                {
+                    "structured_output_schema": str(structured_schema_path),
+                    "structured_output_schema_sha256": sha256_file(
+                        structured_schema_path
+                    ),
+                }
+                if structured_schema is not None
+                else {}
+            ),
             **(
                 {"adjudication_completion_source": completion_source}
                 if study_id != "routing-semantic-v1"
@@ -1046,6 +1063,18 @@ def run_inspect_primary(config: InspectRunConfig) -> dict[str, Any]:
         "runtime_lock_sha256": sha256_file(config.runtime_lock_path),
         "view_sha256": sha256_file(config.view_path),
         "model": config.model,
+        **(
+            {
+                "structured_output_schema": str(
+                    log_dir / "codex-output-schema.json"
+                ),
+                "structured_output_schema_sha256": sha256_file(
+                    log_dir / "codex-output-schema.json"
+                ),
+            }
+            if structured_schema is not None
+            else {}
+        ),
         "outputs": outputs,
         "reveal_policy": "after-all-primary-complete",
     }
@@ -1083,14 +1112,21 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         },
     )
     config.output_root.mkdir(parents=True, exist_ok=True)
+    log_dir = config.output_root / "inspect-logs" / "tiebreaker"
+    structured_schema = (
+        _v2_model_output_schema(config.view_path)
+        if study_id == "routing-semantic-v2"
+        else None
+    )
     log = _inspect_eval(
         samples=[sample],
         codex_version=str(runtime_lock["codex_cli"]["resolved"]),
         model=config.model,
         model_args=config.model_args,
-        log_dir=config.output_root / "inspect-logs" / "tiebreaker",
+        log_dir=log_dir,
         max_samples=1,
         log_model_api=config.log_model_api,
+        output_schema=structured_schema,
     )
     result_sample = (log.samples or [None])[0]
     if result_sample is None or result_sample.error:
@@ -1127,6 +1163,18 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "sample_working_time": result_sample.working_time,
         "model": getattr(result_sample.output, "model", None),
         **(
+            {
+                "structured_output_schema": str(
+                    log_dir / "codex-output-schema.json"
+                ),
+                "structured_output_schema_sha256": sha256_file(
+                    log_dir / "codex-output-schema.json"
+                ),
+            }
+            if structured_schema is not None
+            else {}
+        ),
+        **(
             {"adjudication_completion_source": completion_source}
             if study_id != "routing-semantic-v1"
             else {}
@@ -1142,6 +1190,18 @@ def run_inspect_tiebreaker(config: InspectRunConfig) -> dict[str, Any]:
         "path": str(pass_path),
         "sha256": provenance["pass_sha256"],
         "provenance": str(role_dir / "inspect-provenance.json"),
+        **(
+            {
+                "structured_output_schema": str(
+                    log_dir / "codex-output-schema.json"
+                ),
+                "structured_output_schema_sha256": sha256_file(
+                    log_dir / "codex-output-schema.json"
+                ),
+            }
+            if structured_schema is not None
+            else {}
+        ),
     }
 
 
