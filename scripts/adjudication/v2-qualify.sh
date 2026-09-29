@@ -49,7 +49,7 @@ INGRESS_PROXY="$SCRIPT_DIR/v2-codex-lb-ingress-capture.py"
 from importlib import metadata
 
 expected = {
-    "agent-workflow-benchmark": "0.6.3",
+    "agent-workflow-benchmark": "0.6.4",
     "agent-workflow-comparative-eval": "0.3.1",
 }
 for name, wanted in expected.items():
@@ -282,6 +282,18 @@ if qualification.get("module_sha256") != module["module_sha256"]:
     raise SystemExit("qualification module hash does not match frozen v2 module")
 if qualification.get("runtime_lock_sha256") != sha256(runtime_lock_path):
     raise SystemExit("qualification runtime-lock hash does not match frozen runtime")
+
+ia1 = gates.get("IA-1", {}).get("evidence", {})
+if ia1.get("agent_workflow_benchmark_version") != "0.6.4":
+    raise SystemExit(
+        "qualification IA-1 benchmark version is not 0.6.4: "
+        f"{ia1.get('agent_workflow_benchmark_version')!r}"
+    )
+if ia1.get("v2_output_schema_strategy") != "eligibility-grouped-case-enum/v1":
+    raise SystemExit(
+        "qualification IA-1 output-schema strategy mismatch: "
+        f"{ia1.get('v2_output_schema_strategy')!r}"
+    )
 
 print("routing-semantic-v2 full qualification: PASS")
 for gate in required:
