@@ -216,6 +216,9 @@ run_model_private() {
   "$PYTHON" "$INGRESS_PROXY"     --listen-host 127.0.0.1     --listen-port "$capture_port"     --upstream http://127.0.0.1:2455     --output "$capture"     >"$proxy_log" 2>&1 &
   local proxy_pid=$!
 
+  trap 'kill "$proxy_pid" 2>/dev/null || true; wait "$proxy_pid" 2>/dev/null || true; exit 130' INT TERM
+
+  set +e
   "$PYTHON" - "$capture_port" "$proxy_pid" <<'PY'
 import os
 import socket
@@ -238,6 +241,18 @@ while time.monotonic() < deadline:
 else:
     raise SystemExit("timed out waiting for ingress capture proxy")
 PY
+  local ready_status=$?
+  set -e
+
+  if [[ "$ready_status" -ne 0 ]]; then
+    kill "$proxy_pid" 2>/dev/null || true
+    wait "$proxy_pid" 2>/dev/null || true
+    trap - INT TERM
+    echo "$stage: FAIL"
+    echo "capture proxy failed readiness"
+    echo "private proxy log: $proxy_log"
+    exit "$ready_status"
+  fi
 
   set +e
   CODEX_LB_BASE_URL="http://127.0.0.1:$capture_port/v1" "$@" >"$log" 2>&1
@@ -246,6 +261,7 @@ PY
 
   kill "$proxy_pid" 2>/dev/null || true
   wait "$proxy_pid" 2>/dev/null || true
+  trap - INT TERM
 
   local capture_status=0
   if [[ -f "$schema_path" && -f "$capture" ]]; then
@@ -260,10 +276,14 @@ PY
   fi
 
   if [[ "$status" -ne 0 || "$capture_status" -ne 0 ]]; then
+    local final_status="$capture_status"
+    if [[ "$status" -ne 0 ]]; then
+      final_status="$status"
+    fi
     echo "$stage: FAIL"
     echo "private log: $log"
     echo "sanitized ingress: $capture"
-    exit "$([[ "$status" -ne 0 ]] && echo "$status" || echo "$capture_status")"
+    exit "$final_status"
   fi
 
   echo "$stage: PASS"
