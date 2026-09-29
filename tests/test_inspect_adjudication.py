@@ -157,7 +157,7 @@ def test_runtime_lock_records_resolved_latest_once(
     monkeypatch.setattr(
         inspect_runtime,
         "_require_inspect_dependencies",
-        lambda: (object(), object()),
+        lambda **_: (object(), object()),
     )
     monkeypatch.setattr(
         inspect_runtime,
@@ -194,6 +194,67 @@ def test_runtime_lock_records_resolved_latest_once(
         validate_abc_adjudication_module(MODULE),
     )
     assert loaded["codex_cli"]["resolved"] == "0.999.7"
+
+
+def test_v2_runtime_lock_records_structured_output_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    module_path = V2_MODULE
+    capability = {
+        "capability": inspect_runtime.INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+        "enabled": True,
+        "inspect_swe_version": inspect_runtime.INSPECT_SWE_VERSION,
+        "source_path": "/tmp/codex_cli.py",
+        "source_sha256": "a" * 64,
+        "upstream_git_blob_sha1": "b" * 40,
+    }
+    monkeypatch.setattr(
+        inspect_runtime,
+        "_require_inspect_dependencies",
+        lambda **_: (object(), object()),
+    )
+    monkeypatch.setattr(
+        inspect_runtime,
+        "assert_inspect_swe_output_schema_capability",
+        lambda: capability,
+    )
+    monkeypatch.setattr(
+        inspect_runtime,
+        "resolve_latest_codex_cli",
+        lambda: {
+            "policy": "latest-at-cohort-start",
+            "requested": "latest",
+            "resolved": "0.158.0",
+            "platform": "linux-x64",
+            "cached_path": "/tmp/codex-0.158.0",
+        },
+    )
+    monkeypatch.setattr(
+        inspect_runtime,
+        "_docker_identity",
+        lambda: {
+            "docker": "Docker version 99.0.0",
+            "compose": "Docker Compose version v99.0.0",
+        },
+    )
+
+    path = tmp_path / "v2-runtime-lock.json"
+    inspect_runtime.create_inspect_runtime_lock(module_path, path)
+    stored = json.loads(path.read_text(encoding="utf-8"))
+
+    assert stored["structured_output"] == {
+        "mode": "codex-output-schema",
+        "capability": inspect_runtime.INSPECT_SWE_OUTPUT_SCHEMA_CAPABILITY,
+        "inspect_swe_source_sha256": "a" * 64,
+        "upstream_git_blob_sha1": "b" * 40,
+    }
+
+    loaded = inspect_runtime._load_runtime_lock(
+        path,
+        validate_abc_adjudication_module(module_path),
+    )
+    assert loaded["structured_output"]["mode"] == "codex-output-schema"
 
 
 def test_runtime_lock_rejects_other_module(tmp_path: Path):
@@ -578,6 +639,48 @@ def test_v2_evidence_preflight_schema_requires_ia9_through_ia11():
         "agent-workflow-benchmark/routing-semantic-v2-evidence-preflight/v1",
         artifact="test",
     )
+
+
+def test_v2_model_output_schema_matches_assigned_view(tmp_path: Path):
+    view_path = tmp_path / "view.json"
+    inspect_runtime._synthetic_v2_evidence_view(view_path)
+
+    schema = inspect_runtime._v2_model_output_schema(view_path)
+
+    assert schema["type"] == "object"
+    records = schema["properties"]["records"]
+    assert records["minItems"] == 2
+    assert records["maxItems"] == 2
+    variants = records["items"]["anyOf"]
+    assert {item["properties"]["case_id"]["const"] for item in variants} == {
+        "rsv2-preflight-001",
+        "rsv2-preflight-002",
+    }
+    for item in variants:
+        assert item["required"] == ["case_id", "labels", "justifications"]
+        labels = item["properties"]["labels"]
+        justifications = item["properties"]["justifications"]
+        assert set(labels["required"]) == {
+            "routing.task_class",
+            "routing.interaction_required",
+            "routing.semantic_risk",
+        }
+        assert justifications["required"] == labels["required"]
+        evidence = justifications["properties"]["routing.task_class"]["properties"][
+            "decisive_case_evidence"
+        ]
+        assert evidence["minItems"] == 1
+        assert evidence["maxItems"] == 3
+        assert evidence["items"]["maxLength"] == 320
+
+
+def test_v2_whole_completion_parser_rejects_prose_prefixed_json():
+    completion = (
+        "Read both files. Now emitting adjudications.\n\n"
+        '{"records":[]}'
+    )
+    with pytest.raises(WorkflowError, match="did not return a JSON object"):
+        inspect_runtime._json_completion(completion)
 
 
 def test_v2_deterministic_wrapper_fixture_preserves_justifications(tmp_path: Path):
