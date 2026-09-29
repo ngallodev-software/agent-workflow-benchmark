@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -437,11 +439,20 @@ def test_agentic_jev_runtime_lock_rejects_codex_too_old_for_luna(
 def test_agentic_solver_passes_skill_directory_to_inspect(monkeypatch, tmp_path: Path):
     captured = {}
 
+    class FakeBridgedToolsSpec:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
     def fake_codex_cli(**kwargs):
         captured.update(kwargs)
         return object()
 
-    monkeypatch.setattr("inspect_swe.codex_cli", fake_codex_cli)
+    inspect_ai_agent = types.ModuleType("inspect_ai.agent")
+    inspect_ai_agent.BridgedToolsSpec = FakeBridgedToolsSpec
+    inspect_swe = types.ModuleType("inspect_swe")
+    inspect_swe.codex_cli = fake_codex_cli
+    monkeypatch.setitem(sys.modules, "inspect_ai.agent", inspect_ai_agent)
+    monkeypatch.setitem(sys.modules, "inspect_swe", inspect_swe)
 
     solver = build_agentic_jev_solver(
         arm_id="B-skill-only",
