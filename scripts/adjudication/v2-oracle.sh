@@ -652,6 +652,69 @@ print(len(cases), seams)
 PY
 }
 
+verify_dispute_view() {
+  require_file "$ORACLE_VIEW"
+  require_file "$A_PASS"
+  require_file "$B_PASS"
+  require_file "$DISPUTE_VIEW"
+
+  "$PYTHON" - "$ORACLE_VIEW" "$A_PASS" "$B_PASS" "$DISPUTE_VIEW" <<'PY'
+import sys
+from pathlib import Path
+
+from agent_workflow_benchmark.benchmarking.oracle_adjudication import (
+    DISPUTE_VIEW_SCHEMA,
+    _assert_independent_ids,
+    _disputes,
+    _load_adjudication_pass,
+    _load_view,
+)
+from agent_workflow_benchmark.benchmarking.schema_contracts import validate_instance
+
+authoring_path, a_path, b_path, dispute_path = map(Path, sys.argv[1:5])
+authoring, _, authoring_sha = _load_view(
+    authoring_path,
+    study="routing-semantic-v2",
+)
+a = _load_adjudication_pass(
+    authoring_path,
+    a_path,
+    study="routing-semantic-v2",
+)
+b = _load_adjudication_pass(
+    authoring_path,
+    b_path,
+    study="routing-semantic-v2",
+)
+_assert_independent_ids(a, b)
+expected = _disputes(a, b)
+
+dispute, observed, _ = _load_view(
+    dispute_path,
+    study="routing-semantic-v2",
+)
+validate_instance(dispute, DISPUTE_VIEW_SCHEMA, artifact=str(dispute_path))
+if dispute.get("source_authoring_view_sha256") != authoring_sha:
+    raise SystemExit("C dispute view was not derived from the frozen authoring view")
+if observed != expected:
+    raise SystemExit("C dispute view seam set does not match current A/B disagreements")
+
+blinding = dispute.get("blinding")
+required_false = {
+    "construction_tags_included",
+    "control_outputs_included",
+    "candidate_outputs_included",
+    "a_b_labels_included",
+}
+if not isinstance(blinding, dict) or any(blinding.get(key) is not False for key in required_false):
+    raise SystemExit("C dispute view does not preserve the frozen blinding boundary")
+
+print("C dispute view: PASS")
+print(f"disputed_cases: {len(expected)}")
+print(f"disputed_seams: {sum(len(items) for items in expected.values())}")
+PY
+}
+
 prepare_resolutions() {
   require_file "$A_PASS"
   require_file "$B_PASS"
@@ -769,6 +832,7 @@ validate_ab() {
 validate_c() {
   verify_ready
   require_file "$DISPUTE_VIEW"
+  verify_dispute_view
   if [[ "$(requires_c)" != "true" ]]; then
     echo "C validation: not required"
     return
@@ -807,6 +871,8 @@ compute_disputes() {
 run_c() {
   verify_ready
   require_file "$DISPUTE_VIEW"
+  validate_ab
+  verify_dispute_view
 
   if [[ "$(requires_c)" != "true" ]]; then
     echo "C: not required"
