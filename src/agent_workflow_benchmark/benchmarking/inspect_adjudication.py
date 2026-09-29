@@ -2101,7 +2101,7 @@ def run_inspect_live_qualification(
         forced_a,
         forced_b,
         synthetic_oracle,
-        oracle_version="inspect-qualification-v1",
+        oracle_version=("inspect-qualification-v2" if study_id == "routing-semantic-v2" else "inspect-qualification-v1"),
         c_view_path=dispute_path,
         pass_c_path=Path(c_result["path"]),
         study=study_id,
