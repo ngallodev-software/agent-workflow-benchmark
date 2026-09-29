@@ -53,6 +53,7 @@ for name, wanted in expected.items():
 PY
 
 mkdir -p "$PRIVATE_ROOT"
+retry_root=""
 
 if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" ]]; then
   if [[ "${FORCE_V2_QUALIFICATION:-0}" != "1" ]]; then
@@ -68,9 +69,42 @@ if [[ -f "$QUALIFICATION" || -d "$PRIVATE_ROOT/inspect-qualification" ]]; then
   echo "Archived prior qualification attempt: $retry_root"
 fi
 
+runtime_lock_valid=0
 if [[ -f "$RUNTIME_LOCK" ]]; then
-  echo "Reusing frozen v2 runtime lock: $RUNTIME_LOCK"
-else
+  if "$PYTHON" - "$MODULE" "$RUNTIME_LOCK" <<'PY'
+import sys
+from pathlib import Path
+
+from agent_workflow_benchmark.benchmarking.adjudication_module import (
+    validate_abc_adjudication_module,
+)
+from agent_workflow_benchmark.benchmarking.inspect_adjudication import (
+    _load_runtime_lock,
+)
+
+module_path, runtime_lock_path = map(Path, sys.argv[1:3])
+module = validate_abc_adjudication_module(module_path)
+_load_runtime_lock(runtime_lock_path, module)
+PY
+  then
+    runtime_lock_valid=1
+    echo "Reusing frozen v2 runtime lock: $RUNTIME_LOCK"
+  else
+    if [[ "${FORCE_V2_QUALIFICATION:-0}" != "1" ]]; then
+      echo "error: existing v2 runtime lock is incompatible with the strengthened structured-output runtime; set FORCE_V2_QUALIFICATION=1 to archive it and freeze a new lock" >&2
+      exit 1
+    fi
+    if [[ -z "$retry_root" ]]; then
+      stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+      retry_root="$PRIVATE_ROOT/retries/$stamp"
+      mkdir -p "$retry_root"
+    fi
+    mv "$RUNTIME_LOCK" "$retry_root/runtime-lock.json"
+    echo "Archived incompatible runtime lock: $retry_root/runtime-lock.json"
+  fi
+fi
+
+if [[ "$runtime_lock_valid" != "1" ]]; then
   "$AW" benchmark adjudication-inspect-runtime-lock \
     "$MODULE" \
     "$RUNTIME_LOCK"
