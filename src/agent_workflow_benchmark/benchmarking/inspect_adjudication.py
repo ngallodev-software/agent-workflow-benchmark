@@ -287,6 +287,16 @@ def _load_runtime_lock(path: Path, module: Mapping[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _validated_module_study_id(module: Mapping[str, Any]) -> str:
+    """Read study identity from validate_abc_adjudication_module() output."""
+    study_id = str(module.get("study_id") or "")
+    if study_id not in {"routing-semantic-v1", "routing-semantic-v2"}:
+        raise WorkflowError(
+            f"unsupported Inspect qualification study: {study_id or 'empty'}"
+        )
+    return study_id
+
+
 def _require_passing_qualification(
     qualification_path: Path | None,
     *,
@@ -302,7 +312,7 @@ def _require_passing_qualification(
             "real Inspect adjudication requires a passing P0A qualification manifest"
         )
     value = _read_json(Path(qualification_path))
-    study_id = str(module.get("task", {}).get("study_id") or "")
+    study_id = _validated_module_study_id(module)
     qualification_schema = (
         INSPECT_QUALIFICATION_SCHEMA_V2
         if study_id == "routing-semantic-v2"
@@ -1960,11 +1970,7 @@ def run_inspect_live_qualification(
     if destination.exists() and not force:
         raise WorkflowError(f"Inspect qualification manifest already exists: {destination}")
     module = validate_abc_adjudication_module(module_path)
-    study_id = str(module.get("task", {}).get("study_id") or "")
-    if study_id not in {"routing-semantic-v1", "routing-semantic-v2"}:
-        raise WorkflowError(
-            f"unsupported Inspect qualification study: {study_id or 'empty'}"
-        )
+    study_id = _validated_module_study_id(module)
     runtime_lock = _load_runtime_lock(runtime_lock_path, module)
     if study_id == "routing-semantic-v2":
         _validate_v2_adjudicator_identity(model, model_args)
