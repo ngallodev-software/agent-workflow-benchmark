@@ -462,9 +462,13 @@ def test_decision_v2_public_source_helper_is_not_copied_into_benchmark_skill() -
     assert "host-bridge only" in source
 
 
-def test_decision_v2_activation_prompt_does_not_name_treatment() -> None:
+def test_decision_v2_activation_prompt_is_a_real_semantic_tradeoff() -> None:
     from agent_workflow_benchmark.benchmarking.agentic_jev_decision_v2 import (
+        ACTIVATION_PROTOCOL_ID,
         _ACTIVATION_PROMPT,
+        _LEGACY_ACTIVATION_PROMPT_V1,
+        activation_protocol_record,
+        activation_protocol_sha256,
     )
 
     lowered = _ACTIVATION_PROMPT.lower()
@@ -473,6 +477,18 @@ def test_decision_v2_activation_prompt_does_not_name_treatment() -> None:
     assert "proposal_1" in lowered
     assert "proposal_2" in lowered
     assert "proposal_3" in lowered
+    assert "all three proposals satisfy" in lowered
+    assert "no specification, policy, test, or repository authority ranks" in lowered
+    assert "trade-off" in lowered
+    assert ACTIVATION_PROTOCOL_ID == "semantic-tradeoff-v2"
+    protocol = activation_protocol_record()
+    assert protocol["deterministic_constraints_satisfied_by_all_options"] is True
+    assert len(activation_protocol_sha256()) == 64
+
+    legacy = _LEGACY_ACTIVATION_PROMPT_V1.lower()
+    assert "old clients treat a missing value as false" in legacy
+    assert "newer clients can represent an explicit unknown state" in legacy
+    assert "preserve legacy coercion" in legacy
 
 
 def test_decision_v2_keeps_original_system_prompt_and_adds_one_skill() -> None:
@@ -502,7 +518,8 @@ def test_decision_v2_scripts_enforce_freeze_qualify_run_order() -> None:
 
     assert "create_decision_v2_lock" in freeze
     assert "run_decision_v2_activation_qualification" in qualify
-    assert "activation-qualification/qualification.json" in run
+    assert "activation-qualification-v2" in qualify
+    assert "activation-qualification-v2/qualification.json" in run
     assert "run_decision_v2_manager_gate" in run
     assert "aj_require_typesafe_key" in qualify
     assert "aj_require_typesafe_key" in run
@@ -525,4 +542,31 @@ def test_decision_v2_schemas_are_registered() -> None:
             "claim_boundary": {},
         },
         "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1",
+    )
+
+    validate_instance(
+        {
+            "schema": "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v2",
+            "study_id": "agentic-jev-decision-skill-v2",
+            "qualified": False,
+            "v2_lock_sha256": "0" * 64,
+            "activation_protocol": {
+                "id": "semantic-tradeoff-v2",
+                "sha256": "1" * 64,
+                "deterministic_constraints_satisfied_by_all_options": True,
+            },
+            "activation_prompt_explicitly_names_jev": False,
+            "activation_prompt_explicitly_names_typesafe": False,
+            "control": {},
+            "treatment": {},
+            "activation_lift_observed": False,
+            "claim_boundary": {
+                "exploratory_only": True,
+                "effectiveness_claim_allowed": False,
+                "qualification_only_tests_skill_activation": True,
+                "protocol_v1_failure_preserved": True,
+                "protocol_v2_requires_genuine_semantic_tradeoff": True,
+            },
+        },
+        "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v2",
     )
