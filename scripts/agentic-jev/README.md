@@ -153,9 +153,10 @@ development-only cohort:
 
 The freeze does **not** run a model or pull the large task images.
 
-The first execution on this external cohort is intentionally **C arm only**. The
-goal is to establish whether stronger semantic-choice pressure produces any actual
-live-Jev treatment exposure before spending on a matched A/B/C study.
+The first execution is intentionally **C arm on the six SWE-Lancer manager tasks
+only**. Those tasks directly present competing implementation proposals, so they
+are the cleanest public Jev Choice stressor in the frozen cohort. The six frozen
+SWE-bench IDs are held for later review rather than run automatically.
 
 After the cohort is frozen, prepare the pinned external dependencies and run the
 C-only scout:
@@ -165,10 +166,10 @@ bash scripts/agentic-jev/p2-prepare-external-evals.sh
 bash scripts/agentic-jev/p2-run-external-c.sh
 ~~~
 
-The runner executes one frozen public-eval sample at a time so each private Jev
-receipt stream maps unambiguously to one task ID. Scoring is disabled in this
-uptake-only phase. Do not refreeze or requalify unless the already-frozen Agentic
-Jev runtime itself changes.
+The runner executes one frozen SWE-Lancer manager sample at a time and stops after
+six tasks, so each private Jev receipt stream maps unambiguously to one task ID.
+Scoring is disabled in this uptake-only phase. Do not refreeze or requalify unless
+the already-frozen Agentic Jev runtime itself changes.
 
 Canonical design:
 `docs/AGENTIC_JEV_EXTERNAL_EVAL_SCOUT.md`.
