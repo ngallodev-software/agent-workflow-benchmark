@@ -1,0 +1,36 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-decision-v3-qualification/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-decision-v3-qualification/v1"},
+    "study_id": {"const": "agentic-jev-decision-skill-v3"},
+    "qualified": {"type": "boolean"},
+    "v3_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "activation_protocol": {
+      "type": "object",
+      "properties": {
+        "id": {"const": "tentative-leader-second-order-v1"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "proposal_deterministically_resolved": {"const": "proposal_2"},
+        "remaining_semantic_questions": {
+          "type": "array",
+          "contains": {"const": "evidence sufficiency"}
+        }
+      },
+      "required": [
+        "id", "sha256", "proposal_deterministically_resolved",
+        "remaining_semantic_questions"
+      ]
+    },
+    "control": {"type": "object"},
+    "treatment": {"type": "object"},
+    "activation_lift_observed": {"type": "boolean"},
+    "claim_boundary": {"type": "object"}
+  },
+  "required": [
+    "schema", "study_id", "qualified", "v3_lock_sha256", "activation_protocol",
+    "control", "treatment", "activation_lift_observed", "claim_boundary"
+  ]
+}
