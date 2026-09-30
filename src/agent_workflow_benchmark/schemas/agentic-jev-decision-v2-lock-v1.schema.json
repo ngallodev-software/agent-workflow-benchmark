@@ -1,0 +1,50 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-decision-v2-lock/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-decision-v2-lock/v1"},
+    "study_id": {"const": "agentic-jev-decision-skill-v2"},
+    "base_runtime_lock": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": ["path", "sha256"]
+    },
+    "bridge_qualification": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": ["path", "sha256"]
+    },
+    "external_cohort": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "inspect_evals_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      },
+      "required": ["path", "sha256", "inspect_evals_commit"]
+    },
+    "runtime": {"type": "object"},
+    "skills": {
+      "type": "object",
+      "properties": {
+        "upstream_typesafe_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decision_support_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": ["upstream_typesafe_sha256", "decision_support_sha256"]
+    },
+    "host_tool": {"type": "object"},
+    "claim_boundary": {"type": "object"}
+  },
+  "required": [
+    "schema", "study_id", "base_runtime_lock", "bridge_qualification",
+    "external_cohort", "runtime", "skills", "host_tool", "claim_boundary"
+  ]
+}
