@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import os
 import stat
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENTIC = ROOT / "scripts" / "agentic-jev"
@@ -37,12 +39,17 @@ def test_agentic_jev_scripts_are_portable_and_executable() -> None:
 
 def test_agentic_pilot_requires_runtime_lock_then_live_tool_qualification() -> None:
     env = (AGENTIC / "env.sh").read_text(encoding="utf-8")
+    archive = (AGENTIC / "p0-archive-attempt.sh").read_text(encoding="utf-8")
     freeze = (AGENTIC / "p0-freeze-runtime.sh").read_text(encoding="utf-8")
     qualify = (AGENTIC / "p0-qualify-tool.sh").read_text(encoding="utf-8")
     run = (AGENTIC / "p1-run-pilot.sh").read_text(encoding="utf-8")
 
     assert "openai-api/codex-lb/gpt-6-luna" in env
     assert 'AGENTIC_JEV_REASONING_EFFORT="${AGENTIC_JEV_REASONING_EFFORT:-high}"' in env
+    assert "AGENTIC_JEV_ARCHIVE_ROOT" in env
+    assert "AGENTIC_JEV_ARCHIVE_PASSING" in archive
+    assert "pilot-run evidence already exists" in archive
+    assert "archive target already exists" in archive
     assert "AGENTIC_JEV_MODEL" in freeze
     assert "AGENTIC_JEV_REASONING_EFFORT" in freeze
     assert "create_agentic_jev_runtime_lock" in freeze
@@ -108,3 +115,127 @@ def test_agentic_qualification_requires_clean_evidence_root() -> None:
     ).read_text(encoding="utf-8")
     assert "qualification evidence directory is not empty" in text
     assert "preserve/archive the prior attempt before retrying" in text
+
+
+
+def _agentic_archive_env(tmp_path: Path) -> tuple[dict[str, str], Path]:
+    root = tmp_path / "agentic-jev-pilot-v1"
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": sys.executable,
+            "AGENTIC_JEV_ROOT": str(root),
+            "AGENTIC_JEV_RUNTIME_LOCK": str(root / "runtime-lock.json"),
+            "AGENTIC_JEV_ARCHIVE_ROOT": str(root / "archive"),
+            "AGENTIC_JEV_QUAL_ROOT": str(root / "tool-qualification"),
+            "AGENTIC_JEV_QUALIFICATION": str(root / "tool-qualification" / "qualification.json"),
+            "AGENTIC_JEV_RUN": str(root / "pilot-run"),
+        }
+    )
+    return env, root
+
+
+def test_agentic_phase0_archive_preserves_failed_attempt_before_cleanup(
+    tmp_path: Path,
+) -> None:
+    env, root = _agentic_archive_env(tmp_path)
+    root.mkdir(parents=True)
+    lock = root / "runtime-lock.json"
+    lock.write_text('{"lock":"failed-attempt"}\n', encoding="utf-8")
+    qual = root / "tool-qualification"
+    qual.mkdir()
+    (qual / "qualification.json").write_text(
+        json.dumps({"qualified": False}) + "\n",
+        encoding="utf-8",
+    )
+    (qual / "inspect.log").write_text("private evidence\n", encoding="utf-8")
+
+    result = subprocess.run(
+        ["bash", str(AGENTIC / "p0-archive-attempt.sh"), "failed-contract"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    target = root / "archive" / "failed-contract"
+    assert target.is_dir()
+    assert not lock.exists()
+    assert not qual.exists()
+    assert (target / "runtime-lock.json").read_text(encoding="utf-8") == (
+        '{"lock":"failed-attempt"}\n'
+    )
+    assert (target / "tool-qualification" / "inspect.log").is_file()
+    manifest = json.loads(
+        (target / "archive-manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["label"] == "failed-contract"
+    assert manifest["sources"]["qualification"]["qualified"] is False
+    assert len(manifest["sources"]["runtime_lock"]["sha256"]) == 64
+
+
+def test_agentic_phase0_archive_refuses_current_passing_qualification(
+    tmp_path: Path,
+) -> None:
+    env, root = _agentic_archive_env(tmp_path)
+    root.mkdir(parents=True)
+    lock = root / "runtime-lock.json"
+    lock.write_text('{"lock":"passing"}\n', encoding="utf-8")
+    qual = root / "tool-qualification"
+    qual.mkdir()
+    (qual / "qualification.json").write_text(
+        json.dumps({"qualified": True}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        ["bash", str(AGENTIC / "p0-archive-attempt.sh"), "do-not-archive"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode != 0
+    assert "refusing to archive a passing Phase-0 qualification" in result.stderr
+    assert lock.is_file()
+    assert qual.is_dir()
+    assert not (root / "archive" / "do-not-archive").exists()
+
+
+def test_agentic_phase0_archive_allows_explicitly_superseded_pass(
+    tmp_path: Path,
+) -> None:
+    env, root = _agentic_archive_env(tmp_path)
+    env["AGENTIC_JEV_ARCHIVE_PASSING"] = "1"
+    root.mkdir(parents=True)
+    (root / "runtime-lock.json").write_text('{"lock":"old"}\n', encoding="utf-8")
+    qual = root / "tool-qualification"
+    qual.mkdir()
+    (qual / "qualification.json").write_text(
+        json.dumps({"qualified": True}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        ["bash", str(AGENTIC / "p0-archive-attempt.sh"), "superseded-runtime"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    manifest = json.loads(
+        (
+            root
+            / "archive"
+            / "superseded-runtime"
+            / "archive-manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["sources"]["qualification"]["qualified"] is True
