@@ -239,3 +239,87 @@ def test_agentic_phase0_archive_allows_explicitly_superseded_pass(
         ).read_text(encoding="utf-8")
     )
     assert manifest["sources"]["qualification"]["qualified"] is True
+
+
+
+def test_external_eval_scout_is_pinned_and_answer_blind_in_manager_selection() -> None:
+    selector = (AGENTIC / "p2-select-external-cohort.py").read_text(encoding="utf-8")
+    freeze = (AGENTIC / "p2-freeze-external-cohort.sh").read_text(encoding="utf-8")
+
+    assert "b49df6bc9e30b2d24571084bc710b9439b9ffa77" in selector
+    assert "b316c349947c29963fce3f4a65967c9807a4b673" in selector
+    assert "b49df6bc9e30b2d24571084bc710b9439b9ffa77" in freeze
+    assert 'required = {"question_id", "variant", "set", "title"}' in selector
+    assert 'row["manager_data"]' not in selector
+    assert 'row["correct_proposal_id"]' not in selector
+    assert 'row["patch"]' not in selector
+    assert 'row["test_patch"]' not in selector
+
+
+def test_external_eval_selector_freezes_six_manager_and_six_swebench_tasks(
+    tmp_path: Path,
+) -> None:
+    checkout = tmp_path / "inspect_evals"
+    data = (
+        checkout
+        / "src"
+        / "inspect_evals"
+        / "swe_lancer"
+        / "data"
+    )
+    data.mkdir(parents=True)
+    csv_path = data / "all_swelancer_tasks.csv"
+    rows = [
+        "question_id,variant,price,price_limit,manager_data,manager_commit,acceptable_folders,cwd,set,title,description,proposals"
+    ]
+    for i in range(10):
+        rows.append(
+            f"manager-{i},swe_manager,1,1,SECRET_CORRECT_{i},,,/app,diamond,"
+            f"Manager task {i},Description {i},Proposals {i}"
+        )
+    rows.append(
+        "ic-1,ic_swe,1,1,SECRET_IC,,,/app,diamond,IC task,Description,Proposals"
+    )
+    csv_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    prior = tmp_path / "run-manifest.json"
+    prior.write_text(
+        json.dumps(
+            {
+                "study_id": "agentic-jev-pilot-v1",
+                "arms": {
+                    "C-skill-plus-jev": {
+                        "samples": 24,
+                        "jev_tool_calls": 0,
+                    }
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "cohort.json"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(AGENTIC / "p2-select-external-cohort.py"),
+            str(checkout),
+            str(output),
+            str(prior),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    manifest = json.loads(output.read_text(encoding="utf-8"))
+    manager = manifest["cohorts"]["swe_lancer_manager_choice"]
+    swebench = manifest["cohorts"]["swe_bench_semantic_ambiguity"]
+    assert len(manager) == 6
+    assert len(swebench) == 6
+    assert manifest["selection_contract"]["gold_fields_used_for_selection"] is False
+    assert manifest["execution_gate"]["first_run"] == "C-skill-plus-jev only"
+    assert all("SECRET_CORRECT" not in json.dumps(item) for item in manager)
