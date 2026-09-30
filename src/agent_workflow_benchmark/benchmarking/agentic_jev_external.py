@@ -225,9 +225,10 @@ def _run_one(
                 "SWE-bench dependencies are unavailable; run the external eval "
                 "preparation script"
             ) from exc
+        # The upstream task function itself pins SWE_BENCH_VERIFIED_MINI_REVISION.
+        # Our cohort/source checks assert that this equals the frozen revision.
         task = swe_bench_verified_mini(
             allow_internet=False,
-            revision=SWE_BENCH_MINI_REVISION,
         )
         # SWE-bench's sample/sandbox construction is retained, while the default
         # upstream coding agent is replaced with the already-qualified Codex solver.
@@ -317,7 +318,7 @@ def run_external_jev_scout(
     if runtime["codex_model_config"] != PILOT_CODEX_MODEL_CONFIG:
         raise WorkflowError("external scout Codex configuration no longer matches pilot")
 
-    output_root.mkdir(parents=True, exist_ok=False)
+    output_root.mkdir(parents=True, exist_ok=True)
     samples: list[dict[str, Any]] = []
     cohorts = cohort["cohorts"]
     for source_name in (
