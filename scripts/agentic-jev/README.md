@@ -173,3 +173,36 @@ the already-frozen Agentic Jev runtime itself changes.
 
 Canonical design:
 `docs/AGENTIC_JEV_EXTERNAL_EVAL_SCOUT.md`.
+
+
+## Phase 3 — correct the agent-facing Jev skill treatment
+
+The original upstream `typesafe-ai` skill is an integration/build skill and did
+not teach the coding agent to use the available Jev bridge for its own bounded
+decisions. Preserve the completed zero-call runs as evidence of that treatment.
+
+The corrected additive treatment is `agentic-jev-decision-skill-v2`.
+
+Freeze it:
+
+~~~bash
+bash scripts/agentic-jev/p3-freeze-decision-skill-v2.sh
+~~~
+
+Then qualify **skill activation** on a proposal-choice task that does not mention
+Jev or TypeSafe:
+
+~~~bash
+bash scripts/agentic-jev/p3-qualify-decision-skill-v2.sh
+~~~
+
+Do not run the real manager gate unless this passes.
+
+After a pass:
+
+~~~bash
+bash scripts/agentic-jev/p3-run-manager-v2.sh
+~~~
+
+Canonical design:
+`docs/AGENTIC_JEV_DECISION_SKILL_V2.md`.
