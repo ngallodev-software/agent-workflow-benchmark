@@ -1,0 +1,49 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-decision-v3-manager-canary/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-decision-v3-manager-canary/v1"},
+    "study_id": {"const": "agentic-jev-decision-skill-v3"},
+    "development_only": {"const": true},
+    "v3_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "activation_qualification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "execution": {
+      "type": "object",
+      "properties": {
+        "arm": {"const": "decision-skill-v3"},
+        "source": {"const": "swe_lancer_manager_choice"},
+        "sample_selection": {"const": "first-two-frozen-manager-ids"},
+        "samples_expected": {"const": 2},
+        "samples_observed": {"const": 2},
+        "success": {"type": "integer", "minimum": 0, "maximum": 2},
+        "errors": {"type": "integer", "minimum": 0, "maximum": 2},
+        "jev_tool_calls": {"type": "integer", "minimum": 0},
+        "samples_with_jev_calls": {"type": "array", "items": {"type": "string"}},
+        "scoring_enabled": {"const": false}
+      },
+      "required": [
+        "arm", "source", "sample_selection", "samples_expected", "samples_observed",
+        "success", "errors", "jev_tool_calls", "samples_with_jev_calls",
+        "scoring_enabled"
+      ]
+    },
+    "samples": {"type": "array", "minItems": 2, "maxItems": 2},
+    "gate": {
+      "type": "object",
+      "properties": {
+        "passed": {"type": "boolean"},
+        "requirement": {"type": "string"},
+        "next": {"type": "string"}
+      },
+      "required": ["passed", "requirement", "next"]
+    },
+    "claim_boundary": {"type": "object"}
+  },
+  "required": [
+    "schema", "study_id", "development_only", "v3_lock_sha256",
+    "activation_qualification_sha256", "execution", "samples", "gate",
+    "claim_boundary"
+  ]
+}

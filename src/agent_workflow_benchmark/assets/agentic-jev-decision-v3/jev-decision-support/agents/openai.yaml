@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jev Decision Support"
+  short_description: "Use Jev for open choices, evidence sufficiency, or semantic risk"
+  default_prompt: "Use $jev-decision-support after deterministic inspection when a consequential semantic choice remains open or a tentative answer still needs evidence-sufficiency or risk judgment; keep exact rules authoritative and use only host jev_system_one."

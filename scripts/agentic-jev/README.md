@@ -223,3 +223,37 @@ bash scripts/agentic-jev/p3-run-manager-v2.sh
 
 Canonical design:
 `docs/AGENTIC_JEV_DECISION_SKILL_V2.md`.
+
+
+## Phase 4 — second-order Jev decision support
+
+The v2 skill activated on a synthetic unresolved trade-off but made zero Jev calls
+across the six frozen SWE-Lancer manager tasks.
+
+Pinned SWE-Lancer source shows manager tasks have an externally defined correct
+proposal. v3 therefore restores the standalone skill's evidence-sufficiency and
+semantic-risk pathways while retaining deterministic authority.
+
+Freeze v3 against the completed v2 evidence:
+
+~~~bash
+bash scripts/agentic-jev/p4-freeze-decision-skill-v3.sh
+~~~
+
+Qualify the new **tentative leader / second-order judgment** pathway:
+
+~~~bash
+bash scripts/agentic-jev/p4-qualify-decision-skill-v3.sh
+~~~
+
+Do not rerun all six manager tasks. After a qualification pass, run only the first
+two frozen manager IDs:
+
+~~~bash
+bash scripts/agentic-jev/p4-run-manager-canary-v3.sh
+~~~
+
+The canary fails closed if both tasks still produce zero Jev receipts.
+
+Canonical design:
+`docs/AGENTIC_JEV_DECISION_SKILL_V3.md`.
