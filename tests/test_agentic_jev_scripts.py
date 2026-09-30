@@ -405,10 +405,61 @@ def test_decision_v2_skill_targets_agent_side_tool_use() -> None:
     ).read_text(encoding="utf-8")
 
     assert "jev-decision-support" in skill
-    assert "your own bounded decisions" in skill
+    assert "your own decisions while solving a task" in skill
     assert "jev_system_one" in skill
     assert "competing implementation proposals" in skill
-    assert "Do not use for deterministic facts" in skill
+    assert "Do not call Jev merely because it is available" in skill
+    assert "Do not install or import `typesafe-sdk`" in skill
+    assert "at most 16 questions per request" in skill
+    assert "at most 64 KiB of normalized state" in skill
+    assert "at most 48 KiB of normalized questions" in skill
+    assert "at most one Jev call for one decision seam" in skill
+    assert "API execution demonstrates tool use" in skill
+
+
+def test_decision_v2_skill_is_pinned_to_public_source_and_interface() -> None:
+    from agent_workflow_benchmark.benchmarking.agentic_jev_decision_v2 import (
+        DECISION_SKILL_SOURCE_COMMIT,
+        DECISION_SKILL_SOURCE_PATH,
+        DECISION_SKILL_SOURCE_REPOSITORY,
+        decision_skill_interface_path,
+        decision_skill_interface_sha256,
+        decision_skill_path,
+        decision_skill_sha256,
+    )
+
+    assert DECISION_SKILL_SOURCE_REPOSITORY == "ngallodev-software/jev-decision-support"
+    assert DECISION_SKILL_SOURCE_COMMIT == "65b444965e48209860e353f2aa0e8d9dbe35d2ce"
+    assert DECISION_SKILL_SOURCE_PATH == "skills/jev-decision-support/SKILL.md"
+    assert decision_skill_path().is_file()
+    assert decision_skill_interface_path().is_file()
+    assert len(decision_skill_sha256()) == 64
+    assert len(decision_skill_interface_sha256()) == 64
+    interface = decision_skill_interface_path().read_text(encoding="utf-8")
+    assert 'display_name: "Jev Decision Support"' in interface
+    assert "host jev_system_one tool" in interface
+
+
+def test_decision_v2_public_source_helper_is_not_copied_into_benchmark_skill() -> None:
+    skill_root = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v2"
+        / "jev-decision-support"
+    )
+    assert not (skill_root / "scripts" / "jev_decision.py").exists()
+    source = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v2"
+        / "SOURCE.md"
+    ).read_text(encoding="utf-8")
+    assert "65b444965e48209860e353f2aa0e8d9dbe35d2ce" in source
+    assert "host-bridge only" in source
 
 
 def test_decision_v2_activation_prompt_does_not_name_treatment() -> None:
@@ -435,6 +486,8 @@ def test_decision_v2_keeps_original_system_prompt_and_adds_one_skill() -> None:
 
     assert "agentic_jev_skill_path().parent" in module
     assert "decision_skill_path().parent" in module
+    assert "decision_skill_interface_sha256" in module
+    assert "DECISION_SKILL_SOURCE_COMMIT" in module
     assert (
         "Use installed skills and optional semantic "
         in module
