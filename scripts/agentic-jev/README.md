@@ -14,6 +14,61 @@ The skill is frozen from `typesafe-ai/skills` commit
 The Jev tool executes on the host through Inspect bridged-tools/MCP. The Codex
 sandbox does not receive `TYPESAFE_API_KEY`.
 
+## Operator sequence
+
+The normal Phase-0 path is:
+
+~~~text
+p0-freeze-runtime.sh
+  -> p0-qualify-tool.sh
+  -> inspect qualification.json
+
+qualification PASS
+  -> keep the runtime lock and qualification live
+  -> p1-run-pilot.sh
+
+qualification FAIL, or implementation/runtime changes before Phase 1
+  -> p0-archive-attempt.sh <reason-label>
+  -> update/reinstall as needed
+  -> p0-freeze-runtime.sh
+  -> p0-qualify-tool.sh
+~~~
+
+**Do not archive a passing current qualification before Phase 1.** It is the
+authorization artifact that `p1-run-pilot.sh` verifies against the current runtime
+lock.
+
+## Phase 0 — archive a failed or superseded attempt
+
+Use this only when a Phase-0 attempt cannot remain authoritative: for example, a
+failed qualification needs to be preserved before retry, or code/runtime identity
+changed after qualification and a new lock is required.
+
+~~~bash
+bash scripts/agentic-jev/p0-archive-attempt.sh tool-contract-failure
+~~~
+
+The command moves the live Phase-0 runtime lock and qualification evidence into:
+
+~~~text
+$AGENTIC_JEV_ROOT/archive/<label>/
+~~~
+
+and writes `archive-manifest.json` with source paths and evidence hashes. It
+publishes the archive before deleting the live Phase-0 paths, refuses archive-label
+collisions, refuses to operate after `pilot-run` exists, and refuses to archive a
+passing qualification by default.
+
+If a *passing* qualification is intentionally superseded because implementation or
+runtime identity changed, require an explicit override:
+
+~~~bash
+AGENTIC_JEV_ARCHIVE_PASSING=1 \
+  bash scripts/agentic-jev/p0-archive-attempt.sh superseded-runtime
+~~~
+
+That override is not part of the normal Phase-0-to-Phase-1 path.
+
 ## Phase 0 — freeze treatment/runtime
 
 Choose the coding-agent model explicitly:
@@ -49,10 +104,13 @@ bash scripts/agentic-jev/p0-qualify-tool.sh
 
 This runs one synthetic Arm-C sample and requires:
 
-- Codex actually calls the bridged `jev_system_one` tool;
-- exactly one successful private tool receipt;
+- exactly one bridged Jev execution, evidenced by exactly one host-tool receipt;
+- that receipt is successful;
 - the API key is absent from the agent transcript;
 - the frozen skill snapshot matches the runtime lock.
+
+Outer Codex tool names are diagnostic only; the private host-tool receipt ledger is
+authoritative for bridged Jev execution count.
 
 **Stop here and inspect the qualification before the 24×3 pilot.**
 
