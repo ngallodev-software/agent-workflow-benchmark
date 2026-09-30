@@ -487,7 +487,8 @@ def test_decision_v2_activation_prompt_is_a_real_semantic_tradeoff() -> None:
 
     legacy = _LEGACY_ACTIVATION_PROMPT_V1.lower()
     assert "old clients treat a missing value as false" in legacy
-    assert "newer clients can represent an explicit unknown state" in legacy
+    assert "newer clients can represent" in legacy
+    assert "explicit unknown state" in legacy
     assert "preserve legacy coercion" in legacy
 
 
