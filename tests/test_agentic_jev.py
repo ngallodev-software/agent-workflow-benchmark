@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev import (
     PILOT_ARMS,
     agentic_jev_skill_path,
     agentic_jev_skill_sha256,
+    build_agentic_jev_solver,
     create_agentic_jev_runtime_lock,
     execute_jev_request,
     load_agentic_jev_runtime_lock,
@@ -151,6 +154,9 @@ def test_execute_jev_request_rejects_unbounded_question_contract():
 def test_frozen_skill_and_three_arm_treatment_manifest():
     path = agentic_jev_skill_path()
     assert path.is_file()
+    assert path.name == "SKILL.md"
+    assert path.parent.is_dir()
+    assert (path.parent / "SKILL.md") == path
     assert "Jev" in path.read_text(encoding="utf-8")
     assert len(agentic_jev_skill_sha256()) == 64
 
@@ -428,3 +434,33 @@ def test_agentic_jev_runtime_lock_rejects_codex_too_old_for_luna(
             agent_reasoning_effort=PILOT_AGENT_REASONING_EFFORT,
             agent_model_args={"responses_api": True},
         )
+
+
+def test_agentic_solver_passes_skill_directory_to_inspect(monkeypatch, tmp_path: Path):
+    captured = {}
+
+    class FakeBridgedToolsSpec:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    def fake_codex_cli(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    inspect_ai_agent = types.ModuleType("inspect_ai.agent")
+    inspect_ai_agent.BridgedToolsSpec = FakeBridgedToolsSpec
+    inspect_swe = types.ModuleType("inspect_swe")
+    inspect_swe.codex_cli = fake_codex_cli
+    monkeypatch.setitem(sys.modules, "inspect_ai.agent", inspect_ai_agent)
+    monkeypatch.setitem(sys.modules, "inspect_swe", inspect_swe)
+
+    solver = build_agentic_jev_solver(
+        arm_id="B-skill-only",
+        codex_version="0.159.1",
+        receipt_path=tmp_path / "receipts.jsonl",
+    )
+
+    assert solver is not None
+    assert captured["skills"] == [agentic_jev_skill_path().parent]
+    assert captured["skills"][0].is_dir()
+    assert (captured["skills"][0] / "SKILL.md").is_file()
