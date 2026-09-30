@@ -44,6 +44,56 @@ transcript, while the host-side bridge executes `jev_system_one`. With
 execution is authorized only by a model-proposed bridged call. Contract-validation
 failures are receipted as failures so attempted Jev use is not lost from pilot metrics.
 
+## Phase-0 evidence lifecycle
+
+A runtime lock and its qualification are a matched evidence pair. Keep both live
+after a passing qualification because Phase 1 verifies that the qualification was
+produced from the exact current runtime lock.
+
+The normal sequence is:
+
+~~~text
+freeze runtime
+  -> qualify tool
+  -> inspect qualification
+
+PASS
+  -> keep both artifacts live
+  -> run Phase 1
+
+FAIL or pre-Phase-1 implementation/runtime change
+  -> archive the old Phase-0 attempt
+  -> freeze a new runtime
+  -> qualify again
+~~~
+
+Do **not** use ad-hoc `mv` commands for failed/superseded Phase-0 attempts. Use:
+
+~~~bash
+bash scripts/agentic-jev/p0-archive-attempt.sh <reason-label>
+~~~
+
+The archive command is fail-closed. It:
+
+- keeps archives under `$AGENTIC_JEV_ROOT/archive/<label>/`;
+- copies the runtime lock and qualification tree before deleting either live path;
+- writes `archive-manifest.json` with evidence hashes and the observed
+  qualification state;
+- rejects an existing archive label rather than overwriting it;
+- refuses to run after `pilot-run` evidence exists;
+- refuses to archive a passing qualification by default.
+
+A passing qualification may be archived only when it is intentionally superseded
+by a code/runtime change, using the explicit operator override:
+
+~~~bash
+AGENTIC_JEV_ARCHIVE_PASSING=1 \
+  bash scripts/agentic-jev/p0-archive-attempt.sh superseded-runtime
+~~~
+
+That override invalidates the old live Phase-0 authorization path by design; a new
+runtime freeze and qualification are required afterward.
+
 ## Runtime identity
 
 Before qualification or pilot execution, freeze:
@@ -98,7 +148,9 @@ Outer Codex transcript tool names are retained for diagnostics but are not used 
 count Jev executions because the CLI may represent the bridge through its local
 `exec` surface.
 
-Do not proceed if this qualification fails.
+Do not proceed if this qualification fails. If it fails and a retry is needed,
+archive the failed Phase-0 attempt first with `p0-archive-attempt.sh`. If it passes,
+leave the qualification and runtime lock in place for Phase 1.
 
 ## Exploratory pilot
 
