@@ -351,6 +351,86 @@ def _append_receipt(path: Path | None, value: Mapping[str, object]) -> None:
         )
 
 
+def _primitive_counts_best_effort(questions: object) -> dict[str, int]:
+    counts = {primitive: 0 for primitive in sorted(_ALLOWED_PRIMITIVES)}
+    if not isinstance(questions, Mapping):
+        return counts
+    for value in questions.values():
+        if not isinstance(value, Mapping):
+            continue
+        primitive = str(value.get("type") or "").lower().strip()
+        if primitive in counts:
+            counts[primitive] += 1
+    return counts
+
+
+def _contract_failure_receipt(
+    *,
+    state: object,
+    questions: object,
+    purpose: str | None,
+    model: str | None,
+    error: Exception,
+    started: float,
+) -> dict[str, object]:
+    safe_state = _safe(state)
+    safe_questions = _safe(questions)
+    request_payload = {
+        "state": safe_state,
+        "questions": safe_questions,
+        "model": model,
+    }
+    return {
+        "schema": TOOL_RECEIPT_SCHEMA,
+        "study_id": PILOT_STUDY_ID,
+        "timestamp": _utc(),
+        "purpose": _safe(purpose or ""),
+        "request_sha256": _sha256_json(request_payload),
+        "requested_model": model,
+        "typesafe_sdk_version": _typesafe_sdk_version(),
+        "question_ids": (
+            [str(item) for item in questions]
+            if isinstance(questions, Mapping)
+            else []
+        ),
+        "primitive_counts": _primitive_counts_best_effort(questions),
+        "request": {
+            "state": safe_state,
+            "questions": safe_questions,
+        },
+        "status": "contract_failure",
+        "error_class": type(error).__name__,
+        "duration_ms": round((monotonic() - started) * 1000, 3),
+        "privacy": {
+            "host_tool": True,
+            "credentials_in_sandbox": False,
+            "secret_like_fields_redacted": True,
+            "public_safe": False,
+        },
+    }
+
+
+def _qualification_checks(
+    *,
+    receipts: list[dict[str, Any]],
+    key_absent: bool,
+    skill_present: bool,
+) -> dict[str, bool]:
+    successful = [item for item in receipts if item.get("status") == "success"]
+    return {
+        # Inspect sandbox bridged tools execute only for model-proposed calls when
+        # BridgedToolsSpec.require_proposal remains at its default True. The host
+        # receipt is therefore the authoritative execution ledger. Codex CLI's
+        # outer transcript may expose only its local exec tool and is diagnostic.
+        "jev_tool_called": bool(receipts),
+        "exactly_one_jev_tool_call": len(receipts) == 1,
+        "exactly_one_receipt": len(receipts) == 1,
+        "exactly_one_successful_receipt": len(successful) == 1,
+        "api_key_absent_from_agent_transcript": key_absent,
+        "skill_snapshot_present": skill_present,
+    }
+
+
 def execute_jev_request(
     *,
     state: Mapping[str, object],
@@ -360,12 +440,27 @@ def execute_jev_request(
     client: Any | None = None,
     receipt_path: Path | None = None,
 ) -> dict[str, object]:
-    safe_state = _safe(state)
-    if not isinstance(safe_state, dict):
-        raise WorkflowError("Jev state must be an object")
-    if len(_canonical_json(safe_state).encode("utf-8")) > _MAX_STATE_BYTES:
-        raise WorkflowError("Jev state exceeds the pilot size limit")
-    safe_questions = _validate_questions(questions)
+    started = monotonic()
+    try:
+        safe_state = _safe(state)
+        if not isinstance(safe_state, dict):
+            raise WorkflowError("Jev state must be an object")
+        if len(_canonical_json(safe_state).encode("utf-8")) > _MAX_STATE_BYTES:
+            raise WorkflowError("Jev state exceeds the pilot size limit")
+        safe_questions = _validate_questions(questions)
+    except WorkflowError as exc:
+        _append_receipt(
+            receipt_path,
+            _contract_failure_receipt(
+                state=state,
+                questions=questions,
+                purpose=purpose,
+                model=model,
+                error=exc,
+                started=started,
+            ),
+        )
+        raise
 
     request_payload = {
         "state": safe_state,
@@ -373,7 +468,6 @@ def execute_jev_request(
         "model": model,
     }
     request_sha256 = _sha256_json(request_payload)
-    started = monotonic()
     primitive_counts = {
         primitive: sum(
             1
@@ -1056,11 +1150,7 @@ def run_agentic_jev_tool_qualification(
         raise WorkflowError("agent-directed Jev tool qualification sample failed")
 
     functions = _tool_call_functions(log)
-    jev_functions = [
-        name for name in functions if name.endswith("jev_system_one")
-    ]
     receipts = _receipt_values(receipt_path)
-    successful = [item for item in receipts if item.get("status") == "success"]
     api_key = os.environ.get("TYPESAFE_API_KEY")
     transcript = json.dumps(
         [
@@ -1071,13 +1161,12 @@ def run_agentic_jev_tool_qualification(
         default=str,
     )
     key_absent = not api_key or api_key not in transcript
-    qualified = (
-        len(jev_functions) == 1
-        and len(receipts) == 1
-        and len(successful) == 1
-        and key_absent
-        and agentic_jev_skill_path().is_file()
+    checks = _qualification_checks(
+        receipts=receipts,
+        key_absent=key_absent,
+        skill_present=agentic_jev_skill_path().is_file(),
     )
+    qualified = all(checks.values())
     record = {
         "schema": "agent-workflow-benchmark/agentic-jev-tool-qualification/v1",
         "study_id": PILOT_STUDY_ID,
@@ -1090,15 +1179,10 @@ def run_agentic_jev_tool_qualification(
         "jev_model": jev_model,
         "skill_sha256": agentic_jev_skill_sha256(),
         "tool_functions": functions,
+        "tool_function_evidence_scope": "outer-codex-transcript-diagnostic-only",
+        "jev_execution_evidence": "host-tool-receipt",
         "receipt_summary": _receipt_summary(receipt_path),
-        "checks": {
-            "jev_tool_called": bool(jev_functions),
-            "exactly_one_jev_tool_call": len(jev_functions) == 1,
-            "exactly_one_receipt": len(receipts) == 1,
-            "exactly_one_successful_receipt": len(successful) == 1,
-            "api_key_absent_from_agent_transcript": key_absent,
-            "skill_snapshot_present": agentic_jev_skill_path().is_file(),
-        },
+        "checks": checks,
         "inspect_log": getattr(log, "location", None),
     }
     validate_instance(
@@ -1212,11 +1296,10 @@ def run_agentic_jev_pilot(
             else:
                 statuses["success"] += 1
         functions = _tool_call_functions(log)
-        jev_calls = sum(
-            1 for name in functions if name.endswith("jev_system_one")
-        )
+        receipt_values = _receipt_values(receipt_path)
         receipts = _receipt_summary(receipt_path)
-        if not arm.jev_tool and (jev_calls or receipts["receipts"]):
+        jev_calls = len(receipt_values)
+        if not arm.jev_tool and jev_calls:
             raise WorkflowError(
                 f"arm {arm.arm_id} recorded Jev calls despite tool being disabled"
             )
@@ -1226,7 +1309,10 @@ def run_agentic_jev_pilot(
             "inspect_log": getattr(log, "location", None),
             "samples": len(log_samples),
             "sample_status": statuses,
+            "outer_tool_functions": functions,
+            "tool_function_evidence_scope": "outer-codex-transcript-diagnostic-only",
             "jev_tool_calls": jev_calls,
+            "jev_execution_evidence": "host-tool-receipt",
             "tool_receipts": receipts,
         }
 

@@ -36,7 +36,13 @@ It returns normalized typed answers, probabilities/confidence when supplied,
 request identity, model identity, duration, and usage.
 
 Private receipts record sanitized state/question shapes and secret-like fields are
-redacted before the provider call and before persistence.
+redacted before the provider call and before persistence. The receipt stream is also
+the authoritative execution ledger for the bridged Jev tool. Inspect/Codex may expose
+only the CLI's outer local tool names (for example `exec`) in the final message
+transcript, while the host-side bridge executes `jev_system_one`. With
+`BridgedToolsSpec(require_proposal=True)` (the default used by this pilot), a host
+execution is authorized only by a model-proposed bridged call. Contract-validation
+failures are receipted as failures so attempted Jev use is not lost from pilot metrics.
 
 ## Runtime identity
 
@@ -83,10 +89,14 @@ bash scripts/agentic-jev/p0-qualify-tool.sh
 
 Required:
 
-- one Codex invocation of `jev_system_one`;
-- exactly one successful private receipt;
-- `TYPESAFE_API_KEY` absent from the Codex transcript;
+- exactly one bridged Jev execution, evidenced by exactly one host-tool receipt;
+- that receipt has `status=success`;
+- `TYPESAFE_API_KEY` is absent from the Codex transcript;
 - skill SHA matches the lock.
+
+Outer Codex transcript tool names are retained for diagnostics but are not used to
+count Jev executions because the CLI may represent the bridge through its local
+`exec` surface.
 
 Do not proceed if this qualification fails.
 
@@ -107,8 +117,8 @@ selection, and semantic risk. Those tags are not exposed to Codex.
 The run records:
 
 - per-arm sample success/error counts;
-- Jev tool-call count;
-- Choice/Noul/Score mix;
+- Jev host-execution count from the private receipt ledger;
+- Choice/Noul/Score mix, including locally rejected contract attempts where identifiable;
 - private request receipts;
 - request status;
 - latency;
