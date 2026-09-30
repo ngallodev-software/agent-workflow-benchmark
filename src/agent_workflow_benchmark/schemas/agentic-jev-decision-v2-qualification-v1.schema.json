@@ -1,0 +1,24 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1"},
+    "study_id": {"const": "agentic-jev-decision-skill-v2"},
+    "qualified": {"type": "boolean"},
+    "v2_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "activation_prompt_explicitly_names_jev": {"const": false},
+    "activation_prompt_explicitly_names_typesafe": {"const": false},
+    "control": {"type": "object"},
+    "treatment": {"type": "object"},
+    "activation_lift_observed": {"type": "boolean"},
+    "claim_boundary": {"type": "object"}
+  },
+  "required": [
+    "schema", "study_id", "qualified", "v2_lock_sha256",
+    "activation_prompt_explicitly_names_jev",
+    "activation_prompt_explicitly_names_typesafe",
+    "control", "treatment", "activation_lift_observed", "claim_boundary"
+  ]
+}

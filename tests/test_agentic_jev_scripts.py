@@ -390,3 +390,86 @@ def test_external_eval_schemas_are_registered() -> None:
         },
         "agent-workflow-benchmark/agentic-jev-external-eval-cohort/v1",
     )
+
+
+
+def test_decision_v2_skill_targets_agent_side_tool_use() -> None:
+    skill = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v2"
+        / "jev-decision-support"
+        / "SKILL.md"
+    ).read_text(encoding="utf-8")
+
+    assert "jev-decision-support" in skill
+    assert "your own bounded decisions" in skill
+    assert "jev_system_one" in skill
+    assert "competing implementation proposals" in skill
+    assert "Do not use for deterministic facts" in skill
+
+
+def test_decision_v2_activation_prompt_does_not_name_treatment() -> None:
+    from agent_workflow_benchmark.benchmarking.agentic_jev_decision_v2 import (
+        _ACTIVATION_PROMPT,
+    )
+
+    lowered = _ACTIVATION_PROMPT.lower()
+    assert "jev" not in lowered
+    assert "typesafe" not in lowered
+    assert "proposal_1" in lowered
+    assert "proposal_2" in lowered
+    assert "proposal_3" in lowered
+
+
+def test_decision_v2_keeps_original_system_prompt_and_adds_one_skill() -> None:
+    module = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "benchmarking"
+        / "agentic_jev_decision_v2.py"
+    ).read_text(encoding="utf-8")
+
+    assert "agentic_jev_skill_path().parent" in module
+    assert "decision_skill_path().parent" in module
+    assert (
+        "Use installed skills and optional semantic "
+        in module
+    )
+    assert "only when they materially improve a bounded decision" in module
+
+
+def test_decision_v2_scripts_enforce_freeze_qualify_run_order() -> None:
+    freeze = (AGENTIC / "p3-freeze-decision-skill-v2.sh").read_text(encoding="utf-8")
+    qualify = (AGENTIC / "p3-qualify-decision-skill-v2.sh").read_text(encoding="utf-8")
+    run = (AGENTIC / "p3-run-manager-v2.sh").read_text(encoding="utf-8")
+
+    assert "create_decision_v2_lock" in freeze
+    assert "run_decision_v2_activation_qualification" in qualify
+    assert "activation-qualification/qualification.json" in run
+    assert "run_decision_v2_manager_gate" in run
+    assert "aj_require_typesafe_key" in qualify
+    assert "aj_require_typesafe_key" in run
+
+
+def test_decision_v2_schemas_are_registered() -> None:
+    from agent_workflow_benchmark.benchmarking.schema_contracts import validate_instance
+
+    validate_instance(
+        {
+            "schema": "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1",
+            "study_id": "agentic-jev-decision-skill-v2",
+            "qualified": False,
+            "v2_lock_sha256": "0" * 64,
+            "activation_prompt_explicitly_names_jev": False,
+            "activation_prompt_explicitly_names_typesafe": False,
+            "control": {},
+            "treatment": {},
+            "activation_lift_observed": False,
+            "claim_boundary": {},
+        },
+        "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1",
+    )
