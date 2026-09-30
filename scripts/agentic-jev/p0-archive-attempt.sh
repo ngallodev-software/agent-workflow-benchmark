@@ -58,6 +58,26 @@ if pilot_run.exists():
         "this command is only for pre-pilot qualification attempts"
     )
 
+qualification_path = qual / "qualification.json"
+qualification_state: bool | None = None
+if qualification_path.is_file():
+    try:
+        qualification_value = json.loads(qualification_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"unable to read qualification state before archive: {qualification_path}: {exc}"
+        ) from exc
+    observed = qualification_value.get("qualified") if isinstance(qualification_value, dict) else None
+    if isinstance(observed, bool):
+        qualification_state = observed
+
+if qualification_state is True and os.environ.get("AGENTIC_JEV_ARCHIVE_PASSING") != "1":
+    raise SystemExit(
+        "refusing to archive a passing Phase-0 qualification; it is the live "
+        "authorization for Phase 1. Set AGENTIC_JEV_ARCHIVE_PASSING=1 only when "
+        "a passing qualification is intentionally superseded by a runtime/code change."
+    )
+
 lock_exists = lock.is_file()
 qual_exists = qual.is_dir() and any(qual.iterdir())
 if not lock_exists and not qual_exists:
@@ -105,6 +125,7 @@ try:
         manifest["sources"]["qualification"] = {
             "source": str(qual),
             "qualification_sha256": sha256_file(qjson) if qjson.is_file() else None,
+            "qualified": qualification_state,
             "files": sum(1 for item in dst.rglob("*") if item.is_file()),
         }
 
