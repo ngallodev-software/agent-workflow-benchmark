@@ -12,7 +12,7 @@ aj_require_typesafe_key
 EXTERNAL_ROOT="${AGENTIC_JEV_EXTERNAL_ROOT:-$AGENTIC_JEV_ROOT/external-eval-scout-v1}"
 CHECKOUT="$EXTERNAL_ROOT/inspect_evals"
 COHORT="$EXTERNAL_ROOT/cohort.json"
-RUN_ROOT="$EXTERNAL_ROOT/c-run"
+RUN_ROOT="$EXTERNAL_ROOT/c-run-manager"
 PRIOR_MANIFEST="$AGENTIC_JEV_RUN/run-manifest.json"
 
 aj_require_file "$COHORT"
@@ -36,7 +36,7 @@ result = run_external_jev_scout(
     qualification_path=Path(qualification),
 )
 execution = result["execution"]
-print("Agentic Jev external-eval C-arm scout complete")
+print("Agentic Jev external-eval manager C-arm gate complete")
 print("samples:", execution["samples_observed"])
 print("success:", execution["success"])
 print("errors:", execution["errors"])
