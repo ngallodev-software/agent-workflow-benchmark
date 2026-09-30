@@ -204,7 +204,16 @@ Jev or TypeSafe:
 bash scripts/agentic-jev/p3-qualify-decision-skill-v2.sh
 ~~~
 
-Do not run the real manager gate unless this passes.
+The first protocol-v1 activation attempt is intentionally preserved under
+`activation-qualification/`. Its fixture accidentally made one proposal
+deterministically correct, conflicting with the skill's evidence-first rule.
+
+The current command writes a separately versioned
+`activation-qualification-v2/` result using a fixture where every proposal
+satisfies deterministic constraints and the remaining choice is genuinely semantic.
+The manager runner accepts only this protocol-v2 qualification.
+
+Do not run the real manager gate unless protocol v2 passes.
 
 After a pass:
 

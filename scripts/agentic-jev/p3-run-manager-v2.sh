@@ -11,7 +11,7 @@ EXTERNAL_ROOT="${AGENTIC_JEV_EXTERNAL_ROOT:-$AGENTIC_JEV_ROOT/external-eval-scou
 CHECKOUT="$EXTERNAL_ROOT/inspect_evals"
 V2_ROOT="${AGENTIC_JEV_DECISION_V2_ROOT:-$AGENTIC_JEV_ROOT/decision-skill-v2}"
 V2_LOCK="$V2_ROOT/runtime-lock.json"
-QUALIFICATION="$V2_ROOT/activation-qualification/qualification.json"
+QUALIFICATION="$V2_ROOT/activation-qualification-v2/qualification.json"
 RUN_ROOT="$V2_ROOT/manager-run"
 
 aj_require_file "$V2_LOCK"

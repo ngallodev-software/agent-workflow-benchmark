@@ -9,7 +9,7 @@ aj_require_typesafe_key
 
 V2_ROOT="${AGENTIC_JEV_DECISION_V2_ROOT:-$AGENTIC_JEV_ROOT/decision-skill-v2}"
 V2_LOCK="$V2_ROOT/runtime-lock.json"
-QUAL_ROOT="$V2_ROOT/activation-qualification"
+QUAL_ROOT="$V2_ROOT/activation-qualification-v2"
 
 aj_require_file "$V2_LOCK"
 
@@ -25,13 +25,14 @@ result = run_decision_v2_activation_qualification(
     output_root=Path(root),
     v2_lock_path=Path(lock),
 )
-print("Agentic Jev decision-skill v2 activation qualification: PASS")
+print("Agentic Jev decision-skill v2 activation qualification protocol v2: PASS")
 print(
     "control_jev_calls:",
     result["control"]["jev_tool_calls"],
     "treatment_jev_calls:",
     result["treatment"]["jev_tool_calls"],
 )
+print("activation_protocol:", result["activation_protocol"])
 print("activation_lift_observed:", result["activation_lift_observed"])
 print(result["path"])
 PY

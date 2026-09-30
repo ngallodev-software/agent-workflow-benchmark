@@ -132,6 +132,55 @@ Competing implementation proposals are named as the canonical Choice case.
 The Jev result remains advisory. Exact specifications, tests, and invariants retain
 authority if they contradict the semantic judgment.
 
+## Activation qualification protocol correction
+
+The first v2 activation qualification attempt is preserved as a failed protocol-v1
+artifact under:
+
+~~~text
+decision-skill-v2/activation-qualification/
+~~~
+
+Its observed result was:
+
+~~~text
+control Jev calls:   0
+treatment Jev calls: 0
+credential leak:     false
+~~~
+
+That attempt exposed a qualification-design error rather than a bridge failure.
+
+The protocol-v1 fixture stated deterministic facts that made one proposal uniquely
+compatible with the stated requirements. At the same time, the adapted skill
+explicitly instructs the agent **not** to invoke Jev when deterministic evidence
+already identifies a single answer. Requiring a Jev call from that fixture therefore
+contradicted the skill contract.
+
+Protocol v2 corrects only the activation fixture. The skill, bridge, model,
+runtime identity, and frozen treatment remain unchanged.
+
+The corrected fixture explicitly establishes that:
+
+- all three proposals satisfy the tests and compatibility rules;
+- none breaks the public API;
+- all fit the change budget;
+- no specification, test, policy, or repository authority ranks them;
+- the remaining choice is a semantic trade-off among maintainability,
+  reviewability, reversibility, and migration complexity.
+
+The task still names neither Jev nor TypeSafe.
+
+Protocol v2 is hash-bound as `semantic-tradeoff-v2` and writes to a distinct
+evidence root:
+
+~~~text
+decision-skill-v2/activation-qualification-v2/
+~~~
+
+The manager gate accepts only the protocol-v2 qualification. The failed v1
+qualification is never overwritten or treated as authorization.
+
 ## Two-stage qualification
 
 The old bridge qualification proved that the host tool works when the task directly

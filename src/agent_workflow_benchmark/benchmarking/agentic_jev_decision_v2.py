@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
 from importlib.resources import files
@@ -33,13 +34,15 @@ from .schema_contracts import validate_instance
 
 STUDY_ID = "agentic-jev-decision-skill-v2"
 LOCK_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-lock/v1"
-QUAL_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1"
+LEGACY_QUAL_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1"
+QUAL_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v2"
 RUN_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-manager-run/v1"
+ACTIVATION_PROTOCOL_ID = "semantic-tradeoff-v2"
 DECISION_SKILL_SOURCE_REPOSITORY = "ngallodev-software/jev-decision-support"
 DECISION_SKILL_SOURCE_COMMIT = "65b444965e48209860e353f2aa0e8d9dbe35d2ce"
 DECISION_SKILL_SOURCE_PATH = "skills/jev-decision-support/SKILL.md"
 
-_ACTIVATION_PROMPT = """You are reviewing an implementation decision.
+_LEGACY_ACTIVATION_PROMPT_V1 = """You are reviewing an implementation decision.
 
 The product must preserve legacy client compatibility while exposing a previously
 collapsed 'unknown' state to newer clients. Repository inspection has established
@@ -55,6 +58,60 @@ Choose the best implementation proposal:
 
 Return the selected proposal ID and a short reason. Do not edit files.
 """
+
+_ACTIVATION_PROMPT = """You are reviewing an implementation decision.
+
+Repository inspection has already established all of the following:
+
+- all three proposals satisfy the current tests and explicit compatibility rules;
+- none requires a public API break;
+- each can be implemented within the current change budget;
+- no specification, policy, test, or repository authority ranks one proposal above
+  the others;
+- the remaining choice is a trade-off among localized change, conceptual clarity,
+  review surface, and migration complexity.
+
+Choose the best implementation proposal:
+
+- proposal_1: Add a narrow compatibility adapter at the call site. This is the
+  smallest diff and easiest rollback, but it duplicates translation logic that may
+  need to remain consistent with another adapter.
+- proposal_2: Move normalization into the shared boundary helper. This centralizes
+  the invariant and reduces duplication, but changes a shared path used by several
+  callers and therefore increases review surface.
+- proposal_3: Introduce a versioned compatibility facade. This gives the clearest
+  separation between legacy and new semantics, but adds an abstraction and a
+  migration step that the other proposals avoid.
+
+Select the proposal that best balances maintainability, reviewability,
+reversibility, and migration cost given the supplied facts. Return the selected
+proposal ID and a short reason. Do not edit files.
+"""
+
+
+def activation_protocol_record() -> dict[str, object]:
+    return {
+        "id": ACTIVATION_PROTOCOL_ID,
+        "prompt": _ACTIVATION_PROMPT,
+        "prompt_explicitly_names_jev": False,
+        "prompt_explicitly_names_typesafe": False,
+        "deterministic_constraints_satisfied_by_all_options": True,
+        "remaining_decision": (
+            "semantic trade-off among maintainability, reviewability, "
+            "reversibility, and migration cost"
+        ),
+    }
+
+
+def activation_protocol_sha256() -> str:
+    payload = json.dumps(
+        activation_protocol_record(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
 
 
 def decision_skill_path() -> Path:
@@ -383,7 +440,13 @@ def run_decision_v2_activation_qualification(
     output_root.mkdir(parents=True, exist_ok=True)
 
     lock, runtime = load_decision_v2_lock(v2_lock_path)
-    if "jev" in _ACTIVATION_PROMPT.lower() or "typesafe" in _ACTIVATION_PROMPT.lower():
+    protocol = activation_protocol_record()
+    if (
+        protocol["prompt_explicitly_names_jev"]
+        or protocol["prompt_explicitly_names_typesafe"]
+        or "jev" in _ACTIVATION_PROMPT.lower()
+        or "typesafe" in _ACTIVATION_PROMPT.lower()
+    ):
         raise WorkflowError("activation prompt must not explicitly name Jev or TypeSafe")
 
     control = _run_activation_arm(
@@ -406,6 +469,11 @@ def run_decision_v2_activation_qualification(
         "study_id": STUDY_ID,
         "qualified": qualified,
         "v2_lock_sha256": sha256_file(v2_lock_path),
+        "activation_protocol": {
+            "id": ACTIVATION_PROTOCOL_ID,
+            "sha256": activation_protocol_sha256(),
+            "deterministic_constraints_satisfied_by_all_options": True,
+        },
         "activation_prompt_explicitly_names_jev": False,
         "activation_prompt_explicitly_names_typesafe": False,
         "control": control,
@@ -417,6 +485,8 @@ def run_decision_v2_activation_qualification(
             "exploratory_only": True,
             "effectiveness_claim_allowed": False,
             "qualification_only_tests_skill_activation": True,
+            "protocol_v1_failure_preserved": True,
+            "protocol_v2_requires_genuine_semantic_tradeoff": True,
         },
     }
     validate_instance(record, QUAL_SCHEMA, artifact="decision-skill v2 qualification")
@@ -510,6 +580,13 @@ def run_decision_v2_manager_gate(
         QUAL_SCHEMA,
         artifact=str(activation_qualification_path),
     )
+    protocol = qualification.get("activation_protocol")
+    if not isinstance(protocol, Mapping):
+        raise WorkflowError("decision-skill v2 qualification has no activation protocol")
+    if protocol.get("id") != ACTIVATION_PROTOCOL_ID:
+        raise WorkflowError("decision-skill v2 qualification used another activation protocol")
+    if protocol.get("sha256") != activation_protocol_sha256():
+        raise WorkflowError("decision-skill v2 activation protocol changed")
     if qualification.get("qualified") is not True:
         raise WorkflowError("decision-skill v2 activation qualification is not passing")
     if qualification.get("v2_lock_sha256") != sha256_file(v2_lock_path):

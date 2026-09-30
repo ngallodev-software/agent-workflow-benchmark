@@ -1,0 +1,61 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v2"},
+    "study_id": {"const": "agentic-jev-decision-skill-v2"},
+    "qualified": {"type": "boolean"},
+    "v2_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "activation_protocol": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {"const": "semantic-tradeoff-v2"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "deterministic_constraints_satisfied_by_all_options": {"const": true}
+      },
+      "required": [
+        "id",
+        "sha256",
+        "deterministic_constraints_satisfied_by_all_options"
+      ]
+    },
+    "activation_prompt_explicitly_names_jev": {"const": false},
+    "activation_prompt_explicitly_names_typesafe": {"const": false},
+    "control": {"type": "object"},
+    "treatment": {"type": "object"},
+    "activation_lift_observed": {"type": "boolean"},
+    "claim_boundary": {
+      "type": "object",
+      "properties": {
+        "exploratory_only": {"const": true},
+        "effectiveness_claim_allowed": {"const": false},
+        "qualification_only_tests_skill_activation": {"const": true},
+        "protocol_v1_failure_preserved": {"const": true},
+        "protocol_v2_requires_genuine_semantic_tradeoff": {"const": true}
+      },
+      "required": [
+        "exploratory_only",
+        "effectiveness_claim_allowed",
+        "qualification_only_tests_skill_activation",
+        "protocol_v1_failure_preserved",
+        "protocol_v2_requires_genuine_semantic_tradeoff"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "study_id",
+    "qualified",
+    "v2_lock_sha256",
+    "activation_protocol",
+    "activation_prompt_explicitly_names_jev",
+    "activation_prompt_explicitly_names_typesafe",
+    "control",
+    "treatment",
+    "activation_lift_observed",
+    "claim_boundary"
+  ]
+}
