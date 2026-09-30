@@ -15,6 +15,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev import (
     PILOT_CODEX_MIN_VERSION,
     PILOT_ARMS,
     _agentic_jev_qualification_prompt,
+    _qualification_checks,
     agentic_jev_skill_path,
     agentic_jev_skill_sha256,
     build_agentic_jev_solver,
@@ -483,3 +484,65 @@ def test_agentic_tool_doc_discloses_question_contract():
     assert "Every" in source and "question requires" in source
     assert '"type":"choice"' in source
     assert '"instructions":"Choose the primary work type."' in source
+
+
+
+def test_contract_validation_failure_is_receipted(tmp_path: Path):
+    receipt = tmp_path / "calls.jsonl"
+    with pytest.raises(WorkflowError, match="requires instructions"):
+        execute_jev_request(
+            state={"task": "Review parser"},
+            questions={
+                "primary_work_type": {
+                    "type": "choice",
+                    "criteria": {
+                        "implementation": "change code",
+                        "review": "assess",
+                    },
+                }
+            },
+            client=_Client(),
+            receipt_path=receipt,
+        )
+
+    records = [
+        json.loads(line)
+        for line in receipt.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(records) == 1
+    assert records[0]["status"] == "contract_failure"
+    assert records[0]["primitive_counts"]["choice"] == 1
+
+
+def test_qualification_uses_receipts_not_outer_codex_tool_names():
+    receipts = [{"status": "success"}]
+    checks = _qualification_checks(
+        receipts=receipts,
+        key_absent=True,
+        skill_present=True,
+    )
+    assert checks == {
+        "jev_tool_called": True,
+        "exactly_one_jev_tool_call": True,
+        "exactly_one_receipt": True,
+        "exactly_one_successful_receipt": True,
+        "api_key_absent_from_agent_transcript": True,
+        "skill_snapshot_present": True,
+    }
+
+
+def test_qualification_fails_for_multiple_or_unsuccessful_receipts():
+    multiple = _qualification_checks(
+        receipts=[{"status": "success"}, {"status": "success"}],
+        key_absent=True,
+        skill_present=True,
+    )
+    assert multiple["exactly_one_jev_tool_call"] is False
+    failed = _qualification_checks(
+        receipts=[{"status": "contract_failure"}],
+        key_absent=True,
+        skill_present=True,
+    )
+    assert failed["exactly_one_jev_tool_call"] is True
+    assert failed["exactly_one_successful_receipt"] is False
