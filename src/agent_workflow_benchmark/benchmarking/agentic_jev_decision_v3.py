@@ -483,6 +483,105 @@ def run_decision_v3_activation_qualification(
     return {"path": str(result_path), **record}
 
 
+def diagnose_decision_v3_activation_qualification(
+    path: Path,
+) -> dict[str, Any]:
+    value = _read_json_object(Path(path))
+    validate_instance(value, QUAL_SCHEMA, artifact=str(path))
+
+    control = value.get("control")
+    treatment = value.get("treatment")
+    if not isinstance(control, Mapping) or not isinstance(treatment, Mapping):
+        raise WorkflowError("decision-skill v3 qualification is missing arm evidence")
+
+    observed = {
+        "control_jev_tool_calls": int(control.get("jev_tool_calls", 0)),
+        "treatment_jev_tool_calls": int(treatment.get("jev_tool_calls", 0)),
+        "treatment_successful_jev_calls": int(
+            treatment.get("successful_jev_calls", 0)
+        ),
+        "treatment_second_order_primitives": int(
+            treatment.get("second_order_primitives", 0)
+        ),
+        "treatment_api_key_absent_from_transcript": (
+            treatment.get("api_key_absent_from_transcript") is True
+        ),
+        "activation_lift_observed": value.get("activation_lift_observed") is True,
+        "qualified": value.get("qualified") is True,
+    }
+    predicates = {
+        "control_made_zero_jev_calls": observed["control_jev_tool_calls"] == 0,
+        "treatment_made_exactly_one_jev_call": (
+            observed["treatment_jev_tool_calls"] == 1
+        ),
+        "treatment_call_succeeded": (
+            observed["treatment_successful_jev_calls"] == 1
+        ),
+        "treatment_used_noul_or_score": (
+            observed["treatment_second_order_primitives"] >= 1
+        ),
+        "credential_isolation_preserved": (
+            observed["treatment_api_key_absent_from_transcript"] is True
+        ),
+    }
+    failed = [name for name, passed in predicates.items() if not passed]
+
+    if not failed:
+        interpretation = (
+            "all qualification predicates pass; stored qualified=false would be "
+            "internally inconsistent and requires harness investigation"
+        )
+    elif not predicates["control_made_zero_jev_calls"]:
+        interpretation = (
+            "v2 control also activated on the second-order fixture; the fixture "
+            "does not isolate the v3 policy delta even if v3 also used Jev"
+        )
+    elif not predicates["treatment_made_exactly_one_jev_call"]:
+        calls = observed["treatment_jev_tool_calls"]
+        if calls == 0:
+            interpretation = (
+                "v3 did not activate on the second-order fixture; inspect skill "
+                "discovery/decision trace before changing the real-task gate"
+            )
+        else:
+            interpretation = (
+                "v3 activated but violated the one-call qualification discipline; "
+                "inspect whether related Noul/Score judgments were split across calls"
+            )
+    elif not predicates["treatment_call_succeeded"]:
+        interpretation = (
+            "v3 attempted Jev but the authoritative host receipt was not successful; "
+            "inspect receipt status/contract failure before changing skill semantics"
+        )
+    elif not predicates["treatment_used_noul_or_score"]:
+        interpretation = (
+            "v3 called Jev but did not exercise the intended second-order Noul/Score "
+            "path; inspect primitive mix before treating this as a v3 policy pass"
+        )
+    elif not predicates["credential_isolation_preserved"]:
+        interpretation = (
+            "credential isolation failed; stop and inspect the transcript boundary"
+        )
+    else:
+        interpretation = "qualification failed for an unclassified reason"
+
+    return {
+        "schema": value.get("schema"),
+        "study_id": value.get("study_id"),
+        "activation_protocol": value.get("activation_protocol"),
+        "observed": observed,
+        "predicates": predicates,
+        "failed_predicates": failed,
+        "interpretation": interpretation,
+        "control_receipt_summary": control.get("receipt_summary"),
+        "treatment_receipt_summary": treatment.get("receipt_summary"),
+        "control_outer_tool_functions": control.get("outer_tool_functions"),
+        "treatment_outer_tool_functions": treatment.get("outer_tool_functions"),
+        "control_inspect_log": control.get("inspect_log"),
+        "treatment_inspect_log": treatment.get("inspect_log"),
+    }
+
+
 def _run_manager_sample(
     *,
     sample_id: str,
