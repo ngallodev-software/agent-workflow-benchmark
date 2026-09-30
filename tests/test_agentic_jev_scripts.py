@@ -690,3 +690,31 @@ def test_decision_v3_schemas_are_registered() -> None:
         },
         "agent-workflow-benchmark/agentic-jev-decision-v3-qualification/v1",
     )
+
+
+
+def test_manager_trace_audit_is_read_only_and_reasoning_safe() -> None:
+    audit = (AGENTIC / "p4-audit-v2-manager-traces.py").read_text(encoding="utf-8")
+    wrapper = (AGENTIC / "p4-audit-v2-manager-traces.sh").read_text(encoding="utf-8")
+
+    assert "read_eval_log" in audit
+    assert '"reasoning_content_exported": False' in audit
+    assert '"private_derived_evidence": True' in audit
+    assert "refusing to overwrite existing audit" in audit
+    assert "run_manifest_sha256" in audit
+    assert "inspect_log_sha256" in audit
+    assert "audit_classification" in audit
+    assert "semantic_seam_observed" in audit
+    assert "jev_nonuse_explanation" in audit
+    assert "manager-run/run-manifest.json" in wrapper
+    assert "aj_require_typesafe_key" not in wrapper
+
+
+def test_redundant_v3_manager_canary_is_fail_closed() -> None:
+    canary = (AGENTIC / "p4-run-manager-canary-v3.sh").read_text(encoding="utf-8")
+    readme = (AGENTIC / "README.md").read_text(encoding="utf-8")
+
+    assert "v3 manager canary retired" in canary
+    assert "p4-audit-v2-manager-traces.sh" in canary
+    assert "Do not run `p4-run-manager-canary-v3.sh`" in readme
+    assert "both v2 control and v3 treatment" in readme
