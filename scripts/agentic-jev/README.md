@@ -177,6 +177,14 @@ Canonical design:
 
 ## Phase 3 — correct the agent-facing Jev skill treatment
 
+The benchmark decision skill is derived from
+`ngallodev-software/jev-decision-support@65b444965e48209860e353f2aa0e8d9dbe35d2ce`.
+Its public evidence-first Choice/Noul/Score workflow is retained, while benchmark
+live inference is restricted to the host-side `jev_system_one` bridge. Direct SDK
+or HTTP fallback is intentionally prohibited so credentials stay host-only and
+receipts remain authoritative.
+
+
 The original upstream `typesafe-ai` skill is an integration/build skill and did
 not teach the coding agent to use the available Jev bridge for its own bounded
 decisions. Preserve the completed zero-call runs as evidence of that treatment.

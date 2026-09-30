@@ -36,9 +36,25 @@
       "type": "object",
       "properties": {
         "upstream_typesafe_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "decision_support_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "decision_support_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decision_support_interface_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decision_support_source": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {"const": "ngallodev-software/jev-decision-support"},
+            "commit": {"const": "65b444965e48209860e353f2aa0e8d9dbe35d2ce"},
+            "path": {"const": "skills/jev-decision-support/SKILL.md"}
+          },
+          "required": ["repository", "commit", "path"]
+        }
       },
-      "required": ["upstream_typesafe_sha256", "decision_support_sha256"]
+      "required": [
+        "upstream_typesafe_sha256",
+        "decision_support_sha256",
+        "decision_support_interface_sha256",
+        "decision_support_source"
+      ]
     },
     "host_tool": {"type": "object"},
     "claim_boundary": {"type": "object"}

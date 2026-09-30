@@ -35,6 +35,9 @@ STUDY_ID = "agentic-jev-decision-skill-v2"
 LOCK_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-lock/v1"
 QUAL_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v1"
 RUN_SCHEMA = "agent-workflow-benchmark/agentic-jev-decision-v2-manager-run/v1"
+DECISION_SKILL_SOURCE_REPOSITORY = "ngallodev-software/jev-decision-support"
+DECISION_SKILL_SOURCE_COMMIT = "65b444965e48209860e353f2aa0e8d9dbe35d2ce"
+DECISION_SKILL_SOURCE_PATH = "skills/jev-decision-support/SKILL.md"
 
 _ACTIVATION_PROMPT = """You are reviewing an implementation decision.
 
@@ -63,6 +66,17 @@ def decision_skill_path() -> Path:
 
 def decision_skill_sha256() -> str:
     return sha256_file(decision_skill_path())
+
+
+def decision_skill_interface_path() -> Path:
+    resource = files("agent_workflow_benchmark").joinpath(
+        "assets/agentic-jev-decision-v2/jev-decision-support/agents/openai.yaml"
+    )
+    return Path(str(resource))
+
+
+def decision_skill_interface_sha256() -> str:
+    return sha256_file(decision_skill_interface_path())
 
 
 def _load_bridge_qualification(
@@ -134,6 +148,12 @@ def create_decision_v2_lock(
         "skills": {
             "upstream_typesafe_sha256": agentic_jev_skill_sha256(),
             "decision_support_sha256": decision_skill_sha256(),
+            "decision_support_interface_sha256": decision_skill_interface_sha256(),
+            "decision_support_source": {
+                "repository": DECISION_SKILL_SOURCE_REPOSITORY,
+                "commit": DECISION_SKILL_SOURCE_COMMIT,
+                "path": DECISION_SKILL_SOURCE_PATH,
+            },
         },
         "host_tool": {
             "implementation_sha256": runtime["host_tool"]["implementation_sha256"],
@@ -182,6 +202,19 @@ def load_decision_v2_lock(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         raise WorkflowError("decision-skill v2 upstream TypeSafe skill changed")
     if value["skills"]["decision_support_sha256"] != decision_skill_sha256():
         raise WorkflowError("decision-skill v2 decision support skill changed")
+    if (
+        value["skills"].get("decision_support_interface_sha256")
+        != decision_skill_interface_sha256()
+    ):
+        raise WorkflowError("decision-skill v2 interface metadata changed")
+    source = value["skills"].get("decision_support_source")
+    expected_source = {
+        "repository": DECISION_SKILL_SOURCE_REPOSITORY,
+        "commit": DECISION_SKILL_SOURCE_COMMIT,
+        "path": DECISION_SKILL_SOURCE_PATH,
+    }
+    if source != expected_source:
+        raise WorkflowError("decision-skill v2 source provenance changed")
     if value["host_tool"]["implementation_sha256"] != runtime["host_tool"]["implementation_sha256"]:
         raise WorkflowError("decision-skill v2 host tool changed")
     return value, runtime

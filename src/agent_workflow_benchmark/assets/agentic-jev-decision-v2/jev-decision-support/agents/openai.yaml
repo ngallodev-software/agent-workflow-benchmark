@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jev Decision Support"
+  short_description: "Ask Jev for a bounded semantic decision"
+  default_prompt: "Use $jev-decision-support when deterministic evidence leaves a consequential bounded semantic choice; use the exposed host jev_system_one tool and keep exact rules authoritative."
