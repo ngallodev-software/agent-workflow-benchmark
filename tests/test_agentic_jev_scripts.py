@@ -350,6 +350,8 @@ def test_external_eval_c_runner_is_uptake_only_and_sample_scoped() -> None:
     assert "score=False" in runner
     assert 'max_samples=1' in runner
     assert '"scoring_enabled": False' in runner
+    assert 'source_name != "swe_lancer_manager_choice"' in runner
+    assert '"samples_expected": len(selected)' in runner
     assert "sample-result.json" in runner
     assert "run_external_jev_scout" in shell
     assert "aj_require_typesafe_key" in shell
