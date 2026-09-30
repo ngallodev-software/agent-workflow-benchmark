@@ -99,3 +99,12 @@ def test_agentic_env_defaults_model_args_json_without_extra_brace(tmp_path: Path
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == '{"responses_api":true}'
+
+
+
+def test_agentic_qualification_requires_clean_evidence_root() -> None:
+    text = (
+        ROOT / "src" / "agent_workflow_benchmark" / "benchmarking" / "agentic_jev.py"
+    ).read_text(encoding="utf-8")
+    assert "qualification evidence directory is not empty" in text
+    assert "preserve/archive the prior attempt before retrying" in text

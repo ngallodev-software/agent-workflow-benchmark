@@ -526,7 +526,12 @@ def jev_bridged_tool(
 
             Args:
                 state: Bounded JSON evidence needed for the judgment. Do not include credentials.
-                questions: Mapping of question IDs to TypeSafe question objects using type=choice, noul, or score.
+                questions: Mapping of question IDs to TypeSafe question objects. Every
+                    question requires `type` and non-empty `instructions`. Choice and
+                    score questions also require `criteria`. Example Choice object:
+                    {"type":"choice","instructions":"Choose the primary work type.",
+                    "criteria":{"implementation":"change code","diagnosis":"investigate",
+                    "review":"assess","documentation":"write docs","other":"none"}}.
                 purpose: Short explanation of the coding decision this judgment will inform.
             """
             result = await asyncio.to_thread(
@@ -957,6 +962,19 @@ def load_agentic_jev_runtime_lock(path: Path) -> dict[str, Any]:
     return value
 
 
+def _agentic_jev_qualification_prompt() -> str:
+    return (
+        "Use the available Jev semantic tool exactly once. Give it bounded state "
+        "describing this request: 'Review the existing parser change for defects; "
+        "do not modify product behavior.' Ask exactly one Choice question with ID "
+        "'primary_work_type'. The question object must contain all required fields: "
+        "type='choice'; instructions='Choose the primary work type.'; and criteria "
+        "mapping implementation, diagnosis, review, documentation, and other to "
+        "short meanings. Then report the returned selected value and stop. "
+        "Do not edit files."
+    )
+
+
 def run_agentic_jev_tool_qualification(
     *,
     output_root: Path,
@@ -983,14 +1001,20 @@ def run_agentic_jev_tool_qualification(
 
     output_root = Path(output_root)
     result_path = output_root / "qualification.json"
-    if result_path.exists() and not force:
+    if output_root.exists() and any(output_root.iterdir()) and not force:
         raise WorkflowError(
-            f"agent-directed Jev qualification already exists: {result_path}"
+            "agent-directed Jev qualification evidence directory is not empty; "
+            f"preserve/archive the prior attempt before retrying: {output_root}"
         )
     output_root.mkdir(parents=True, exist_ok=True)
     receipt_path = output_root / "jev-tool-receipts.jsonl"
-    if receipt_path.exists() and force:
-        receipt_path.unlink()
+    if force:
+        for path in output_root.iterdir():
+            if path.is_dir():
+                import shutil
+                shutil.rmtree(path)
+            else:
+                path.unlink()
 
     solver = build_agentic_jev_solver(
         arm_id="C-skill-plus-jev",
@@ -1000,13 +1024,7 @@ def run_agentic_jev_tool_qualification(
     )
     sample = Sample(
         id="agentic-jev-tool-smoke",
-        input=(
-            "Use the available Jev semantic tool exactly once. Give it bounded state "
-            "describing this request: 'Review the existing parser change for defects; "
-            "do not modify product behavior.' Ask one Choice question selecting the "
-            "primary work type from implementation, diagnosis, review, documentation, "
-            "or other. Then report the returned selected value and stop. Do not edit files."
-        ),
+        input=_agentic_jev_qualification_prompt(),
         files={"README.md": "Synthetic agent-directed Jev qualification fixture.\n"},
     )
     task = Task(
