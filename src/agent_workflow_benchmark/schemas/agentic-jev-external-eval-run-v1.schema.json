@@ -18,20 +18,21 @@
       "type": "object",
       "properties": {
         "arm": {"const": "C-skill-plus-jev"},
-        "samples_expected": {"const": 12},
-        "samples_observed": {"const": 12},
-        "success": {"type": "integer", "minimum": 0, "maximum": 12},
-        "errors": {"type": "integer", "minimum": 0, "maximum": 12},
+        "source": {"const": "swe_lancer_manager_choice"},
+        "samples_expected": {"const": 6},
+        "samples_observed": {"const": 6},
+        "success": {"type": "integer", "minimum": 0, "maximum": 6},
+        "errors": {"type": "integer", "minimum": 0, "maximum": 6},
         "jev_tool_calls": {"type": "integer", "minimum": 0},
         "samples_with_jev_calls": {"type": "array", "items": {"type": "string"}},
         "scoring_enabled": {"const": false}
       },
       "required": [
-        "arm", "samples_expected", "samples_observed", "success", "errors",
+        "arm", "source", "samples_expected", "samples_observed", "success", "errors",
         "jev_tool_calls", "samples_with_jev_calls", "scoring_enabled"
       ]
     },
-    "samples": {"type": "array", "minItems": 12, "maxItems": 12},
+    "samples": {"type": "array", "minItems": 6, "maxItems": 6},
     "claim_boundary": {"type": "object"}
   },
   "required": [
