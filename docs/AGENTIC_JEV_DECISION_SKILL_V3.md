@@ -1,7 +1,7 @@
 # Agentic Jev Decision-Skill v3
 
 **Study identity:** `agentic-jev-decision-skill-v3`  
-**Status:** DEVELOPMENT-ONLY / treatment refinement  
+**Status:** DEVELOPMENT-ONLY / NON-DISCRIMINATING QUALIFICATION / CANARY RETIRED  
 **Predecessor:** `agentic-jev-decision-skill-v2`
 
 ## Why v3 exists
@@ -128,26 +128,60 @@ Run:
 bash scripts/agentic-jev/p4-qualify-decision-skill-v3.sh
 ~~~
 
+## Qualification outcome: v3 did not isolate a new behavior
+
+The first v3 activation qualification completed cleanly but failed the intended
+discrimination predicate:
+
+~~~text
+v2 control:
+  Jev calls: 1
+  successful calls: 1
+  primitives: Noul + Score
+
+v3 treatment:
+  Jev calls: 1
+  successful calls: 1
+  primitives: Noul + Score
+~~~
+
+Both arms preserved credential isolation.
+
+This means the v2 control already performed the exact second-order evidence-
+sufficiency / semantic-risk behavior that v3 was designed to add. The v3 fixture
+therefore does **not** demonstrate a treatment delta.
+
+Consequently:
+
+- v3 is not an authorized successor treatment;
+- the two-task manager canary is retired;
+- do not modify the v2 skill again based on this qualification;
+- the next step is a read-only audit of the six existing v2 manager traces.
+
+The six manager zero-call result now carries a different interpretation: the v2
+skill can use Jev for second-order Noul/Score judgments, but did not perceive such a
+semantic seam in those six real tasks after repository inspection.
+
+Run the trace audit:
+
+~~~bash
+bash scripts/agentic-jev/p4-audit-v2-manager-traces.sh
+~~~
+
+The audit derives a private JSON artifact from the immutable six-task manager run.
+It includes observable assistant text, tool calls/results, selected proposal where
+recoverable, and reasoning-block counts. It does **not** export raw reasoning-block
+content.
+
 ## Real-task gate: two-manager canary
 
 Do not immediately repeat all six manager tasks.
 
-After v3 qualification passes, run only the first two IDs from the already-frozen
-manager cohort:
+This gate is retired because the v3 synthetic qualification was non-discriminating:
+the v2 control already made the same successful Noul+Score Jev call as v3.
 
-~~~bash
-bash scripts/agentic-jev/p4-run-manager-canary-v3.sh
-~~~
-
-The order is inherited from the frozen cohort; no post-hoc task selection is done.
-
-The canary passes only if:
-
-- both task executions complete without sample errors; and
-- at least one authoritative host-side Jev receipt is recorded.
-
-A zero-call canary is preserved and stops the experiment before the remaining four
-manager tasks.
+Do not run `p4-run-manager-canary-v3.sh`. Audit the existing v2 manager traces
+instead.
 
 ## Claim boundary
 
