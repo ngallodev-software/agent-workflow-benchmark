@@ -11,6 +11,7 @@ from agent_workflow.util import atomic_write_json, sha256_file
 
 from .agentic_jev import (
     PILOT_CODEX_MODEL_CONFIG,
+    TOOL_RECEIPT_SCHEMA,
     _read_json_object,
     _receipt_summary,
     _receipt_values,
@@ -136,7 +137,7 @@ def create_decision_v2_lock(
         },
         "host_tool": {
             "implementation_sha256": runtime["host_tool"]["implementation_sha256"],
-            "receipt_schema": runtime["host_tool"]["receipt_schema"],
+            "receipt_schema": TOOL_RECEIPT_SCHEMA,
         },
         "claim_boundary": {
             "exploratory_only": True,
@@ -224,10 +225,10 @@ def build_decision_v2_solver(
         auto_review=False,
         home_dir="/tmp/codex-home",
         system_prompt=(
-            "Complete the assigned coding or review task using only the supplied "
-            "repository state and available tools. Use installed skills when their "
-            "documented trigger applies. Keep deterministic facts, tests, exact "
-            "lookups, and execution in ordinary code/tools."
+            "Complete the assigned coding task using only the supplied repository "
+            "state and available tools. Use installed skills and optional semantic "
+            "tools only when they materially improve a bounded decision; do not "
+            "add dependencies or product code merely to access an experimental tool."
         ),
         config_overrides={
             "approval_policy": "never",
@@ -287,6 +288,8 @@ def _run_activation_arm(
     else:
         raise WorkflowError(f"unknown decision-skill qualification arm: {arm}")
 
+    from .inspect_adjudication import _inspect_sandbox_spec
+
     task = Task(
         dataset=[
             Sample(
@@ -296,7 +299,7 @@ def _run_activation_arm(
             )
         ],
         solver=solver,
-        sandbox="docker",
+        sandbox=_inspect_sandbox_spec(),
         checkpoint=False,
     )
     logs = inspect_ai.eval(
