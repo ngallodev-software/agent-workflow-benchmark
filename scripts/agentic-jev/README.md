@@ -157,5 +157,18 @@ The first execution on this external cohort is intentionally **C arm only**. The
 goal is to establish whether stronger semantic-choice pressure produces any actual
 live-Jev treatment exposure before spending on a matched A/B/C study.
 
+After the cohort is frozen, prepare the pinned external dependencies and run the
+C-only scout:
+
+~~~bash
+bash scripts/agentic-jev/p2-prepare-external-evals.sh
+bash scripts/agentic-jev/p2-run-external-c.sh
+~~~
+
+The runner executes one frozen public-eval sample at a time so each private Jev
+receipt stream maps unambiguously to one task ID. Scoring is disabled in this
+uptake-only phase. Do not refreeze or requalify unless the already-frozen Agentic
+Jev runtime itself changes.
+
 Canonical design:
 `docs/AGENTIC_JEV_EXTERNAL_EVAL_SCOUT.md`.
