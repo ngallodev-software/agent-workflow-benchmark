@@ -608,7 +608,8 @@ def test_decision_v3_activation_targets_second_order_path() -> None:
     assert "jev" not in lowered
     assert "typesafe" not in lowered
     assert "proposal_2 is" in lowered
-    assert "only proposal that passes" in lowered
+    assert "only proposal that" in lowered
+    assert "passes the exact" in lowered
     assert "evidence is sufficient" in lowered
     assert "implementation risk" in lowered
     assert ACTIVATION_PROTOCOL_ID == "tentative-leader-second-order-v1"
