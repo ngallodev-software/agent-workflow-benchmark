@@ -81,25 +81,32 @@ public dataset viewer exposes gold patch/test columns adjacent to issue text, ev
 though the selection rationale intentionally uses only problem/discussion
 semantics. Any later confirmatory study needs a fresh precommitted selection process.
 
-## First execution gate: C arm only
+## First execution gate: C arm on SWE-Lancer manager only
 
-Do not immediately run these tasks across A/B/C.
+Do not immediately run the full 12-task external cohort or an A/B/C matrix.
 
-First run only:
+The first live gate is only the six deterministically selected SWE-Lancer manager
+tasks:
 
 ```text
 Luna/high + frozen TypeSafe skill + live Jev
+6 SWE-Lancer manager proposal-selection tasks
 ```
 
-on the 12-task external cohort.
+These tasks are the cleanest Jev stress surface in the frozen cohort because the
+agent itself sees competing implementation proposals and must select among them.
 
 The question is:
 
-> Does Luna independently invoke a successfully qualified Jev primitive when
-> established public tasks create substantially stronger semantic-choice pressure?
+> Does Luna independently invoke a successfully qualified Jev primitive when the
+> task directly requires semantic selection among competing implementation proposals?
 
-This avoids paying for another matched matrix before confirming that the live-Jev
-treatment is actually entered.
+The six SWE-bench IDs remain frozen as a possible second gate, but they are **not
+authorized for execution yet**. During runner review we confirmed that some of the
+discussion-based ambiguity used to motivate their selection lives in dataset
+metadata/hints rather than the standard agent-visible SWE-bench problem statement.
+Their treatment should be reconsidered after the manager result instead of silently
+treating them as equivalent evidence.
 
 ### Stop after C
 
@@ -181,11 +188,12 @@ The runner:
 2. verifies the SWE-bench Mini revision recorded by the cohort;
 3. verifies lineage to the completed 24-sample/zero-call C arm;
 4. reloads the existing passing runtime lock and qualification;
-5. runs exactly the 12 frozen IDs with **C-skill-plus-jev only**;
-6. disables scoring because this phase measures uptake, not effectiveness;
-7. gives each sample its own private Jev receipt file and Inspect log;
-8. writes one `sample-result.json` after each completed sample;
-9. writes `c-run/run-manifest.json` only after all 12 attempts complete.
+5. runs exactly the six frozen SWE-Lancer manager IDs with **C-skill-plus-jev only**;
+6. stops before the SWE-bench half of the frozen cohort;
+7. disables scoring because this phase measures uptake, not effectiveness;
+8. gives each sample its own private Jev receipt file and Inspect log;
+9. writes one `sample-result.json` after each completed sample;
+10. writes `c-run-manager/run-manifest.json` only after all six attempts complete.
 
 The per-sample execution is deliberate. The frozen Jev receipt contract does not
 carry an Inspect sample ID, so one receipt stream per task provides an unambiguous
@@ -193,7 +201,7 @@ mapping from any Jev invocation to the exact public eval sample without modifyin
 the already-qualified host tool.
 
 The output root is fail-closed. A partial attempt must be preserved and diagnosed;
-do not rerun into the same `c-run` directory.
+do not rerun into the same `c-run-manager` directory.
 
 ## Claim boundary
 
