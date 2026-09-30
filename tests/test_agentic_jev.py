@@ -14,6 +14,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev import (
     PILOT_CODEX_MODEL_CONFIG,
     PILOT_CODEX_MIN_VERSION,
     PILOT_ARMS,
+    _agentic_jev_qualification_prompt,
     agentic_jev_skill_path,
     agentic_jev_skill_sha256,
     build_agentic_jev_solver,
@@ -464,3 +465,21 @@ def test_agentic_solver_passes_skill_directory_to_inspect(monkeypatch, tmp_path:
     assert captured["skills"] == [agentic_jev_skill_path().parent]
     assert captured["skills"][0].is_dir()
     assert (captured["skills"][0] / "SKILL.md").is_file()
+
+
+
+def test_agentic_qualification_prompt_discloses_required_choice_contract():
+    prompt = _agentic_jev_qualification_prompt()
+    assert "primary_work_type" in prompt
+    assert "type='choice'" in prompt
+    assert "instructions='Choose the primary work type.'" in prompt
+    assert "criteria" in prompt
+
+
+def test_agentic_tool_doc_discloses_question_contract():
+    source = Path(
+        __import__("agent_workflow_benchmark.benchmarking.agentic_jev", fromlist=["x"]).__file__
+    ).read_text(encoding="utf-8")
+    assert "Every" in source and "question requires" in source
+    assert '"type":"choice"' in source
+    assert '"instructions":"Choose the primary work type."' in source
