@@ -131,3 +131,31 @@ downstream software-quality claim.
 
 The intended output is a decision about which observed Jev seams deserve a
 separately preregistered full task-outcome study.
+
+## Phase 2 — external-eval uptake scout
+
+The completed first pilot is immutable evidence. Its C arm completed 24/24 samples
+with the skill and live Jev available but recorded zero Jev executions.
+
+Before another A/B/C matrix, freeze a small external public-eval cohort:
+
+~~~bash
+bash scripts/agentic-jev/p2-freeze-external-cohort.sh
+~~~
+
+This downloads and pins the Inspect Evals source, then creates a 12-task
+development-only cohort:
+
+- six SWE-Lancer `swe_manager` tasks selected deterministically by ID from the
+  pinned upstream CSV, without reading correct-proposal fields;
+- six SWE-bench Verified Mini issues chosen for visible semantic ambiguity in
+  public problem/discussion text.
+
+The freeze does **not** run a model or pull the large task images.
+
+The first execution on this external cohort is intentionally **C arm only**. The
+goal is to establish whether stronger semantic-choice pressure produces any actual
+live-Jev treatment exposure before spending on a matched A/B/C study.
+
+Canonical design:
+`docs/AGENTIC_JEV_EXTERNAL_EVAL_SCOUT.md`.
