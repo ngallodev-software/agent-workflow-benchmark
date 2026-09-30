@@ -571,3 +571,121 @@ def test_decision_v2_schemas_are_registered() -> None:
         },
         "agent-workflow-benchmark/agentic-jev-decision-v2-qualification/v2",
     )
+
+
+
+def test_decision_v3_skill_restores_second_order_semantic_paths() -> None:
+    skill = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v3"
+        / "jev-decision-support"
+        / "SKILL.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Tentative leader with residual uncertainty" in skill
+    assert "evidence sufficiency" in skill
+    assert "semantic risk" in skill
+    assert "A tentative preferred answer does **not** by itself close the Jev seam" in skill
+    assert "Hard-resolved — do not call Jev" in skill
+    assert "exact tests/specifications/invariants" in skill or "exact specification" in skill
+    assert "jev_system_one" in skill
+    assert "Do not install or import `typesafe-sdk`" in skill
+    assert "one Jev call per decision seam" in skill
+
+
+def test_decision_v3_activation_targets_second_order_path() -> None:
+    from agent_workflow_benchmark.benchmarking.agentic_jev_decision_v3 import (
+        ACTIVATION_PROTOCOL_ID,
+        _ACTIVATION_PROMPT,
+        activation_protocol_record,
+        activation_protocol_sha256,
+    )
+
+    lowered = _ACTIVATION_PROMPT.lower()
+    assert "jev" not in lowered
+    assert "typesafe" not in lowered
+    assert "proposal_2 is" in lowered
+    assert "only proposal that passes" in lowered
+    assert "evidence is sufficient" in lowered
+    assert "implementation risk" in lowered
+    assert ACTIVATION_PROTOCOL_ID == "tentative-leader-second-order-v1"
+
+    protocol = activation_protocol_record()
+    assert protocol["proposal_deterministically_resolved"] == "proposal_2"
+    assert "evidence sufficiency" in protocol["remaining_semantic_questions"]
+    assert len(activation_protocol_sha256()) == 64
+
+
+def test_decision_v3_qualification_requires_noul_or_score_lift() -> None:
+    module = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "benchmarking"
+        / "agentic_jev_decision_v3.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'arm == "v2-control"' in module
+    assert 'arm == "v3-treatment"' in module
+    assert 'treatment["second_order_primitives"] >= 1' in module
+    assert 'control["jev_tool_calls"] == 0' in module
+    assert 'treatment["jev_tool_calls"] == 1' in module
+
+
+def test_decision_v3_canary_is_two_frozen_manager_tasks_and_fail_closed() -> None:
+    module = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "benchmarking"
+        / "agentic_jev_decision_v3.py"
+    ).read_text(encoding="utf-8")
+    canary = (AGENTIC / "p4-run-manager-canary-v3.sh").read_text(encoding="utf-8")
+
+    assert "CANARY_COUNT = 2" in module
+    assert "selected = manager[:CANARY_COUNT]" in module
+    assert '"first-two-frozen-manager-ids"' in module
+    assert '"passed": calls > 0 and errors == 0' in module
+    assert "produced no live-Jev uptake" in module
+    assert "run_decision_v3_manager_canary" in canary
+
+
+def test_decision_v3_operator_sequence_requires_v2_evidence() -> None:
+    freeze = (AGENTIC / "p4-freeze-decision-skill-v3.sh").read_text(encoding="utf-8")
+    qualify = (AGENTIC / "p4-qualify-decision-skill-v3.sh").read_text(encoding="utf-8")
+    canary = (AGENTIC / "p4-run-manager-canary-v3.sh").read_text(encoding="utf-8")
+
+    assert "activation-qualification-v2/qualification.json" in freeze
+    assert "manager-run/run-manifest.json" in freeze
+    assert "create_decision_v3_lock" in freeze
+    assert "run_decision_v3_activation_qualification" in qualify
+    assert "run_decision_v3_manager_canary" in canary
+    assert "aj_require_typesafe_key" in qualify
+    assert "aj_require_typesafe_key" in canary
+
+
+def test_decision_v3_schemas_are_registered() -> None:
+    from agent_workflow_benchmark.benchmarking.schema_contracts import validate_instance
+
+    validate_instance(
+        {
+            "schema": "agent-workflow-benchmark/agentic-jev-decision-v3-qualification/v1",
+            "study_id": "agentic-jev-decision-skill-v3",
+            "qualified": False,
+            "v3_lock_sha256": "0" * 64,
+            "activation_protocol": {
+                "id": "tentative-leader-second-order-v1",
+                "sha256": "1" * 64,
+                "proposal_deterministically_resolved": "proposal_2",
+                "remaining_semantic_questions": ["evidence sufficiency"],
+            },
+            "control": {},
+            "treatment": {},
+            "activation_lift_observed": False,
+            "claim_boundary": {},
+        },
+        "agent-workflow-benchmark/agentic-jev-decision-v3-qualification/v1",
+    )
