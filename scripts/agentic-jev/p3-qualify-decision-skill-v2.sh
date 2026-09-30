@@ -32,6 +32,7 @@ print(
     "treatment_jev_calls:",
     result["treatment"]["jev_tool_calls"],
 )
-print("activation_protocol:", result["activation_protocol"])\nprint("activation_lift_observed:", result["activation_lift_observed"])
+print("activation_protocol:", result["activation_protocol"])
+print("activation_lift_observed:", result["activation_lift_observed"])
 print(result["path"])
 PY
