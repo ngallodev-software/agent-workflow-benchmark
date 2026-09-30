@@ -323,3 +323,68 @@ def test_external_eval_selector_freezes_six_manager_and_six_swebench_tasks(
     assert manifest["selection_contract"]["gold_fields_used_for_selection"] is False
     assert manifest["execution_gate"]["first_run"] == "C-skill-plus-jev only"
     assert all("SECRET_CORRECT" not in json.dumps(item) for item in manager)
+
+
+
+def test_external_eval_prepare_preserves_frozen_runtime_versions() -> None:
+    prepare = (AGENTIC / "p2-prepare-external-evals.sh").read_text(encoding="utf-8")
+    assert "inspect-ai==0.3.268" in prepare
+    assert "inspect-swe==0.2.71" in prepare
+    assert "typesafe-sdk==0.6.0" in prepare
+    assert "load_agentic_jev_runtime_lock" in prepare
+    assert "p2-freeze-external-cohort.sh first" in prepare
+
+
+def test_external_eval_c_runner_is_uptake_only_and_sample_scoped() -> None:
+    runner = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "benchmarking"
+        / "agentic_jev_external.py"
+    ).read_text(encoding="utf-8")
+    shell = (AGENTIC / "p2-run-external-c.sh").read_text(encoding="utf-8")
+
+    assert 'arm_id="C-skill-plus-jev"' in runner
+    assert "sample_id=[sample_id]" in runner
+    assert "score=False" in runner
+    assert 'max_samples=1' in runner
+    assert '"scoring_enabled": False' in runner
+    assert "sample-result.json" in runner
+    assert "run_external_jev_scout" in shell
+    assert "aj_require_typesafe_key" in shell
+
+
+def test_external_eval_runner_does_not_modify_frozen_host_tool_module() -> None:
+    external = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "benchmarking"
+        / "agentic_jev_external.py"
+    ).read_text(encoding="utf-8")
+    assert "from .agentic_jev import" in external
+    assert "build_agentic_jev_solver" in external
+    assert "jev_bridged_tool(" not in external
+
+
+def test_external_eval_schemas_are_registered() -> None:
+    from agent_workflow_benchmark.benchmarking.schema_contracts import validate_instance
+
+    validate_instance(
+        {
+            "schema": "agent-workflow-benchmark/agentic-jev-external-eval-cohort/v1",
+            "study_id": "agentic-jev-external-eval-scout-v1",
+            "development_only": True,
+            "lineage": {},
+            "sources": {},
+            "selection_contract": {},
+            "cohorts": {
+                "swe_lancer_manager_choice": [{} for _ in range(6)],
+                "swe_bench_semantic_ambiguity": [{} for _ in range(6)],
+            },
+            "execution_gate": {},
+            "claim_boundary": {},
+        },
+        "agent-workflow-benchmark/agentic-jev-external-eval-cohort/v1",
+    )
