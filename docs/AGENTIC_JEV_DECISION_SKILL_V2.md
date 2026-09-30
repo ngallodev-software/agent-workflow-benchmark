@@ -4,6 +4,46 @@
 **Status:** DEVELOPMENT-ONLY / treatment correction  
 **Predecessors:** `agentic-jev-pilot-v1`, `agentic-jev-external-eval-scout-v1`
 
+## Skill source and benchmark adaptation
+
+The benchmark `jev-decision-support` skill is now derived from the standalone
+public skill repository:
+
+- repository: `ngallodev-software/jev-decision-support`
+- source commit: `65b444965e48209860e353f2aa0e8d9dbe35d2ce`
+- source path: `skills/jev-decision-support/SKILL.md`
+
+The derivative intentionally preserves the source skill's stronger agent-facing
+structure:
+
+- decide among plausible alternatives after inspecting facts;
+- project only relevant decision context;
+- keep exact specifications/tests/user instructions authoritative;
+- support Choice, Noul, and Score;
+- reconcile semantic advice with deterministic evidence;
+- avoid unchanged retries seeking a preferred answer;
+- treat tool execution as evidence of use, not evidence of effectiveness.
+
+The benchmark adds stricter transport and evidence rules:
+
+- live inference must use the already-qualified host-side `jev_system_one` bridge;
+- the coding-agent sandbox must not install/use the SDK, call the TypeSafe API
+  directly, request credentials, or create another transport;
+- the skill describes the benchmark host limits (16 questions, 64 KiB state,
+  48 KiB question payload);
+- one call per decision seam is the default;
+- the skill's `agents/openai.yaml` discovery metadata is hash-bound alongside
+  `SKILL.md`;
+- the v2 runtime lock records the exact public source repository, commit, and path.
+
+The standalone repository's callable SDK helper is deliberately not copied into the
+benchmark treatment. It is useful for normal installations, but a second live
+transport would weaken the benchmark's host-only credential boundary and make Jev
+execution accounting ambiguous.
+
+The local provenance note is:
+`src/agent_workflow_benchmark/assets/agentic-jev-decision-v2/SOURCE.md`.
+
 ## Why v2 exists
 
 The first Agentic-Jev treatment used two components in Arm C:
