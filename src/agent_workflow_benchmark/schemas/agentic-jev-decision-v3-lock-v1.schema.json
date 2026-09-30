@@ -1,0 +1,36 @@
+{
+  "$id": "agent-workflow-benchmark/agentic-jev-decision-v3-lock/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-decision-v3-lock/v1"},
+    "study_id": {"const": "agentic-jev-decision-skill-v3"},
+    "parent_v2": {
+      "type": "object",
+      "properties": {
+        "lock_path": {"type": "string", "minLength": 1},
+        "lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "qualification_path": {"type": "string", "minLength": 1},
+        "qualification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "manager_run_path": {"type": "string", "minLength": 1},
+        "manager_run_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "manager_run_jev_calls": {"const": 0}
+      },
+      "required": [
+        "lock_path", "lock_sha256", "qualification_path", "qualification_sha256",
+        "manager_run_path", "manager_run_sha256", "manager_run_jev_calls"
+      ]
+    },
+    "runtime": {"type": "object"},
+    "external_cohort": {"type": "object"},
+    "skills": {"type": "object"},
+    "host_tool": {"type": "object"},
+    "policy_delta": {"type": "object"},
+    "claim_boundary": {"type": "object"}
+  },
+  "required": [
+    "schema", "study_id", "parent_v2", "runtime", "external_cohort", "skills",
+    "host_tool", "policy_delta", "claim_boundary"
+  ]
+}
