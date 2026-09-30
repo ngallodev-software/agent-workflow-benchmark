@@ -651,7 +651,9 @@ def test_decision_v3_canary_is_two_frozen_manager_tasks_and_fail_closed() -> Non
     assert '"first-two-frozen-manager-ids"' in module
     assert '"passed": calls > 0 and errors == 0' in module
     assert "produced no live-Jev uptake" in module
-    assert "run_decision_v3_manager_canary" in canary
+    assert "v3 manager canary retired" in canary
+    assert "p4-audit-v2-manager-traces.sh" in canary
+    assert "run_decision_v3_manager_canary" not in canary
 
 
 def test_decision_v3_operator_sequence_requires_v2_evidence() -> None:
@@ -663,9 +665,11 @@ def test_decision_v3_operator_sequence_requires_v2_evidence() -> None:
     assert "manager-run/run-manifest.json" in freeze
     assert "create_decision_v3_lock" in freeze
     assert "run_decision_v3_activation_qualification" in qualify
-    assert "run_decision_v3_manager_canary" in canary
+    assert "v3 manager canary retired" in canary
+    assert "p4-audit-v2-manager-traces.sh" in canary
+    assert "run_decision_v3_manager_canary" not in canary
     assert "aj_require_typesafe_key" in qualify
-    assert "aj_require_typesafe_key" in canary
+    assert "aj_require_typesafe_key" not in canary
 
 
 def test_decision_v3_schemas_are_registered() -> None:
@@ -706,7 +710,8 @@ def test_manager_trace_audit_is_read_only_and_reasoning_safe() -> None:
     assert "audit_classification" in audit
     assert "semantic_seam_observed" in audit
     assert "jev_nonuse_explanation" in audit
-    assert "manager-run/run-manifest.json" in wrapper
+    assert 'MANAGER_ROOT="$V2_ROOT/manager-run"' in wrapper
+    assert 'aj_require_file "$MANAGER_ROOT/run-manifest.json"' in wrapper
     assert "aj_require_typesafe_key" not in wrapper
 
 
