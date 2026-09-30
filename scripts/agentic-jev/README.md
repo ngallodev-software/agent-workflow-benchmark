@@ -240,20 +240,27 @@ Freeze v3 against the completed v2 evidence:
 bash scripts/agentic-jev/p4-freeze-decision-skill-v3.sh
 ~~~
 
-Qualify the new **tentative leader / second-order judgment** pathway:
+Qualify the proposed **tentative leader / second-order judgment** pathway:
 
 ~~~bash
 bash scripts/agentic-jev/p4-qualify-decision-skill-v3.sh
 ~~~
 
-Do not rerun all six manager tasks. After a qualification pass, run only the first
-two frozen manager IDs:
+The observed qualification was non-discriminating: both v2 control and v3 treatment
+made exactly one successful Jev call containing Noul + Score. Therefore v3 did not
+isolate a new treatment behavior and the manager canary is retired.
+
+Do not run `p4-run-manager-canary-v3.sh`.
+
+Instead audit the immutable six-task v2 manager traces:
 
 ~~~bash
-bash scripts/agentic-jev/p4-run-manager-canary-v3.sh
+bash scripts/agentic-jev/p4-audit-v2-manager-traces.sh
 ~~~
 
-The canary fails closed if both tasks still produce zero Jev receipts.
+The audit is read-only, hash-binds the source manifest and each Inspect log, exports
+observable assistant/tool evidence, and records only the **count** of reasoning
+blocks rather than their content.
 
 Canonical design:
 `docs/AGENTIC_JEV_DECISION_SKILL_V3.md`.
