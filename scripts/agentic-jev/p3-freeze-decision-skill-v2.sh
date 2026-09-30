@@ -35,6 +35,9 @@ result = create_decision_v2_lock(
 print("Agentic Jev decision-skill v2 treatment frozen")
 print("upstream_skill_sha256:", result["skills"]["upstream_typesafe_sha256"])
 print("decision_skill_sha256:", result["skills"]["decision_support_sha256"])
+print("decision_skill_interface_sha256:", result["skills"]["decision_support_interface_sha256"])
+source = result["skills"]["decision_support_source"]
+print("decision_skill_source:", f'{source["repository"]}@{source["commit"]}:{source["path"]}')
 print("model:", result["runtime"]["model"])
 print("codex:", result["runtime"]["codex_version"])
 print(result["path"])
