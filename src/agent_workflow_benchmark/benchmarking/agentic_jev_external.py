@@ -286,7 +286,14 @@ def run_external_jev_scout(
     prior_manifest_path: Path,
     runtime_lock_path: Path,
     qualification_path: Path,
+    source_name: str = "swe_lancer_manager_choice",
 ) -> dict[str, Any]:
+    if source_name != "swe_lancer_manager_choice":
+        raise WorkflowError(
+            "the first external uptake gate is frozen to SWE-Lancer manager tasks; "
+            "inspect that result before authorizing another source"
+        )
+
     output_root = Path(output_root)
     manifest_path = output_root / "run-manifest.json"
     if output_root.exists() and any(output_root.iterdir()):
@@ -321,23 +328,20 @@ def run_external_jev_scout(
     output_root.mkdir(parents=True, exist_ok=True)
     samples: list[dict[str, Any]] = []
     cohorts = cohort["cohorts"]
-    for source_name in (
-        "swe_lancer_manager_choice",
-        "swe_bench_semantic_ambiguity",
-    ):
-        for entry in cohorts[source_name]:
-            sample_id = str(entry["id"])
-            sample_root = output_root / source_name / sample_id
-            sample_root.mkdir(parents=True, exist_ok=False)
-            result = _run_one(
-                source_name=source_name,
-                sample_id=sample_id,
-                sample_root=sample_root,
-                runtime=runtime,
-            )
-            samples.append(result)
-            # Persist progress after each immutable per-sample attempt.
-            atomic_write_json(sample_root / "sample-result.json", result)
+    selected = cohorts[source_name]
+    for entry in selected:
+        sample_id = str(entry["id"])
+        sample_root = output_root / source_name / sample_id
+        sample_root.mkdir(parents=True, exist_ok=False)
+        result = _run_one(
+            source_name=source_name,
+            sample_id=sample_id,
+            sample_root=sample_root,
+            runtime=runtime,
+        )
+        samples.append(result)
+        # Persist progress after each immutable per-sample attempt.
+        atomic_write_json(sample_root / "sample-result.json", result)
 
     total_calls = sum(int(item["jev_tool_calls"]) for item in samples)
     successful_samples = sum(
@@ -370,7 +374,8 @@ def run_external_jev_scout(
         },
         "execution": {
             "arm": "C-skill-plus-jev",
-            "samples_expected": 12,
+            "source": source_name,
+            "samples_expected": len(selected),
             "samples_observed": len(samples),
             "success": successful_samples,
             "errors": errored_samples,
@@ -382,7 +387,10 @@ def run_external_jev_scout(
         "claim_boundary": {
             "exploratory_only": True,
             "effectiveness_claim_allowed": False,
-            "purpose": "stress-test spontaneous Jev uptake on established public evals",
+            "purpose": (
+                "stress-test spontaneous Jev uptake on direct public "
+                "implementation-proposal selection tasks"
+            ),
         },
     }
     validate_instance(
