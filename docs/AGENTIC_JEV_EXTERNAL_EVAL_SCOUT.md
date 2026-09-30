@@ -142,6 +142,59 @@ This:
 
 It does **not** run a model or download large task Docker images.
 
+## Prepare the pinned upstream eval dependencies
+
+The external runner imports the frozen Inspect Evals checkout directly, but its
+SWE-bench and SWE-Lancer dependencies must be present in the Agent-Workflow Python
+environment.
+
+Run:
+
+~~~bash
+bash scripts/agentic-jev/p2-prepare-external-evals.sh
+~~~
+
+The preparation command installs the pinned checkout's `swe_bench` and
+`swe_lancer` extras while explicitly holding:
+
+- `inspect-ai==0.3.268`;
+- `inspect-swe==0.2.71`;
+- `typesafe-sdk==0.6.0`.
+
+It then reloads the existing Agentic-Jev runtime lock. Preparation fails if the
+environment no longer satisfies the already-qualified runtime identity.
+
+**Do not refreeze or requalify merely because external eval dependencies were
+installed.** The qualified Jev implementation is unchanged.
+
+## Run the C-only external scout
+
+After preparation:
+
+~~~bash
+bash scripts/agentic-jev/p2-run-external-c.sh
+~~~
+
+The runner:
+
+1. verifies the exact Inspect Evals Git commit and frozen SWE-Lancer CSV hash;
+2. verifies the SWE-bench Mini revision recorded by the cohort;
+3. verifies lineage to the completed 24-sample/zero-call C arm;
+4. reloads the existing passing runtime lock and qualification;
+5. runs exactly the 12 frozen IDs with **C-skill-plus-jev only**;
+6. disables scoring because this phase measures uptake, not effectiveness;
+7. gives each sample its own private Jev receipt file and Inspect log;
+8. writes one `sample-result.json` after each completed sample;
+9. writes `c-run/run-manifest.json` only after all 12 attempts complete.
+
+The per-sample execution is deliberate. The frozen Jev receipt contract does not
+carry an Inspect sample ID, so one receipt stream per task provides an unambiguous
+mapping from any Jev invocation to the exact public eval sample without modifying
+the already-qualified host tool.
+
+The output root is fail-closed. A partial attempt must be preserved and diagnosed;
+do not rerun into the same `c-run` directory.
+
 ## Claim boundary
 
 This is a development-only uptake stress test.
