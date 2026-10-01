@@ -317,3 +317,43 @@ manager trace audit.
 
 Canonical design:
 `docs/AGENTIC_JEV_DECISION_SKILL_V4.md`.
+
+
+## Phase 6 — current GPT-6 model context/rationale qualification
+
+The source-synchronized v4 skill is byte/provenance current with
+`ngallodev-software/jev-decision-support@d0ac1ef45d1b79b18b2905872c62cb9e68d961c7`.
+Do not rewrite frozen v2/v3 assets.
+
+Use the additive current-model qualification to verify three things on the current
+coding-agent generation:
+
+1. the installed decision-support skill produces one successful host-side Jev call;
+2. the private host receipt contains fixture-complete primary context: verbatim
+   requirement, both candidate artifacts, unchanged dependent code, deterministic
+   verification output, and explicit verification omissions/scope;
+3. the agent returns a bounded visible decision record containing justification,
+   evidence refs, the decisive trade-off, semantic-evidence reconciliation, and
+   remaining uncertainty.
+
+The qualification never requires or exports hidden chain-of-thought.
+
+Run Luna:
+
+~~~bash
+bash scripts/agentic-jev/p6-qualify-current-model.sh
+~~~
+
+Run GPT-6.1 Sol:
+
+~~~bash
+AGENTIC_JEV_CURRENT_MODEL='openai-api/codex-lb/gpt-6.1-sol' \
+  AGENTIC_JEV_CURRENT_QUAL_ROOT="$AGENTIC_JEV_ROOT/current-model-qualification/gpt-6.1-sol" \
+  bash scripts/agentic-jev/p6-qualify-current-model.sh
+~~~
+
+The prompt does not name Jev or TypeSafe. A pass is qualification evidence only;
+it is not a correctness or treatment-effect claim.
+
+Canonical design:
+`docs/AGENTIC_JEV_CURRENT_MODEL_QUALIFICATION.md`.

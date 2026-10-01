@@ -128,14 +128,21 @@ v4 does not attempt to solve the manager zero-uptake result by making the skill 
 aggressive.
 
 The six-task trace audit showed that optional invocation can fail before Jev receives
-a decision at all. The next architecture question is therefore a provider-neutral
-Agent-Workflow decision checkpoint/reconciliation gate, potentially implemented with
-a graph runtime such as LangGraph.
+a decision at all. Agent-Workflow DEC-010 has now resolved the next architecture
+step as a provider-neutral semantic checkpoint/reconciliation gate owned by
+Agent-Workflow.
 
-v4 should be the semantic-guidance asset used by that future work when agent-directed
-Jev remains appropriate. Registered consequential seams should be structurally
-enforced by Agent-Workflow rather than depending on the coding agent to decide
-whether independent evidence is needed.
+LangGraph and Temporal are deliberately deferred for this seam because their durable
+state/replay responsibilities would duplicate authority Agent-Workflow already owns.
+The current mechanism prototype keeps Agent-Workflow snapshots, journals, receipts,
+review, and acceptance authoritative while Jev remains bounded semantic evidence.
+
+v4 remains the current semantic-guidance asset. The additive current-model
+qualification in `AGENTIC_JEV_CURRENT_MODEL_QUALIFICATION.md` uses v4 unchanged to
+verify live Jev activation, fixture-complete context projection, and a bounded
+visible agent justification on GPT-6 Luna or GPT-6.1 Sol. Registered consequential
+seams should still be structurally enforced by Agent-Workflow rather than depending
+on the coding agent to decide whether independent evidence is needed.
 
 ## Programmatic identity
 
