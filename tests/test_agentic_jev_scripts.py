@@ -741,9 +741,9 @@ def test_decision_v4_is_pinned_to_latest_public_skill_source() -> None:
     )
 
     assert SOURCE_REPOSITORY == "ngallodev-software/jev-decision-support"
-    assert SOURCE_COMMIT == "627e508fb8798f66c4bae180b432c30dbe44570e"
+    assert SOURCE_COMMIT == "5b43c3f1cd289361cf7715588cbc3871f2f6947f"
     assert SOURCE_PATH == "skills/jev-decision-support/SKILL.md"
-    assert SOURCE_SKILL_GIT_BLOB == "840a1dd3aebeccbf17d1363a44665f1e2097492d"
+    assert SOURCE_SKILL_GIT_BLOB == "5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2"
     assert SOURCE_OPENAI_GIT_BLOB == "ba931acbdbdd7e1f8327db63f93468e396672d14"
     assert decision_skill_path().is_file()
     assert decision_skill_interface_path().is_file()
@@ -776,6 +776,11 @@ def test_decision_v4_integrates_new_context_batch_and_distribution_guidance() ->
     assert "0.52 versus 0.42" in skill
     assert "split evidence" in skill
     assert "rather than silently truncating it" in skill
+    assert "0.35 to" in skill
+    assert "0.89" in skill
+    assert "sharper semantic evidence as correctness" in skill
+    assert "JSON key order changed" in skill
+    assert "Keep context and question ordering stable" in skill
 
 
 def test_decision_v4_keeps_benchmark_host_only_transport() -> None:
