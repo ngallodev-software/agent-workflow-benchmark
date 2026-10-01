@@ -39,8 +39,23 @@ When asking Jev to judge a change, proposal, or review, include:
   exercised;
 - any prior Jev answer for the same seam and what materially changed since.
 
-Thin context can produce muddy distributions. Add the missing evidence before
-re-asking; do not repeat an unchanged judgment merely to seek a preferred answer.
+Context can move Jev answers materially. In one controlled code-review case
+(`jev-1.13.0`, 5 calls per arm), richer context raised spec-fit from about 0.35 to
+0.89 and reduced P(needs_changes) from about 0.49 to 0.18. Replacing a commit that
+failed its type checker with the fixed commit changed almost nothing.
+
+Do not interpret sharper semantic evidence as correctness. Jev judges the evidence
+you project; a defect that only an unrun deterministic check would reveal can remain
+invisible. Run tests, type checking, linters, and other deterministic verification
+outside Jev and include their scoped results in the projected state.
+
+The same controlled case also observed answer shifts of about 0.1, including a top
+choice flip, when only JSON key order changed. Keep context and question ordering
+stable when comparing calls, and do not over-read small probability differences from
+a single request.
+
+Add missing evidence before re-asking; do not repeat an unchanged judgment merely
+to seek a preferred answer.
 
 ## Benchmark transport: use the host tool only
 
