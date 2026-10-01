@@ -269,7 +269,7 @@ Canonical design:
 ## Phase 5 — source-synchronize the benchmark Jev skill
 
 The standalone `ngallodev-software/jev-decision-support` skill advanced at
-`5b43c3f1cd289361cf7715588cbc3871f2f6947f`.
+`d0ac1ef45d1b79b18b2905872c62cb9e68d961c7`.
 
 Do not edit the frozen v2/v3 skill assets. Their exact content is part of already
 observed experimental evidence.
@@ -288,10 +288,14 @@ src/agent_workflow_benchmark/assets/
 v4 carries forward the source update's evidence-quality guidance:
 
 - verbatim requirement text when available;
-- candidate diff/proposal plus unchanged dependent code;
-- verification results with explicit scope and omissions;
-- prior Jev result plus what materially changed before re-asking;
-- one validated batch for related Choice/Noul/Score judgments;
+- candidate diff/artifact plus unchanged dependent code;
+- deterministic tool output verbatim with explicit scope and omissions;
+- keep the candidate agent's preferred answer/confidence out of neutral evidence;
+- treat other-agent notes/verdicts as claims rather than tool output;
+- exclude prior Jev answers by default to avoid anchoring;
+- label unavoidable agent-only observations with source and basis;
+- isolate agent-authored proposal evaluation from unrelated batched judgments;
+- one validated batch only for related questions sharing neutral primary evidence;
 - close distributions treated as split evidence;
 - project evidence to fit limits rather than silently truncating it;
 - retain deterministic verification because sharper Jev evidence is not correctness;
@@ -300,6 +304,11 @@ v4 carries forward the source update's evidence-quality guidance:
 Benchmark execution remains stricter than the standalone skill: the direct SDK helper,
 isolated `uv` runtime, direct HTTP fallback, and sandbox credential acquisition are
 not copied. Live benchmark inference remains host-only through `jev_system_one`.
+
+The standalone helper's rounded-distribution fix does not require a benchmark bridge
+implementation change because the host bridge does not enforce the former strict
+sum-to-one tolerance; regression coverage preserves acceptance of a live-like 0.99
+probability sum.
 
 v4 is **not yet a live treatment**. Do not infer a new qualification or run simply
 because the asset exists. The next design step is the provider-neutral
