@@ -139,6 +139,51 @@ def test_execute_jev_request_is_typed_redacted_and_receipted(tmp_path: Path):
     assert record["request"]["state"]["api_key"] == "[redacted]"
 
 
+def test_execute_jev_request_preserves_two_decimal_rounded_distribution():
+    class RoundedClient:
+        def system_one(self, *, state, questions, model=None):
+            assert set(questions) == {"best"}
+            answer = types.SimpleNamespace(
+                choice="ready",
+                confidence=0.41,
+                probabilities={
+                    "ready": 0.56,
+                    "ready_minor": 0.23,
+                    "needs_changes": 0.20,
+                    "insufficient_evidence": 0.00,
+                },
+            )
+            return types.SimpleNamespace(
+                answers={"best": answer},
+                request_id="req-rounded",
+                model="jev-test",
+                usage=None,
+            )
+
+    result = execute_jev_request(
+        state={"task": "Review the change."},
+        questions={
+            "best": {
+                "type": "choice",
+                "instructions": "Which result best fits the supplied evidence?",
+                "criteria": {
+                    "ready": "Ready",
+                    "ready_minor": "Ready with minor issues",
+                    "needs_changes": "Needs changes",
+                    "insufficient_evidence": "Insufficient evidence",
+                },
+            }
+        },
+        client=RoundedClient(),
+    )
+
+    probabilities = result["answers"]["best"]["probabilities"]
+    assert result["status"] == "success"
+    assert result["answers"]["best"]["choice"] == "ready"
+    assert sum(probabilities.values()) == pytest.approx(0.99)
+    assert probabilities["ready"] == pytest.approx(0.56)
+
+
 def test_execute_jev_request_rejects_unbounded_question_contract():
     with pytest.raises(WorkflowError, match="unsupported type"):
         execute_jev_request(
