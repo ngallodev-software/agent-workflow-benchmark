@@ -34,10 +34,43 @@ When asking Jev to judge a change, proposal, or review, include:
 
 - the requirement source verbatim when available (issue, maintainer text, or spec),
   rather than only an agent paraphrase;
-- the relevant diff or candidate proposal, plus unchanged code it depends on;
-- verification results with scope: what ran, counts/results, and what was not
-  exercised;
-- any prior Jev answer for the same seam and what materially changed since.
+- the relevant diff or candidate artifact, plus unchanged code it depends on;
+- deterministic tool output verbatim with scope: tests, type checker, linters,
+  commands/results, counts/failures, and what was not exercised.
+
+## Keep agent judgments out of primary evidence
+
+Jev scores the projected state, so an agent conclusion can move the answer as though
+it were independent evidence. Preserve evidence provenance.
+
+- Do not include the coding agent's preferred answer, confidence, or verdict in the
+  neutral evidence state.
+- Notes, summaries, handoffs, and verdicts written by other agents are claims, not
+  deterministic tool output. Do not place them under tool-output/evidence keys.
+- Do not include an earlier Jev answer by default. Include it only when the bounded
+  question is explicitly whether something changed since that prior answer.
+- Prefer verbatim code/spec/tool output to an agent paraphrase when the primary
+  evidence can be projected safely and within limits.
+- If an agent-only observation must be included, isolate it under an explicit
+  `agent_observations` field with source and basis; do not present it as verified
+  repository or tool evidence.
+- When the object being judged is the coding agent's own proposal, label it
+  explicitly (for example `proposal_by_agent`), include arguments for and evidence
+  against it, and isolate that proposal evaluation from unrelated semantic
+  questions.
+
+This separation matters empirically. In live source-skill tests with
+`jev-1.13.0`, one unlabeled sentence claiming a defect moved a correct commit from
+P(needs_changes) 0.19 to 0.87. Verbatim deterministic tool evidence was much
+stronger and more reliable: a real type-checker failure moved P(needs_changes) from
+0.21 to 0.98, while an agent assertion that the failure was a false positive barely
+changed that signal. Labeling an agent-only false claim reduced, but did not remove,
+its effect.
+
+The source tests also found prior Jev answers can anchor later calls, and adding an
+agent-authored proposal to a batch can shift otherwise unrelated questions.
+Therefore keep neutral evidence neutral, and evaluate agent-authored proposals in a
+separate request from unrelated judgments.
 
 Context can move Jev answers materially. In one controlled code-review case
 (`jev-1.13.0`, 5 calls per arm), richer context raised spec-fit from about 0.35 to
@@ -54,8 +87,8 @@ choice flip, when only JSON key order changed. Keep context and question orderin
 stable when comparing calls, and do not over-read small probability differences from
 a single request.
 
-Add missing evidence before re-asking; do not repeat an unchanged judgment merely
-to seek a preferred answer.
+Add missing primary evidence before re-asking; do not repeat an unchanged judgment
+merely to seek a preferred answer.
 
 ## Benchmark transport: use the host tool only
 
@@ -197,22 +230,28 @@ Example:
 Scores may fall between zero-based levels; confidence is not probability of
 correctness.
 
-## Batch related judgments in one call
+## Batch only judgments that should share the same neutral context
 
-For several independent questions over the same context, use one
-`jev_system_one` call rather than separate calls. For example, a proposal seam may
-batch:
+For several related questions over the same **neutral primary evidence**, use one
+`jev_system_one` call rather than repeated equivalent calls. For example, a
+repository-evidence seam may batch:
 
-- Choice for the best surviving proposal;
-- Noul for whether the current evidence is sufficient;
+- Choice among externally supplied surviving proposals;
+- Noul for whether the primary evidence is sufficient;
 - Score for implementation or migration risk.
+
+Do **not** batch an agent-authored proposal evaluation with unrelated questions.
+When the coding agent's own proposal is the object under review, isolate that
+proposal in its own request so its presence and advocacy cannot contaminate other
+judgments.
 
 The benchmark host validates the complete question map before provider execution and
 records the resulting answer set in the authoritative receipt stream. Treat every
 requested answer as part of the decision evidence; do not ignore an inconvenient
 answer from a successful batch.
 
-Keep the batch focused. More questions are not automatically better.
+Keep each batch focused and preserve question ordering for comparisons. More
+questions are not automatically better.
 
 ## Interpret distributions and reconcile
 
@@ -230,10 +269,11 @@ On uncertain/no-match evidence, inspect more evidence, use the benchmark's defin
 fallback, or surface the unresolved decision. Do not fabricate a Jev result when the
 tool or service is unavailable.
 
-Normally make at most one Jev call for one unchanged decision seam. A later call is
+Normally make at most one Jev call for one unchanged decision object. A later call is
 appropriate only after materially new evidence, changed alternatives, or a changed
-requirement. When re-asking after a prior Jev result, include the prior result and
-what changed.
+requirement. Do not feed the prior Jev answer back into the new state unless the
+question explicitly concerns change since that prior answer; otherwise preserve it
+in the decision receipt outside provider context.
 
 Do not log raw private context or credentials. The benchmark host records sanitized
 execution receipts. API execution demonstrates tool use; it does not demonstrate

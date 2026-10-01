@@ -1,7 +1,7 @@
 # Agentic Jev decision-support skill v4 source refresh
 
 **Status:** SOURCE-SYNCHRONIZED / NOT YET A LIVE TREATMENT  
-**Source:** `ngallodev-software/jev-decision-support@5b43c3f1cd289361cf7715588cbc3871f2f6947f`
+**Source:** `ngallodev-software/jev-decision-support@d0ac1ef45d1b79b18b2905872c62cb9e68d961c7`
 
 ## Why this is v4 instead of an edit to v2/v3
 
@@ -18,18 +18,43 @@ qualification, cohort, or effectiveness claim yet.
 The source update added four useful behaviors that are now present in the benchmark
 derivative.
 
-### Richer review context
+### Richer review context, with evidence provenance
 
 For review/proposal decisions, project:
 
 - verbatim requirement text when available;
-- the diff/proposal plus unchanged code it depends on;
-- verification results with explicit scope and omissions;
-- any prior Jev answer plus the material changes that justify asking again.
+- the diff/artifact plus unchanged code it depends on;
+- deterministic tool output verbatim with explicit scope and omissions.
 
-This is directly relevant to the manager-trace audit: a semantic check should receive
-the authority/evidence surface that the coding agent used, not only its paraphrased
-conclusion.
+Do not put the coding agent's preferred answer, confidence, or verdict into neutral
+provider context. Treat other-agent notes, summaries, and handoffs as claims rather
+than tool output. Exclude prior Jev answers by default because they can anchor the
+next call. If an agent-only observation must be included, label its source and basis.
+
+When the coding agent's own proposal is what Jev is judging, mark it explicitly and
+evaluate it in a request isolated from unrelated semantic questions.
+
+This is directly relevant to the manager-trace audit and the next checkpoint design:
+the semantic provider should receive independently projected primary evidence rather
+than a state already colored by the candidate agent's conclusion.
+
+### Controlled evidence-contamination findings
+
+The latest public skill adds live-tested evidence-isolation guidance. In the reported
+`jev-1.13.0` review case:
+
+- an unlabeled sentence asserting a serious defect moved a correct commit from
+  P(needs_changes) 0.19 to 0.87;
+- a real type-checker failure moved P(needs_changes) from 0.21 to 0.98;
+- a confident agent assertion that the type-checker failure was a false positive
+  barely moved that deterministic signal;
+- labeling an agent-only false claim reduced its effect by about two-thirds but did
+  not eliminate it;
+- a prior Jev answer anchored a later judgment;
+- adding an agent-authored proposal to a batch shifted unrelated questions.
+
+These are not universal performance claims, but they are sufficient to require
+provenance-aware context construction in the benchmark.
 
 ### Controlled context-sensitivity caveat
 
@@ -48,11 +73,23 @@ The benchmark derivative carries the two important caveats forward:
   in that controlled case, so comparative calls must keep context/question ordering
   stable and should not over-interpret small decimal differences.
 
-### Validated batching
+### Validated, isolated batching
 
-Related Choice, Noul, and Score questions should share one decision context and one
-Jev call. The benchmark host bridge already validates typed question maps and records
-the answer set, so the standalone helper implementation is not copied.
+Related Choice, Noul, and Score questions may share one request only when they should
+share the same neutral primary-evidence context. Do not batch an agent-authored
+proposal evaluation with unrelated questions. The benchmark host bridge already
+validates typed question maps and records the answer set, so the standalone helper
+implementation is not copied.
+
+### Rounded probability distributions
+
+The standalone helper fixed a real validation bug: the API emits two-decimal
+probabilities, so a valid distribution can sum to 0.99. The standalone helper now
+uses a per-option tolerance.
+
+The benchmark host bridge never applied the former strict sum-to-one check; it
+normalizes typed SDK answers and preserves returned probabilities. A benchmark
+regression test explicitly covers a 0.99-summing distribution so this remains true.
 
 ### Split distributions remain uncertainty
 

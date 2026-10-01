@@ -729,6 +729,7 @@ def test_redundant_v3_manager_canary_is_fail_closed() -> None:
 def test_decision_v4_is_pinned_to_latest_public_skill_source() -> None:
     from agent_workflow_benchmark.benchmarking.agentic_jev_decision_v4 import (
         SOURCE_COMMIT,
+        SOURCE_HELPER_GIT_BLOB,
         SOURCE_OPENAI_GIT_BLOB,
         SOURCE_PATH,
         SOURCE_REPOSITORY,
@@ -741,10 +742,11 @@ def test_decision_v4_is_pinned_to_latest_public_skill_source() -> None:
     )
 
     assert SOURCE_REPOSITORY == "ngallodev-software/jev-decision-support"
-    assert SOURCE_COMMIT == "5b43c3f1cd289361cf7715588cbc3871f2f6947f"
+    assert SOURCE_COMMIT == "d0ac1ef45d1b79b18b2905872c62cb9e68d961c7"
     assert SOURCE_PATH == "skills/jev-decision-support/SKILL.md"
-    assert SOURCE_SKILL_GIT_BLOB == "5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2"
+    assert SOURCE_SKILL_GIT_BLOB == "ad6e00a2346ddf15009ad5119310cff3388ff8a2"
     assert SOURCE_OPENAI_GIT_BLOB == "ba931acbdbdd7e1f8327db63f93468e396672d14"
+    assert SOURCE_HELPER_GIT_BLOB == "bb28c18553cb9bebd3d4894e06ef587e8e04c47c"
     assert decision_skill_path().is_file()
     assert decision_skill_interface_path().is_file()
     assert len(decision_skill_sha256()) == 64
@@ -768,9 +770,15 @@ def test_decision_v4_integrates_new_context_batch_and_distribution_guidance() ->
     assert "Context for review-type decisions" in skill
     assert "requirement source verbatim" in skill
     assert "unchanged code it depends on" in skill
-    assert "verification results with scope" in skill
-    assert "prior Jev answer" in skill
-    assert "Batch related judgments in one call" in skill
+    assert "deterministic tool output verbatim" in skill
+    assert "Keep agent judgments out of primary evidence" in skill
+    assert "Do not include the coding agent's preferred answer" in skill
+    assert "other agents are claims" in skill or "other agents" in skill
+    assert "Do not include an earlier Jev answer by default" in skill
+    assert "agent_observations" in skill
+    assert "proposal_by_agent" in skill
+    assert "isolate that proposal evaluation from unrelated semantic" in skill
+    assert "Batch only judgments that should share the same neutral context" in skill
     normalized = " ".join(skill.split())
     assert "Treat every requested answer as part of the decision evidence" in normalized
     assert "0.52 versus 0.42" in skill
@@ -781,6 +789,10 @@ def test_decision_v4_integrates_new_context_batch_and_distribution_guidance() ->
     assert "sharper semantic evidence as correctness" in skill
     assert "JSON key order changed" in skill
     assert "Keep context and question ordering stable" in normalized
+    assert "0.19 to 0.87" in skill
+    assert "0.21 to 0.98" in skill
+    assert "prior Jev answers can anchor" in skill
+    assert "agent-authored proposal to a batch" in skill
 
 
 def test_decision_v4_keeps_benchmark_host_only_transport() -> None:

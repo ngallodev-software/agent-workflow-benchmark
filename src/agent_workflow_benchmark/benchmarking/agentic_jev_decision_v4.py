@@ -13,10 +13,11 @@ from typing import Any
 from agent_workflow.util import sha256_file
 
 SOURCE_REPOSITORY = "ngallodev-software/jev-decision-support"
-SOURCE_COMMIT = "5b43c3f1cd289361cf7715588cbc3871f2f6947f"
+SOURCE_COMMIT = "d0ac1ef45d1b79b18b2905872c62cb9e68d961c7"
 SOURCE_PATH = "skills/jev-decision-support/SKILL.md"
-SOURCE_SKILL_GIT_BLOB = "5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2"
+SOURCE_SKILL_GIT_BLOB = "ad6e00a2346ddf15009ad5119310cff3388ff8a2"
 SOURCE_OPENAI_GIT_BLOB = "ba931acbdbdd7e1f8327db63f93468e396672d14"
+SOURCE_HELPER_GIT_BLOB = "bb28c18553cb9bebd3d4894e06ef587e8e04c47c"
 
 
 def decision_skill_path() -> Path:
@@ -48,6 +49,7 @@ def source_manifest() -> dict[str, Any]:
         "path": SOURCE_PATH,
         "source_skill_git_blob": SOURCE_SKILL_GIT_BLOB,
         "source_openai_git_blob": SOURCE_OPENAI_GIT_BLOB,
+        "source_helper_git_blob": SOURCE_HELPER_GIT_BLOB,
         "benchmark_skill_sha256": decision_skill_sha256(),
         "benchmark_interface_sha256": decision_skill_interface_sha256(),
         "live_treatment_defined": False,

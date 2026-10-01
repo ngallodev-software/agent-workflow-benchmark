@@ -3,10 +3,11 @@
 This source-synchronized benchmark skill is derived from:
 
 - repository: `ngallodev-software/jev-decision-support`
-- source commit: `5b43c3f1cd289361cf7715588cbc3871f2f6947f`
+- source commit: `d0ac1ef45d1b79b18b2905872c62cb9e68d961c7`
 - source path: `skills/jev-decision-support/SKILL.md`
-- source skill Git blob: `5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2`
+- source skill Git blob: `ad6e00a2346ddf15009ad5119310cff3388ff8a2`
 - source OpenAI metadata Git blob: `ba931acbdbdd7e1f8327db63f93468e396672d14`
+- source helper Git blob: `bb28c18553cb9bebd3d4894e06ef587e8e04c47c`
 
 This is a new benchmark derivative. It does **not** modify the frozen v2/v3 skill
 assets that produced observed evidence.
@@ -14,11 +15,15 @@ assets that produced observed evidence.
 The derivative carries forward the source update's substantive guidance:
 
 - review context should include verbatim requirement text when available;
-- include the candidate diff/proposal plus unchanged code it depends on;
-- include verification results with explicit scope and omissions;
-- when repeating a semantic decision after new evidence, include the prior Jev answer
-  and describe what materially changed;
-- related Choice/Noul/Score judgments should be batched in one validated request;
+- include the candidate diff/artifact plus unchanged code it depends on;
+- include deterministic tool output verbatim with explicit scope and omissions;
+- keep the coding agent's preferred answer/confidence out of neutral evidence state;
+- treat other-agent notes/verdicts as claims rather than tool output;
+- exclude prior Jev answers by default to avoid anchoring;
+- label unavoidable agent-only observations with source and basis;
+- isolate agent-authored proposal evaluation from unrelated semantic questions;
+- batch only related Choice/Noul/Score judgments that should share the same neutral
+  primary-evidence context;
 - every requested answer remains decision evidence;
 - close distributions are split evidence, not strong decisions;
 - evidence should be projected to fit limits rather than silently truncated;
@@ -42,5 +47,8 @@ skill:
 6. TypeSafe/Jev remains semantic evidence, not workflow authority.
 
 The source repository's helper improvements are relevant provenance but are not a
-benchmark execution path. The benchmark already owns an independently validated host
-bridge, redaction boundary, receipt ledger, and failure semantics.
+benchmark execution path. The upstream helper now accepts two-decimal probability
+rounding using a per-option tolerance. The benchmark host bridge does not apply the
+former strict sum-to-one check, and a regression test covers a 0.99-summing live-like
+distribution. The benchmark already owns an independently validated host bridge,
+redaction boundary, receipt ledger, and failure semantics.
