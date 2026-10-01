@@ -3,9 +3,9 @@
 This source-synchronized benchmark skill is derived from:
 
 - repository: `ngallodev-software/jev-decision-support`
-- source commit: `627e508fb8798f66c4bae180b432c30dbe44570e`
+- source commit: `5b43c3f1cd289361cf7715588cbc3871f2f6947f`
 - source path: `skills/jev-decision-support/SKILL.md`
-- source skill Git blob: `840a1dd3aebeccbf17d1363a44665f1e2097492d`
+- source skill Git blob: `5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2`
 - source OpenAI metadata Git blob: `ba931acbdbdd7e1f8327db63f93468e396672d14`
 
 This is a new benchmark derivative. It does **not** modify the frozen v2/v3 skill
@@ -21,7 +21,12 @@ The derivative carries forward the source update's substantive guidance:
 - related Choice/Noul/Score judgments should be batched in one validated request;
 - every requested answer remains decision evidence;
 - close distributions are split evidence, not strong decisions;
-- evidence should be projected to fit limits rather than silently truncated.
+- evidence should be projected to fit limits rather than silently truncated;
+- controlled evidence shows projected context can move distributions materially;
+- sharper semantic distributions are not evidence of correctness and do not replace
+  tests/type checking/linters;
+- context/question ordering should be stable when comparing calls because key-order
+  changes alone produced material probability shifts in the source experiment.
 
 Benchmark-specific hardening remains intentionally different from the standalone
 skill:
