@@ -269,7 +269,7 @@ Canonical design:
 ## Phase 5 — source-synchronize the benchmark Jev skill
 
 The standalone `ngallodev-software/jev-decision-support` skill advanced at
-`627e508fb8798f66c4bae180b432c30dbe44570e`.
+`5b43c3f1cd289361cf7715588cbc3871f2f6947f`.
 
 Do not edit the frozen v2/v3 skill assets. Their exact content is part of already
 observed experimental evidence.
@@ -293,7 +293,9 @@ v4 carries forward the source update's evidence-quality guidance:
 - prior Jev result plus what materially changed before re-asking;
 - one validated batch for related Choice/Noul/Score judgments;
 - close distributions treated as split evidence;
-- project evidence to fit limits rather than silently truncating it.
+- project evidence to fit limits rather than silently truncating it;
+- retain deterministic verification because sharper Jev evidence is not correctness;
+- keep serialized context/question ordering stable when comparing calls.
 
 Benchmark execution remains stricter than the standalone skill: the direct SDK helper,
 isolated `uv` runtime, direct HTTP fallback, and sandbox credential acquisition are
