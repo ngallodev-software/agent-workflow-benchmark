@@ -723,3 +723,101 @@ def test_redundant_v3_manager_canary_is_fail_closed() -> None:
     assert "p4-audit-v2-manager-traces.sh" in canary
     assert "Do not run `p4-run-manager-canary-v3.sh`" in readme
     assert "both v2 control and v3 treatment" in readme
+
+
+
+def test_decision_v4_is_pinned_to_latest_public_skill_source() -> None:
+    from agent_workflow_benchmark.benchmarking.agentic_jev_decision_v4 import (
+        SOURCE_COMMIT,
+        SOURCE_OPENAI_GIT_BLOB,
+        SOURCE_PATH,
+        SOURCE_REPOSITORY,
+        SOURCE_SKILL_GIT_BLOB,
+        decision_skill_interface_path,
+        decision_skill_interface_sha256,
+        decision_skill_path,
+        decision_skill_sha256,
+        source_manifest,
+    )
+
+    assert SOURCE_REPOSITORY == "ngallodev-software/jev-decision-support"
+    assert SOURCE_COMMIT == "627e508fb8798f66c4bae180b432c30dbe44570e"
+    assert SOURCE_PATH == "skills/jev-decision-support/SKILL.md"
+    assert SOURCE_SKILL_GIT_BLOB == "840a1dd3aebeccbf17d1363a44665f1e2097492d"
+    assert SOURCE_OPENAI_GIT_BLOB == "ba931acbdbdd7e1f8327db63f93468e396672d14"
+    assert decision_skill_path().is_file()
+    assert decision_skill_interface_path().is_file()
+    assert len(decision_skill_sha256()) == 64
+    assert len(decision_skill_interface_sha256()) == 64
+    manifest = source_manifest()
+    assert manifest["live_treatment_defined"] is False
+    assert manifest["commit"] == SOURCE_COMMIT
+
+
+def test_decision_v4_integrates_new_context_batch_and_distribution_guidance() -> None:
+    skill = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v4"
+        / "jev-decision-support"
+        / "SKILL.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Context for review-type decisions" in skill
+    assert "requirement source verbatim" in skill
+    assert "unchanged code it depends on" in skill
+    assert "verification results with scope" in skill
+    assert "prior Jev answer" in skill
+    assert "Batch related judgments in one call" in skill
+    normalized = " ".join(skill.split())
+    assert "Treat every requested answer as part of the decision evidence" in normalized
+    assert "0.52 versus 0.42" in skill
+    assert "split evidence" in skill
+    assert "rather than silently truncating it" in skill
+
+
+def test_decision_v4_keeps_benchmark_host_only_transport() -> None:
+    skill_root = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v4"
+        / "jev-decision-support"
+    )
+    skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+    source = (skill_root.parent / "SOURCE.md").read_text(encoding="utf-8")
+
+    assert "jev_system_one" in skill
+    assert "Do **not** install or import `typesafe-sdk`" in skill
+    assert "Do not search the filesystem for credentials" in skill
+    assert "at most 16 questions per request" in skill
+    assert "at most 64 KiB of normalized state" in skill
+    assert "at most 48 KiB of normalized questions" in skill
+    assert not (skill_root / "scripts" / "jev_decision.py").exists()
+    assert "isolated `uv` runtime" in source
+    assert "host receipts remain authoritative execution evidence" in source
+
+
+def test_decision_v4_does_not_mutate_frozen_v2_v3_assets() -> None:
+    v2_source = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v2"
+        / "SOURCE.md"
+    ).read_text(encoding="utf-8")
+    v3_source = (
+        ROOT
+        / "src"
+        / "agent_workflow_benchmark"
+        / "assets"
+        / "agentic-jev-decision-v3"
+        / "SOURCE.md"
+    ).read_text(encoding="utf-8")
+
+    assert "65b444965e48209860e353f2aa0e8d9dbe35d2ce" in v2_source
+    assert "65b444965e48209860e353f2aa0e8d9dbe35d2ce" in v3_source

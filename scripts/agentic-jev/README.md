@@ -264,3 +264,45 @@ blocks rather than their content.
 
 Canonical design:
 `docs/AGENTIC_JEV_DECISION_SKILL_V3.md`.
+
+
+## Phase 5 — source-synchronize the benchmark Jev skill
+
+The standalone `ngallodev-software/jev-decision-support` skill advanced at
+`627e508fb8798f66c4bae180b432c30dbe44570e`.
+
+Do not edit the frozen v2/v3 skill assets. Their exact content is part of already
+observed experimental evidence.
+
+The new benchmark derivative is:
+
+~~~text
+src/agent_workflow_benchmark/assets/
+  agentic-jev-decision-v4/
+    jev-decision-support/
+      SKILL.md
+      agents/openai.yaml
+    SOURCE.md
+~~~
+
+v4 carries forward the source update's evidence-quality guidance:
+
+- verbatim requirement text when available;
+- candidate diff/proposal plus unchanged dependent code;
+- verification results with explicit scope and omissions;
+- prior Jev result plus what materially changed before re-asking;
+- one validated batch for related Choice/Noul/Score judgments;
+- close distributions treated as split evidence;
+- project evidence to fit limits rather than silently truncating it.
+
+Benchmark execution remains stricter than the standalone skill: the direct SDK helper,
+isolated `uv` runtime, direct HTTP fallback, and sandbox credential acquisition are
+not copied. Live benchmark inference remains host-only through `jev_system_one`.
+
+v4 is **not yet a live treatment**. Do not infer a new qualification or run simply
+because the asset exists. The next design step is the provider-neutral
+Agent-Workflow decision-checkpoint/reconciliation architecture surfaced by the
+manager trace audit.
+
+Canonical design:
+`docs/AGENTIC_JEV_DECISION_SKILL_V4.md`.

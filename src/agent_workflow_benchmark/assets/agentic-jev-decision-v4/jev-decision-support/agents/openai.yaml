@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jev Decision Support"
+  short_description: "Ask Jev for a bounded semantic decision"
+  default_prompt: "Use $jev-decision-support for a bounded semantic decision after collecting the relevant requirement, repository evidence, and verification scope; use only host jev_system_one and treat close distributions as split evidence."
