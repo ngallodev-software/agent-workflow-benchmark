@@ -94,9 +94,10 @@ Current source pin:
 
 ~~~text
 repository: ngallodev-software/jev-decision-support
-commit: 5b43c3f1cd289361cf7715588cbc3871f2f6947f
-source skill Git blob: 5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2
+commit: d0ac1ef45d1b79b18b2905872c62cb9e68d961c7
+source skill Git blob: ad6e00a2346ddf15009ad5119310cff3388ff8a2
 source OpenAI metadata Git blob: ba931acbdbdd7e1f8327db63f93468e396672d14
+source helper Git blob: bb28c18553cb9bebd3d4894e06ef587e8e04c47c
 ~~~
 
 v4 intentionally keeps benchmark transport stricter than the public standalone skill:
@@ -114,12 +115,16 @@ The source skill added and refined several pieces that matter to the next archit
 
 1. For review/proposal judgments, include the requirement source verbatim when available.
 2. Include the candidate diff/proposal plus unchanged code it depends on.
-3. Include verification results with scope: what ran, results/counts, and what was not exercised.
-4. When re-asking after a prior Jev call, include the prior result and what materially changed.
-5. Batch related Choice/Noul/Score questions in one validated call over one context.
-6. Treat every requested answer as decision evidence; do not silently ignore an inconvenient batch answer.
-7. Treat close distributions as split evidence rather than collapsing a narrow plurality into certainty.
-8. Project evidence to fit limits; do not silently truncate it.
+3. Include deterministic tool output verbatim with scope: what ran, results/counts/failures, and what was not exercised.
+4. Keep the candidate agent's preferred answer, confidence, and verdict out of neutral Jev evidence.
+5. Treat notes/summaries/verdicts from other agents as claims, not deterministic tool output.
+6. Exclude prior Jev answers by default; include one only when the question is explicitly about change since that answer.
+7. Label unavoidable agent-only observations with source and basis.
+8. Isolate evaluation of an agent-authored proposal from unrelated semantic questions.
+9. Batch only related Choice/Noul/Score questions that should share the same neutral primary-evidence context.
+10. Treat every requested answer as decision evidence; do not silently ignore an inconvenient batch answer.
+11. Treat close distributions as split evidence rather than collapsing a narrow plurality into certainty.
+12. Project evidence to fit limits; do not silently truncate it.
 
 The latest source also replaced an unsupported causal claim with a controlled result. In one pre-registered code-review ablation using `jev-1.13.0` and five calls per arm, richer context materially sharpened the distribution: reported spec-fit moved from about 0.35 to 0.89 and P(needs_changes) from about 0.49 to 0.18. Replacing a type-checker-failing commit with the fixed commit changed little.
 
@@ -384,6 +389,9 @@ Capture at minimum:
 - initial agent candidate before semantic evidence;
 - bounded options actually considered;
 - evidence refs / projected state hash;
+- provenance classes for projected fields (primary evidence, deterministic tool output, agent observation, agent-authored proposal);
+- proof that the candidate agent's preferred answer was excluded from neutral provider state;
+- stable serialization/question ordering identity for comparative calls;
 - Jev request identity and complete typed distribution;
 - agreement/disagreement;
 - reconciliation action and rationale;
@@ -407,6 +415,8 @@ Do not claim access to hidden chain-of-thought. Preserve observable decision evi
 - Do not let a coding agent silently discard registered semantic disagreement.
 - Do not create two canonical state stores if testing LangGraph.
 - Do not collapse close semantic distributions into certainty.
+- Do not feed the candidate agent's preferred answer into neutral Jev evidence.
+- Do not mix an agent-authored proposal into unrelated semantic batches.
 - Do not infer correctness from Jev confidence alone.
 
 ## Suggested opening instruction for the next thread
