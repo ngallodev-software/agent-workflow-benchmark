@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-workflow-benchmark/agentic-jev-current-model-qualification/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "study_id", "qualified", "runtime", "skill", "jev_execution", "decision_record", "observable_reasoning", "checks", "claim_boundary"],
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-current-model-qualification/v1"},
+    "study_id": {"const": "agentic-jev-current-model-qualification-v1"},
+    "qualified": {"type": "boolean"},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "model_config", "reasoning_effort", "model_args", "codex_cli", "jev_model"],
+      "properties": {
+        "model": {"enum": ["openai-api/codex-lb/gpt-6-luna", "openai-api/codex-lb/gpt-6.1-sol"]},
+        "model_config": {"enum": ["gpt-6-luna", "gpt-6.1-sol"]},
+        "reasoning_effort": {"enum": ["low", "medium", "high", "xhigh", "max"]},
+        "model_args": {"type": "object"},
+        "codex_cli": {"type": "object"},
+        "jev_model": {"type": ["string", "null"]}
+      }
+    },
+    "skill": {"type": "object"},
+    "jev_execution": {"type": "object"},
+    "decision_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selected_option", "justification", "evidence_refs", "tradeoff", "semantic_evidence_reconciliation", "remaining_uncertainty"],
+      "properties": {
+        "selected_option": {"enum": ["proposal_1", "proposal_2"]},
+        "justification": {"type": "string", "minLength": 80, "maxLength": 1200},
+        "evidence_refs": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "string"}},
+        "tradeoff": {"type": "string", "minLength": 20},
+        "semantic_evidence_reconciliation": {"type": "string", "minLength": 20},
+        "remaining_uncertainty": {"type": ["string", "null"]}
+      }
+    },
+    "observable_reasoning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasoning_blocks_observed", "reasoning_content_exported", "justification_source"],
+      "properties": {
+        "reasoning_blocks_observed": {"type": "integer", "minimum": 0},
+        "reasoning_content_exported": {"const": false},
+        "justification_source": {"const": "visible_final_assistant_decision_record"}
+      }
+    },
+    "checks": {"type": "object"},
+    "claim_boundary": {"type": "object"}
+  }
+}
