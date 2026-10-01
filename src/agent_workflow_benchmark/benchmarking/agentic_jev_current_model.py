@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -106,8 +107,9 @@ def inspect_jev_receipt_context(receipt: Mapping[str, object]) -> dict[str, obje
         raise WorkflowError("successful Jev receipt request is missing state/questions")
 
     serialized_state = _canonical_json(state)
+    normalized_state = re.sub(r"\\s+", " ", serialized_state)
     anchors = {
-        name: fragment in serialized_state
+        name: re.sub(r"\\s+", " ", fragment) in normalized_state
         for name, fragment in _CONTEXT_ANCHORS.items()
     }
     choice_questions = [
