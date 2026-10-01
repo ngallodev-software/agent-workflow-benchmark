@@ -119,9 +119,9 @@ def inspect_jev_receipt_context(receipt: Mapping[str, object]) -> dict[str, obje
     if not isinstance(state, Mapping) or not isinstance(questions, Mapping):
         raise WorkflowError("successful Jev receipt request is missing state/questions")
 
-    searchable_state = re.sub(r"\\s+", " ", "\\n".join(_string_values(state)))
+    searchable_state = re.sub(r"\s+", " ", "\n".join(_string_values(state)))
     anchors = {
-        name: re.sub(r"\\s+", " ", fragment) in searchable_state
+        name: re.sub(r"\s+", " ", fragment) in searchable_state
         for name, fragment in _CONTEXT_ANCHORS.items()
     }
     choice_questions = [
