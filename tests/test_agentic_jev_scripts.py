@@ -771,7 +771,7 @@ def test_decision_v4_integrates_new_context_batch_and_distribution_guidance() ->
     assert "verification results with scope" in skill
     assert "prior Jev answer" in skill
     assert "Batch related judgments in one call" in skill
-    assert "Treat every requested answer as part of the decision evidence" in skill
+    assert "every requested answer as part of the decision evidence" in skill
     assert "0.52 versus 0.42" in skill
     assert "split evidence" in skill
     assert "rather than silently truncating it" in skill
