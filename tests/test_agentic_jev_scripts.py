@@ -780,7 +780,7 @@ def test_decision_v4_integrates_new_context_batch_and_distribution_guidance() ->
     assert "0.89" in skill
     assert "sharper semantic evidence as correctness" in skill
     assert "JSON key order changed" in skill
-    assert "Keep context and question ordering stable" in skill
+    assert "Keep context and question ordering stable" in normalized
 
 
 def test_decision_v4_keeps_benchmark_host_only_transport() -> None:
