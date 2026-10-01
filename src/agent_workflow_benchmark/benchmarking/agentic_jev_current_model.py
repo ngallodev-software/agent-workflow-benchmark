@@ -79,6 +79,19 @@ def _canonical_json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+def _string_values(value: object) -> list[str]:
+    result: list[str] = []
+    if isinstance(value, str):
+        result.append(value)
+    elif isinstance(value, Mapping):
+        for child in value.values():
+            result.extend(_string_values(child))
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            result.extend(_string_values(child))
+    return result
+
+
 def _forbidden_keys(value: object) -> list[str]:
     found: set[str] = set()
 
@@ -106,10 +119,9 @@ def inspect_jev_receipt_context(receipt: Mapping[str, object]) -> dict[str, obje
     if not isinstance(state, Mapping) or not isinstance(questions, Mapping):
         raise WorkflowError("successful Jev receipt request is missing state/questions")
 
-    serialized_state = _canonical_json(state)
-    normalized_state = re.sub(r"\\s+", " ", serialized_state)
+    searchable_state = re.sub(r"\\s+", " ", "\\n".join(_string_values(state)))
     anchors = {
-        name: re.sub(r"\\s+", " ", fragment) in normalized_state
+        name: re.sub(r"\\s+", " ", fragment) in searchable_state
         for name, fragment in _CONTEXT_ANCHORS.items()
     }
     choice_questions = [
