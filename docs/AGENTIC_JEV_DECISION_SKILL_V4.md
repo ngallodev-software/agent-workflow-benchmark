@@ -1,7 +1,7 @@
 # Agentic Jev decision-support skill v4 source refresh
 
 **Status:** SOURCE-SYNCHRONIZED / NOT YET A LIVE TREATMENT  
-**Source:** `ngallodev-software/jev-decision-support@627e508fb8798f66c4bae180b432c30dbe44570e`
+**Source:** `ngallodev-software/jev-decision-support@5b43c3f1cd289361cf7715588cbc3871f2f6947f`
 
 ## Why this is v4 instead of an edit to v2/v3
 
@@ -30,6 +30,23 @@ For review/proposal decisions, project:
 This is directly relevant to the manager-trace audit: a semantic check should receive
 the authority/evidence surface that the coding agent used, not only its paraphrased
 conclusion.
+
+### Controlled context-sensitivity caveat
+
+The latest source narrows the earlier generic "rich context is better" claim to a
+controlled result. In one pre-registered code-review ablation using `jev-1.13.0`
+with five calls per arm, richer context raised spec-fit from about 0.35 to 0.89 and
+reduced P(needs_changes) from about 0.49 to 0.18. Replacing a type-checker-failing
+commit with its fixed version changed little.
+
+The benchmark derivative carries the two important caveats forward:
+
+- sharper semantic distributions are not correctness; defects absent from the
+  projected evidence remain invisible, so deterministic checks still run outside
+  Jev and their scoped results should be included in state;
+- serialization order matters enough to affect probabilities and even a top choice
+  in that controlled case, so comparative calls must keep context/question ordering
+  stable and should not over-interpret small decimal differences.
 
 ### Validated batching
 
