@@ -13,9 +13,9 @@ from typing import Any
 from agent_workflow.util import sha256_file
 
 SOURCE_REPOSITORY = "ngallodev-software/jev-decision-support"
-SOURCE_COMMIT = "627e508fb8798f66c4bae180b432c30dbe44570e"
+SOURCE_COMMIT = "5b43c3f1cd289361cf7715588cbc3871f2f6947f"
 SOURCE_PATH = "skills/jev-decision-support/SKILL.md"
-SOURCE_SKILL_GIT_BLOB = "840a1dd3aebeccbf17d1363a44665f1e2097492d"
+SOURCE_SKILL_GIT_BLOB = "5fcf00bbf5eb51a350ad1fed879e4a19e7753eb2"
 SOURCE_OPENAI_GIT_BLOB = "ba931acbdbdd7e1f8327db63f93468e396672d14"
 
 
