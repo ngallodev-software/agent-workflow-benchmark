@@ -182,6 +182,14 @@ Then run the complete fixed paired cohort. The runner writes `run-start.json` be
 bash scripts/agentic-jev/p7-run-swe-manager-paired.sh
 ```
 
+After a complete run only, prepare the public-safe publication projection:
+
+```bash
+bash scripts/agentic-jev/p7-prepare-swe-manager-publication.sh
+```
+
+The publication gate independently reloads and validates all 30 paired trial records, recomputes the paired report, and requires byte-for-byte semantic equality with the stored report. It publishes only an allowlisted tree containing the paired report, public-safe paired trials, publication metadata, a human-readable README, and hashes of retained private evidence. It does **not** copy Inspect logs, Jev receipt bodies, raw provider traffic, credentials, hidden chain-of-thought, or local paths. The public runtime projection strips Codex cache paths while preserving model/version/source hashes and the realized first-arm distribution.
+
 Never delete or reuse a non-empty run root. A failed or partial attempt remains evidence; use a fresh `AGENTIC_JEV_SWE_MANAGER_RUN_ROOT` after a material repair.
 
 ## Claim boundary
