@@ -108,7 +108,7 @@ Before any cohort freeze or outcome observation, the implementation was hardened
 
 - the three Phase 7 operator scripts use real shell parameter expansion rather than the accidentally escaped literal `\${...}` form present in the initial preregistered implementation;
 - every Phase 7 Jev receipt is labeled with `agentic-jev-swe-manager-v1` rather than inheriting the earlier pilot study ID;
-- a validated `run-start.json` is written before the first paired task and binds the frozen cohort hash, Inspect source/scorer identity, coding-agent runtime, benchmark git commit, runner/bridge hashes, package versions, and requested Jev model;
+- a validated `run-start.json` is written before the first paired task and binds the frozen cohort hash, Inspect source/scorer identity, coding-agent runtime, benchmark git commit, runner/bridge hashes, package versions, hashes of the Agent-Workflow utility/error modules and comparative-eval paired-report module actually imported, and the requested Jev model;
 - execution refuses tracked benchmark-code drift so the runtime cannot silently differ from its committed source identity;
 - successful receipts retain the resolved Jev model identity even when the operator leaves the Jev model request unset and the service chooses its configured default;
 - nested Inspect model-usage records remain structured so latency/token overhead can be aggregated by comparative-eval;
