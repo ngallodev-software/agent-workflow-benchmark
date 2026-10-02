@@ -104,6 +104,7 @@ Raw Jev request context stays private. The comparison record retains request has
 
 Before any cohort freeze or outcome observation, the implementation was hardened to make the preregistered evidence auditable under failure as well as success:
 
+- the three Phase 7 operator scripts use real shell parameter expansion rather than the accidentally escaped literal `\${...}` form present in the initial preregistered implementation;
 - every Phase 7 Jev receipt is labeled with `agentic-jev-swe-manager-v1` rather than inheriting the earlier pilot study ID;
 - a validated `run-start.json` is written before the first paired task and binds the frozen cohort hash, Inspect source/scorer identity, coding-agent runtime, benchmark git commit, runner/bridge hashes, package versions, and requested Jev model;
 - execution refuses tracked benchmark-code drift so the runtime cannot silently differ from its committed source identity;
