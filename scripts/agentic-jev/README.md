@@ -357,3 +357,48 @@ it is not a correctness or treatment-effect claim.
 
 Canonical design:
 `docs/AGENTIC_JEV_CURRENT_MODEL_QUALIFICATION.md`.
+
+
+## Phase 7 — preregistered paired SWE-Lancer manager effectiveness study
+
+Phase 6 established that current GPT-6 Luna can activate the source-synchronized
+Jev decision skill, send fixture-complete neutral context, and retain a bounded
+visible justification. Phase 7 asks the distinct task-outcome question.
+
+The study uses the official pinned Inspect Evals `swe_lancer(task_variant="swe_manager")`
+task and official scorer rather than recreating dataset, sandbox, or correctness
+logic locally.
+
+The fixed 30-task cohort is selected deterministically from official manager sample
+IDs while reading only `question_id`, `variant`, `set`, and `title`. Every
+previously observed Agentic-Jev manager task is excluded from the prior frozen
+cohort manifest before selection. Correct-proposal fields are not used to choose
+the cohort.
+
+The paired arms isolate live Jev availability:
+
+~~~text
+control    GPT-6 Luna/high + current Jev decision skill, no live Jev bridge
+treatment  identical model/skill + host-side live Jev bridge
+~~~
+
+Both arms must leave the official `manager_decisions.json` plus a bounded visible
+decision record with justification, evidence refs, decisive trade-off,
+semantic-evidence reconciliation, and remaining uncertainty. Hidden chain-of-thought
+is not requested or exported.
+
+Freeze, prepare, then run:
+
+~~~bash
+bash scripts/agentic-jev/p7-freeze-swe-manager-study.sh
+bash scripts/agentic-jev/p7-prepare-swe-manager-study.sh
+bash scripts/agentic-jev/p7-run-swe-manager-paired.sh
+~~~
+
+The primary analysis is intent-to-treat for **live Jev availability**. Treatment
+tasks where Luna does not call Jev stay in the denominator; called-only subsets are
+descriptive because invocation is agent-selected. Official Inspect scoring remains
+the correctness oracle.
+
+Canonical design:
+`docs/AGENTIC_JEV_SWE_MANAGER_V1.md`.
