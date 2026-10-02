@@ -12,6 +12,9 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
+import agent_workflow.errors as agent_workflow_errors_module
+import agent_workflow.util as agent_workflow_util_module
+import agent_workflow_comparative_eval.paired_decisions as comparative_paired_decisions_module
 from agent_workflow.errors import WorkflowError
 from agent_workflow.util import atomic_write_json, sha256_file
 from agent_workflow_comparative_eval import (
@@ -115,6 +118,21 @@ def _benchmark_source_identity() -> dict[str, Any]:
         "runner_sha256": sha256_file(Path(__file__).resolve()),
         "host_bridge_sha256": sha256_file(Path(agentic_jev_runtime.__file__).resolve()),
     }
+
+
+def _dependency_code_identity() -> dict[str, str]:
+    modules = {
+        "agent_workflow.errors": agent_workflow_errors_module,
+        "agent_workflow.util": agent_workflow_util_module,
+        "agent_workflow_comparative_eval.paired_decisions": comparative_paired_decisions_module,
+    }
+    result: dict[str, str] = {}
+    for name, module in modules.items():
+        path = getattr(module, "__file__", None)
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise WorkflowError(f"cannot hash runtime dependency module {name}")
+        result[name] = sha256_file(Path(path).resolve())
+    return result
 
 
 def _installed_versions() -> dict[str, str | None]:
@@ -897,6 +915,7 @@ def run_paired_swe_manager_study(
         "requested_jev_model": jev_model,
         "benchmark_source": _benchmark_source_identity(),
         "package_versions": _installed_versions(),
+        "dependency_code_sha256": _dependency_code_identity(),
     }
     run_start = {
         "schema": RUN_START_SCHEMA,
