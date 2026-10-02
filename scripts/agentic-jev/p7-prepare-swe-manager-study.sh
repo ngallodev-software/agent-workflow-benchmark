@@ -11,7 +11,12 @@ COHORT="$ROOT/cohort.json"
 aj_require_file "$COHORT"
 [[ -d "$CHECKOUT/.git" ]] || aj_die "run p7-freeze-swe-manager-study.sh first"
 
-"$PYTHON" -m pip install "$CHECKOUT[swe_lancer]"
+"$PYTHON" -m pip install \
+  "inspect-ai==0.3.268" \
+  "inspect-swe==0.2.71" \
+  "typesafe-sdk==0.6.0" \
+  "agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@70e2ee9442426d556bc4209997572d10094cab58" \
+  "$CHECKOUT[swe_lancer]"
 
 PYTHONPATH="$BENCH_REPO/src:$CHECKOUT/src${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON" - "$COHORT" "$CHECKOUT" <<'PY'
 import sys
@@ -19,12 +24,24 @@ from importlib import metadata
 from pathlib import Path
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import load_swe_manager_cohort
 
-if metadata.version("agent-workflow-comparative-eval") != "0.3.4":
-    raise SystemExit("agent-workflow-comparative-eval==0.3.4 is required")
+required = {
+    "agent-workflow": "0.12.0",
+    "agent-workflow-comparative-eval": "0.3.4",
+    "inspect-ai": "0.3.268",
+    "inspect-swe": "0.2.71",
+    "typesafe-sdk": "0.6.0",
+}
+for name, expected in required.items():
+    observed = metadata.version(name)
+    if observed != expected:
+        raise SystemExit(f"{name}=={expected} is required; observed {observed}")
 cohort = load_swe_manager_cohort(Path(sys.argv[1]), inspect_evals_checkout=Path(sys.argv[2]))
 print("Paired SWE-Lancer dependencies ready")
+print("agent_workflow:", metadata.version("agent-workflow"))
 print("comparative_eval:", metadata.version("agent-workflow-comparative-eval"))
 print("inspect_ai:", metadata.version("inspect-ai"))
+print("inspect_swe:", metadata.version("inspect-swe"))
 print("inspect_evals:", metadata.version("inspect-evals"))
+print("typesafe_sdk:", metadata.version("typesafe-sdk"))
 print("tasks:", len(cohort["tasks"]))
 PY
