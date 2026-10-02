@@ -400,5 +400,12 @@ tasks where Luna does not call Jev stay in the denominator; called-only subsets 
 descriptive because invocation is agent-selected. Official Inspect scoring remains
 the correctness oracle.
 
+Before the first task, the runner now writes a validated `run-start.json` that
+binds the cohort, pinned source/scorer, benchmark git/source hashes, package
+versions, and coding-agent/Jev request runtime. Phase 7 receipts are labeled with
+the Phase 7 study ID, resolved Jev model identities are retained from successful
+receipts, and structured Inspect usage is preserved for paired overhead reporting.
+These pre-run evidence changes do not alter study treatment or correctness semantics.
+
 Canonical design:
 `docs/AGENTIC_JEV_SWE_MANAGER_V1.md`.
