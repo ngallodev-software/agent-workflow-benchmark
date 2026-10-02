@@ -42,6 +42,7 @@ def test_phase7_scripts_do_not_escape_runtime_parameter_expansion() -> None:
         "p7-freeze-swe-manager-study.sh",
         "p7-prepare-swe-manager-study.sh",
         "p7-run-swe-manager-paired.sh",
+        "p7-prepare-swe-manager-publication.sh",
     ):
         text = (AGENTIC / name).read_text(encoding="utf-8")
         assert "\\${" not in text, name
