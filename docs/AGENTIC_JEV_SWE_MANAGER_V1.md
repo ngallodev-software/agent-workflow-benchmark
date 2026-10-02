@@ -110,7 +110,7 @@ Before any cohort freeze or outcome observation, the implementation was hardened
 - execution refuses tracked benchmark-code drift so the runtime cannot silently differ from its committed source identity;
 - successful receipts retain the resolved Jev model identity even when the operator leaves the Jev model request unset and the service chooses its configured default;
 - nested Inspect model-usage records remain structured so latency/token overhead can be aggregated by comparative-eval;
-- paired reports bind one source/runtime identity, preserve the actual frozen cohort artifact SHA, summarize paired duration/token overhead, and retain exact successful-call context-completeness counts.
+- paired reports bind one source/runtime identity, preserve the actual frozen cohort artifact SHA, summarize paired end-to-end duration and coding-agent token overhead, report Jev receipt token/duration totals separately, and retain exact successful-call context-completeness counts.
 
 These are preregistration implementation/evidence corrections made before the study is run. They do **not** change cohort selection, arm definitions, prompts, official correctness scoring, the intent-to-treat denominator, the primary estimand, the missing-score rule, or the preregistered inferential methods.
 
@@ -126,7 +126,7 @@ These are preregistration implementation/evidence corrections made before the st
 | Jev activation/success | Was live Jev actually used? | private host receipt ledger | per-treatment sample | none | all 30 treatment trials | call/success counts |
 | Jev context completeness | Was enough neutral primary context supplied? | private Jev request + visible official prompt | fixed overlap/check rules above | none | successful calls with inspectable request | trial and exact-call complete/known counts; hashes only |
 | Visible justification/reconciliation | Did Luna leave auditable decision evidence? | final visible assistant JSON | parser | none | all arms | presence/error counts; sanitized excerpts may be curated separately |
-| Latency/token overhead | What execution overhead accompanies the treatment? | Inspect sample usage/time + Jev receipt summary | per arm/request | none | paired trials with observed fields / observed requests | paired means, treatment-minus-control means, deterministic paired-bootstrap intervals when n permits |
+| Latency/token overhead | What execution overhead accompanies the treatment? | Inspect sample usage/time + sanitized Jev receipt summary | per arm/request | none | paired trials with observed fields / observed Jev requests | paired end-to-end duration and coding-agent token means/deltas/intervals; Jev service tokens and receipt duration reported separately, never summed across unlike models |
 | Dollar cost overhead | What monetary overhead accompanies treatment? | authoritative provider billing/price schedule would be required | **not captured/frozen in v1** | none | unavailable | report as not captured; do not convert tokens to dollars post hoc without a pre-frozen authoritative pricing source |
 
 Semantic agreement with Jev is never treated as correctness.
