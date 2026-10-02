@@ -98,7 +98,20 @@ For each successful treatment Jev receipt, the private host-side request is insp
 
 These thresholds are a **process diagnostic**, not an exclusion gate and not a correctness metric. A treatment task with no Jev call remains in the primary treatment denominator.
 
-Raw Jev request context stays private. The comparison record retains request hashes and aggregate completeness only.
+Raw Jev request context stays private. The comparison record retains request hashes, aggregate and exact-call completeness counts, and resolved Jev model identities from successful receipts.
+
+## Pre-run evidence hardening
+
+Before any cohort freeze or outcome observation, the implementation was hardened to make the preregistered evidence auditable under failure as well as success:
+
+- every Phase 7 Jev receipt is labeled with `agentic-jev-swe-manager-v1` rather than inheriting the earlier pilot study ID;
+- a validated `run-start.json` is written before the first paired task and binds the frozen cohort hash, Inspect source/scorer identity, coding-agent runtime, benchmark git commit, runner/bridge hashes, package versions, and requested Jev model;
+- execution refuses tracked benchmark-code drift so the runtime cannot silently differ from its committed source identity;
+- successful receipts retain the resolved Jev model identity even when the operator leaves the Jev model request unset and the service chooses its configured default;
+- nested Inspect model-usage records remain structured so latency/token overhead can be aggregated by comparative-eval;
+- paired reports bind one source/runtime identity, preserve the actual frozen cohort artifact SHA, summarize paired duration/token overhead, and retain exact successful-call context-completeness counts.
+
+These are preregistration implementation/evidence corrections made before the study is run. They do **not** change cohort selection, arm definitions, prompts, official correctness scoring, the intent-to-treat denominator, the primary estimand, the missing-score rule, or the preregistered inferential methods.
 
 ## Metrics and evidence origin
 
@@ -110,9 +123,9 @@ Raw Jev request context stays private. The comparison record retains request has
 | Exact McNemar p-value | Are discordant correctness changes asymmetric? | control-only vs treatment-only counts | comparative-eval exact binomial/McNemar test | same | discordant pairs | two-sided exact p-value, never alone |
 | Decision-change rate | Did the applied proposal change? | auxiliary capture of `manager_decisions.json` | no-metric evidence scorer | none | pairs with both applied IDs captured | count/rate, separate from correctness |
 | Jev activation/success | Was live Jev actually used? | private host receipt ledger | per-treatment sample | none | all 30 treatment trials | call/success counts |
-| Jev context completeness | Was enough neutral primary context supplied? | private Jev request + visible official prompt | fixed overlap/check rules above | none | successful calls with inspectable request | aggregate complete/known counts; hashes only |
+| Jev context completeness | Was enough neutral primary context supplied? | private Jev request + visible official prompt | fixed overlap/check rules above | none | successful calls with inspectable request | trial and exact-call complete/known counts; hashes only |
 | Visible justification/reconciliation | Did Luna leave auditable decision evidence? | final visible assistant JSON | parser | none | all arms | presence/error counts; sanitized excerpts may be curated separately |
-| Latency/token overhead | What execution overhead accompanies the treatment? | Inspect sample usage/time + Jev receipt summary | per arm/request | none | observed trials/requests | aggregate summaries only |
+| Latency/token overhead | What execution overhead accompanies the treatment? | Inspect sample usage/time + Jev receipt summary | per arm/request | none | paired trials with observed fields / observed requests | paired means, treatment-minus-control means, deterministic paired-bootstrap intervals when n permits |
 
 Semantic agreement with Jev is never treated as correctness.
 
@@ -159,7 +172,7 @@ Install/verify the pinned upstream task dependencies:
 bash scripts/agentic-jev/p7-prepare-swe-manager-study.sh
 ```
 
-Then run the complete fixed paired cohort:
+Then run the complete fixed paired cohort. The runner writes `run-start.json` before the first sample; preserve it together with any partial Inspect logs if execution fails:
 
 ```bash
 bash scripts/agentic-jev/p7-run-swe-manager-paired.sh
