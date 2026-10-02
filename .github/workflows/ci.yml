@@ -32,7 +32,7 @@ jobs:
       - run: python -m pip install '.[inspect]'
       - run: python scripts/compat/apply-inspect-swe-output-schema-patch.py
       - run: python scripts/compat/verify-inspect-swe-output-schema-patch.py
-      - run: bash -n scripts/adjudication/v2-qualify.sh scripts/adjudication/v2-oracle.sh scripts/adjudication/p0b-prepare-resolutions.sh
+      - run: bash -n scripts/adjudication/v2-qualify.sh scripts/adjudication/v2-oracle.sh scripts/adjudication/p0b-prepare-resolutions.sh scripts/agentic-jev/p7-freeze-swe-manager-study.sh scripts/agentic-jev/p7-prepare-swe-manager-study.sh scripts/agentic-jev/p7-run-swe-manager-paired.sh
       - run: python -m py_compile scripts/adjudication/v2-diagnose.py scripts/adjudication/v2-codex-lb-ingress-capture.py scripts/adjudication/v2-verify-ingress.py
       - run: python scripts/adjudication/v2-diagnose.py --help
       - run: python scripts/adjudication/v2-codex-lb-ingress-capture.py --help
