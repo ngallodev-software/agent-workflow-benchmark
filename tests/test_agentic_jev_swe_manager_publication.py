@@ -14,6 +14,7 @@ from agent_workflow_comparative_eval import (
 
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_publication import (
     prepare_swe_manager_publication,
+    verify_swe_manager_publication,
 )
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import (
     STUDY_ID,
@@ -280,6 +281,8 @@ def test_publication_is_allowlisted_reproducible_and_path_safe(tmp_path: Path) -
         if path.is_file()
     }
     assert actual_files == expected_files
+    assert result["verification"]["status"] == "pass"
+    assert verify_swe_manager_publication(destination)["status"] == "pass"
     assert result["publication"]["paired_n"] == TARGET_TASKS
     assert result["publication"]["cohort_sha256"] == SOURCE["cohort_sha256"]
     assert result["publication"]["runtime"]["codex_cli"] == {
@@ -382,3 +385,18 @@ def test_publication_secret_scan_fails_closed(
             run_root=run_root,
             destination=tmp_path / "public",
         )
+
+
+
+def test_publication_verifier_detects_post_prepare_tampering(tmp_path: Path) -> None:
+    run_root, _ = _build_run(tmp_path)
+    destination = tmp_path / "public"
+    prepare_swe_manager_publication(
+        run_root=run_root,
+        destination=destination,
+    )
+    readme = destination / "README.md"
+    readme.write_text(readme.read_text() + "tampered\n", encoding="utf-8")
+
+    with pytest.raises(WorkflowError, match="manifest does not match"):
+        verify_swe_manager_publication(destination)
