@@ -817,6 +817,7 @@ def _arm_evidence(
     }
     if arm == "treatment":
         receipts = _receipt_values(receipt_path)
+        receipt_summary = _receipt_summary(receipt_path)
         successful = [item for item in receipts if item.get("status") == "success"]
         contexts = [
             inspect_real_task_jev_context(item, prompt_text=prompt_text)
@@ -838,13 +839,19 @@ def _arm_evidence(
             "context_known_calls": len(contexts),
             "context_complete_calls": sum(item.get("complete") is True for item in contexts),
             "resolved_models": resolved_models,
+            "service_token_records": int(receipt_summary["token_records"]),
+            "service_input_tokens": float(receipt_summary["usage"]["input_tokens"]),
+            "service_output_tokens": float(receipt_summary["usage"]["output_tokens"]),
+            "service_total_tokens": float(receipt_summary["usage"]["provider_total_tokens"]),
+            "service_duration_known_n": int(receipt_summary["duration_ms"]["n"]),
+            "service_duration_ms_total": float(receipt_summary["duration_ms"]["total"]),
             "request_hashes": [
                 str(item.get("request_sha256"))
                 for item in successful
                 if isinstance(item.get("request_sha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}", str(item.get("request_sha256")))
             ],
-            "receipt_summary": _receipt_summary(receipt_path),
+            "receipt_summary": receipt_summary,
             "context_evidence": contexts,
         }
     return evidence
