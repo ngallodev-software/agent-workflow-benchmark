@@ -11,6 +11,15 @@
     "created_at":{"type":"string","minLength":1},
     "cohort":{"type":"object"},
     "runtime":{"type":"object"},
+    "start_manifest":{
+      "type":"object",
+      "additionalProperties":false,
+      "required":["path","sha256"],
+      "properties":{
+        "path":{"type":"string","minLength":1},
+        "sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}
+      }
+    },
     "execution":{"type":"object"},
     "report":{"type":"object"},
     "evidence_policy":{

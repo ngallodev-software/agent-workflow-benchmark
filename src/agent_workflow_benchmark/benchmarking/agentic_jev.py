@@ -370,6 +370,7 @@ def _contract_failure_receipt(
     questions: object,
     purpose: str | None,
     model: str | None,
+    study_id: str,
     error: Exception,
     started: float,
 ) -> dict[str, object]:
@@ -382,7 +383,7 @@ def _contract_failure_receipt(
     }
     return {
         "schema": TOOL_RECEIPT_SCHEMA,
-        "study_id": PILOT_STUDY_ID,
+        "study_id": study_id,
         "timestamp": _utc(),
         "purpose": _safe(purpose or ""),
         "request_sha256": _sha256_json(request_payload),
@@ -439,6 +440,7 @@ def execute_jev_request(
     model: str | None = None,
     client: Any | None = None,
     receipt_path: Path | None = None,
+    study_id: str = PILOT_STUDY_ID,
 ) -> dict[str, object]:
     started = monotonic()
     try:
@@ -456,6 +458,7 @@ def execute_jev_request(
                 questions=questions,
                 purpose=purpose,
                 model=model,
+                study_id=study_id,
                 error=exc,
                 started=started,
             ),
@@ -479,7 +482,7 @@ def execute_jev_request(
 
     base_receipt: dict[str, object] = {
         "schema": TOOL_RECEIPT_SCHEMA,
-        "study_id": PILOT_STUDY_ID,
+        "study_id": study_id,
         "timestamp": _utc(),
         "purpose": _safe(purpose or ""),
         "request_sha256": request_sha256,
@@ -598,6 +601,7 @@ def jev_bridged_tool(
     *,
     receipt_path: Path,
     model: str | None = None,
+    study_id: str = PILOT_STUDY_ID,
 ) -> Any:
     try:
         from inspect_ai.tool import tool
@@ -635,6 +639,7 @@ def jev_bridged_tool(
                 purpose=purpose,
                 model=model,
                 receipt_path=receipt_path,
+                study_id=study_id,
             )
             return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
 

@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/lib.sh"
 
 aj_require_executable "$PYTHON"
 aj_require_typesafe_key
 
-ROOT="\${AGENTIC_JEV_SWE_MANAGER_ROOT:-$AGENTIC_JEV_ROOT/swe-manager-v1}"
+ROOT="${AGENTIC_JEV_SWE_MANAGER_ROOT:-$AGENTIC_JEV_ROOT/swe-manager-v1}"
 CHECKOUT="$ROOT/inspect_evals"
 COHORT="$ROOT/cohort.json"
-RUN_ROOT="\${AGENTIC_JEV_SWE_MANAGER_RUN_ROOT:-$ROOT/paired-run}"
+RUN_ROOT="${AGENTIC_JEV_SWE_MANAGER_RUN_ROOT:-$ROOT/paired-run}"
 aj_require_file "$COHORT"
 [[ -d "$CHECKOUT/.git" ]] || aj_die "missing frozen Inspect Evals checkout"
 
-PYTHONPATH="$BENCH_REPO/src:$CHECKOUT/src\${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON" - \
-  "$RUN_ROOT" "$COHORT" "$CHECKOUT" "\${AGENTIC_JEV_JEV_MODEL:-}" <<'PY'
+PYTHONPATH="$BENCH_REPO/src:$CHECKOUT/src${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON" - \
+  "$RUN_ROOT" "$COHORT" "$CHECKOUT" "${AGENTIC_JEV_JEV_MODEL:-}" <<'PY'
 import sys
 from pathlib import Path
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import run_paired_swe_manager_study
