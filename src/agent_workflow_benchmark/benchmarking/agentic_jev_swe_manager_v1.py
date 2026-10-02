@@ -887,6 +887,7 @@ def run_paired_swe_manager_study(
         "skill_commit": JEV_SKILL_COMMIT,
         "skill_sha256": decision_skill_sha256(),
         "codex_version": codex_version,
+        "requested_jev_model": jev_model,
         "benchmark_source": _benchmark_source_identity(),
         "package_versions": _installed_versions(),
     }
