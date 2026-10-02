@@ -19,8 +19,8 @@ from importlib import metadata
 from pathlib import Path
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import load_swe_manager_cohort
 
-if metadata.version("agent-workflow-comparative-eval") != "0.3.3":
-    raise SystemExit("agent-workflow-comparative-eval==0.3.3 is required")
+if metadata.version("agent-workflow-comparative-eval") != "0.3.4":
+    raise SystemExit("agent-workflow-comparative-eval==0.3.4 is required")
 cohort = load_swe_manager_cohort(Path(sys.argv[1]), inspect_evals_checkout=Path(sys.argv[2]))
 print("Paired SWE-Lancer dependencies ready")
 print("comparative_eval:", metadata.version("agent-workflow-comparative-eval"))
