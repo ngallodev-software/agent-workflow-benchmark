@@ -39,7 +39,7 @@ The cohort freezer pins:
 - the exact task CSV SHA-256;
 - the exact official scorer source SHA-256.
 
-The source is copied into the private study directory and validated again before execution.
+The source is copied into the private study directory and validated again before execution. The prepare gate also installs/verifies the frozen host dependency set used by the benchmark implementation: `inspect-ai==0.3.268`, `inspect-swe==0.2.71`, `typesafe-sdk==0.6.0`, Agent-Workflow `0.12.0`, and comparative-eval `0.3.4` from its merged source commit.
 
 ## Fresh cohort
 
