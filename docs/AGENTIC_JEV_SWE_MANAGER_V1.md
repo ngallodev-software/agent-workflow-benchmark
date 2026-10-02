@@ -127,6 +127,7 @@ These are preregistration implementation/evidence corrections made before the st
 | Jev context completeness | Was enough neutral primary context supplied? | private Jev request + visible official prompt | fixed overlap/check rules above | none | successful calls with inspectable request | trial and exact-call complete/known counts; hashes only |
 | Visible justification/reconciliation | Did Luna leave auditable decision evidence? | final visible assistant JSON | parser | none | all arms | presence/error counts; sanitized excerpts may be curated separately |
 | Latency/token overhead | What execution overhead accompanies the treatment? | Inspect sample usage/time + Jev receipt summary | per arm/request | none | paired trials with observed fields / observed requests | paired means, treatment-minus-control means, deterministic paired-bootstrap intervals when n permits |
+| Dollar cost overhead | What monetary overhead accompanies treatment? | authoritative provider billing/price schedule would be required | **not captured/frozen in v1** | none | unavailable | report as not captured; do not convert tokens to dollars post hoc without a pre-frozen authoritative pricing source |
 
 Semantic agreement with Jev is never treated as correctness.
 
@@ -157,7 +158,7 @@ The report includes:
 - observable justification/reconciliation coverage;
 - execution reliability.
 
-With 30 pairs this is a bounded first effectiveness study, not a design for detecting small effects. Point estimate, interval, discordant counts, and limitations must be reported together.
+With 30 pairs this is a bounded first effectiveness study, not a design for detecting small effects. Point estimate, interval, discordant counts, and limitations must be reported together. V1 does not freeze authoritative provider billing data, so token overhead must not be presented as dollar cost; monetary overhead is explicitly unavailable unless a separately frozen, outcome-blind pricing source is added before execution.
 
 ## Operator sequence
 
