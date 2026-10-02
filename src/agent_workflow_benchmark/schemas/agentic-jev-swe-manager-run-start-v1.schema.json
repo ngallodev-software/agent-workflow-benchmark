@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-workflow-benchmark/agentic-jev-swe-manager-run-start/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema","study_id","study_version","created_at","cohort","source","runtime","evidence_policy"],
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-swe-manager-run-start/v1"},
+    "study_id": {"const": "agentic-jev-swe-manager-v1"},
+    "study_version": {"const": "1.0.0-preregistered"},
+    "created_at": {"type": "string","minLength": 1},
+    "cohort": {"type": "object"},
+    "source": {"type": "object"},
+    "runtime": {"type": "object"},
+    "evidence_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["failed_or_partial_execution_preserved","inspect_logs_are_canonical_execution_evidence","raw_jev_context_public","credentials_public"],
+      "properties": {
+        "failed_or_partial_execution_preserved": {"const": true},
+        "inspect_logs_are_canonical_execution_evidence": {"const": true},
+        "raw_jev_context_public": {"const": false},
+        "credentials_public": {"const": false}
+      }
+    }
+  }
+}
