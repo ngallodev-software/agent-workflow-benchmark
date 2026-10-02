@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-workflow-benchmark/agentic-jev-swe-manager-publication/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "study_id",
+    "study_version",
+    "prepared_at",
+    "source_run_sha256",
+    "cohort_sha256",
+    "paired_n",
+    "source",
+    "runtime",
+    "claim_boundary",
+    "privacy",
+    "files"
+  ],
+  "properties": {
+    "schema": {"const": "agent-workflow-benchmark/agentic-jev-swe-manager-publication/v1"},
+    "study_id": {"const": "agentic-jev-swe-manager-v1"},
+    "study_version": {"const": "1.0.0-preregistered"},
+    "prepared_at": {"type": "string", "minLength": 1},
+    "source_run_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "cohort_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "paired_n": {"type": "integer", "minimum": 1},
+    "source": {"type": "object"},
+    "runtime": {"type": "object"},
+    "claim_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "within_frozen_cohort_only",
+        "called_only_subset_descriptive_only",
+        "semantic_agreement_is_not_correctness",
+        "dollar_cost_available"
+      ],
+      "properties": {
+        "within_frozen_cohort_only": {"const": true},
+        "called_only_subset_descriptive_only": {"const": true},
+        "semantic_agreement_is_not_correctness": {"const": true},
+        "dollar_cost_available": {"const": false}
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_provider_http_included",
+        "raw_jev_context_included",
+        "raw_jev_receipts_included",
+        "inspect_logs_included",
+        "credentials_included",
+        "hidden_chain_of_thought_included",
+        "local_user_paths_included",
+        "visible_decision_evidence_included",
+        "private_evidence_hashes_only"
+      ],
+      "properties": {
+        "raw_provider_http_included": {"const": false},
+        "raw_jev_context_included": {"const": false},
+        "raw_jev_receipts_included": {"const": false},
+        "inspect_logs_included": {"const": false},
+        "credentials_included": {"const": false},
+        "hidden_chain_of_thought_included": {"const": false},
+        "local_user_paths_included": {"const": false},
+        "visible_decision_evidence_included": {"const": true},
+        "private_evidence_hashes_only": {"const": true}
+      }
+    },
+    "files": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

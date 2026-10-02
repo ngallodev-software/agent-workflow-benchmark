@@ -395,6 +395,17 @@ bash scripts/agentic-jev/p7-prepare-swe-manager-study.sh
 bash scripts/agentic-jev/p7-run-swe-manager-paired.sh
 ~~~
 
+Only after the complete paired run exists, prepare the sanitized public bundle:
+
+~~~bash
+bash scripts/agentic-jev/p7-prepare-swe-manager-publication.sh
+~~~
+
+That command recomputes the paired report from the public-safe trial records and
+fails if it differs from the stored report. The generated tree excludes Inspect
+logs, raw Jev receipts/context, provider traffic, credentials, hidden reasoning,
+and local user paths; hashes of retained private artifacts provide provenance.
+
 The primary analysis is intent-to-treat for **live Jev availability**. Treatment
 tasks where Luna does not call Jev stay in the denominator; called-only subsets are
 descriptive because invocation is agent-selected. Official Inspect scoring remains
