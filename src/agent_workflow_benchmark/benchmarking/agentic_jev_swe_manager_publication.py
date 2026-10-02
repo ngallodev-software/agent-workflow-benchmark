@@ -112,9 +112,12 @@ def _safe_runtime(value: object) -> dict[str, Any]:
         "dependency_code_sha256": dict(value["dependency_code_sha256"])
         if isinstance(value["dependency_code_sha256"], Mapping)
         else value["dependency_code_sha256"],
-        "model_args": dict(value.get("model_args", {}))
-        if isinstance(value.get("model_args"), Mapping)
-        else {},
+        "model_args": (
+            {"responses_api": value["model_args"].get("responses_api")}
+            if isinstance(value.get("model_args"), Mapping)
+            and "responses_api" in value["model_args"]
+            else {}
+        ),
         "codex_cli": _safe_codex_identity(value.get("codex_cli")),
     }
     return result
@@ -234,13 +237,41 @@ def _require_complete_run(
     return report
 
 
-def _private_file_hash(path_value: object, *, label: str) -> str:
-    if not isinstance(path_value, str) or not path_value:
-        raise WorkflowError(f"missing private evidence path for {label}")
-    path = Path(path_value)
-    if not path.is_file():
-        raise WorkflowError(f"missing private evidence file for {label}: {path}")
-    return sha256_file(path)
+def _private_file_hash(
+    path_value: object,
+    *,
+    label: str,
+    fallback: Path | None = None,
+) -> str:
+    candidates: list[Path] = []
+    if isinstance(path_value, str) and path_value:
+        candidates.append(Path(path_value))
+    if fallback is not None:
+        candidates.append(Path(fallback))
+    for path in candidates:
+        if path.is_file():
+            return sha256_file(path)
+    raise WorkflowError(f"missing private evidence file for {label}")
+
+
+def _inspect_log_hash(
+    *,
+    path_value: object,
+    sample_root: Path,
+    arm: str,
+) -> str:
+    if isinstance(path_value, str) and path_value:
+        direct = Path(path_value)
+        if direct.is_file():
+            return sha256_file(direct)
+    log_root = sample_root / arm / "inspect-logs"
+    matches = sorted(path for path in log_root.rglob("*.eval") if path.is_file())
+    if len(matches) != 1:
+        raise WorkflowError(
+            f"expected exactly one private Inspect log for {sample_root.name}/{arm}; "
+            f"observed {len(matches)}"
+        )
+    return sha256_file(matches[0])
 
 
 def _private_evidence_hashes(
@@ -259,15 +290,18 @@ def _private_evidence_hashes(
             / "treatment"
             / "jev-tool-receipts.jsonl"
         )
+        sample_root = run_root / "samples" / sample_id
         record = {
             "sample_id": sample_id,
-            "control_inspect_log_sha256": _private_file_hash(
-                item.get("control_inspect_log"),
-                label=f"{sample_id}/control Inspect log",
+            "control_inspect_log_sha256": _inspect_log_hash(
+                path_value=item.get("control_inspect_log"),
+                sample_root=sample_root,
+                arm="control",
             ),
-            "treatment_inspect_log_sha256": _private_file_hash(
-                item.get("treatment_inspect_log"),
-                label=f"{sample_id}/treatment Inspect log",
+            "treatment_inspect_log_sha256": _inspect_log_hash(
+                path_value=item.get("treatment_inspect_log"),
+                sample_root=sample_root,
+                arm="treatment",
             ),
             "treatment_jev_receipts_sha256": (
                 sha256_file(treatment_receipts)
@@ -284,7 +318,11 @@ def _private_evidence_hashes(
     if not isinstance(start_manifest, Mapping):
         raise WorkflowError("run has no start_manifest")
     start_path = start_manifest.get("path")
-    start_hash = _private_file_hash(start_path, label="run-start manifest")
+    start_hash = _private_file_hash(
+        start_path,
+        label="run-start manifest",
+        fallback=run_root / "run-start.json",
+    )
     if start_hash != start_manifest.get("sha256"):
         raise WorkflowError("run-start manifest hash no longer matches run record")
 
