@@ -61,9 +61,9 @@ _FORBIDDEN_AGENT_JUDGMENT_KEYS = frozenset(
 
 SYSTEM_PROMPT = """Complete the official SWE-Lancer manager task from the supplied task prompt and repository.
 The official task contract remains authoritative: inspect the repository as needed and write
-/app/expensify/manager_decisions.json with the selected proposal ID. Use the installed Jev
-decision-support skill when applicable and when its tool is available. Semantic evidence is
-advisory; deterministic repository evidence remains authoritative.
+/app/expensify/manager_decisions.json with the selected proposal ID. Use installed skills when
+they apply, but do not invent evidence or add dependencies merely to access optional tooling.
+Semantic evidence is advisory; deterministic repository evidence remains authoritative.
 
 After the manager_decisions.json file is written, your final visible response must be exactly one
 JSON object with these fields:
@@ -594,10 +594,18 @@ def _score_parts(sample: Any) -> tuple[float | None, str | None, str | None]:
             continue
         if metadata.get("variant") == "swe_manager" and "correct_option" in metadata:
             raw = getattr(score, "value", None)
+            numeric: float | None = None
             if isinstance(raw, (int, float)) and not isinstance(raw, bool):
                 numeric = float(raw)
-                if numeric in {0.0, 1.0}:
-                    official = numeric
+            else:
+                as_float = getattr(score, "as_float", None)
+                if callable(as_float):
+                    try:
+                        numeric = float(as_float())
+                    except (TypeError, ValueError):
+                        numeric = None
+            if numeric in {0.0, 1.0}:
+                official = numeric
         if metadata.get("evidence_kind") == "agent_workflow_manager_decision_capture":
             selected = metadata.get("selected_proposal_id")
             if selected is not None:
