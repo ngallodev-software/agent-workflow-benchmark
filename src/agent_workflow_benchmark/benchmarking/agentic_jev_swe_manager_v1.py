@@ -8,6 +8,7 @@ import re
 import subprocess
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from agent_workflow_comparative_eval import (
     make_paired_decision_trial,
 )
 
+from . import agentic_jev as agentic_jev_runtime
 from .agentic_jev import _receipt_summary, _receipt_values, jev_bridged_tool
 from .agentic_jev_decision_v4 import (
     SOURCE_COMMIT as JEV_SKILL_COMMIT,
@@ -31,6 +33,7 @@ STUDY_ID = "agentic-jev-swe-manager-v1"
 STUDY_VERSION = "1.0.0-preregistered"
 COHORT_SCHEMA = "agent-workflow-benchmark/agentic-jev-swe-manager-cohort/v1"
 RUN_SCHEMA = "agent-workflow-benchmark/agentic-jev-swe-manager-run/v1"
+RUN_START_SCHEMA = "agent-workflow-benchmark/agentic-jev-swe-manager-run-start/v1"
 
 INSPECT_EVALS_REPOSITORY = "UKGovernmentBEIS/inspect_evals"
 INSPECT_EVALS_COMMIT = "190dfa27bc2e9b3e966ea6e8a682626d55b513c0"
@@ -81,6 +84,56 @@ Do not expose private chain-of-thought. State decisive evidence, trade-offs, and
 
 def _utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _benchmark_source_identity() -> dict[str, Any]:
+    root = Path(__file__).resolve().parents[3]
+    try:
+        commit = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        dirty = subprocess.check_output(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise WorkflowError(
+            "paired SWE-Lancer execution requires a benchmark git checkout with a resolvable HEAD"
+        ) from exc
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise WorkflowError(f"invalid benchmark git identity: {commit!r}")
+    if dirty:
+        raise WorkflowError(
+            "benchmark checkout has tracked modifications; commit result-affecting code before execution"
+        )
+    return {
+        "repository": "ngallodev-software/agent-workflow-benchmark",
+        "commit": commit,
+        "runner_sha256": sha256_file(Path(__file__).resolve()),
+        "host_bridge_sha256": sha256_file(Path(agentic_jev_runtime.__file__).resolve()),
+    }
+
+
+def _installed_versions() -> dict[str, str | None]:
+    names = (
+        "agent-workflow-benchmark",
+        "agent-workflow-comparative-eval",
+        "agent-workflow",
+        "inspect-ai",
+        "inspect-swe",
+        "inspect-evals",
+        "typesafe-sdk",
+    )
+    result: dict[str, str | None] = {}
+    for name in names:
+        try:
+            result[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            result[name] = None
+    return result
 
 
 def _git_head(checkout: Path) -> str:
@@ -481,7 +534,13 @@ def _build_solver(
         kwargs["bridged_tools"] = [
             BridgedToolsSpec(
                 name="jev",
-                tools=[jev_bridged_tool(receipt_path=receipt_path, model=jev_model)],
+                tools=[
+                    jev_bridged_tool(
+                        receipt_path=receipt_path,
+                        model=jev_model,
+                        study_id=STUDY_ID,
+                    )
+                ],
             )
         ]
     else:
@@ -627,11 +686,26 @@ def _sample_status(log: Any) -> tuple[str, str | None]:
     return "success", None
 
 
+def _jsonable_usage(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable_usage(child) for key, child in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [_jsonable_usage(child) for child in value]
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        try:
+            return _jsonable_usage(model_dump())
+        except Exception:
+            return str(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
 def _sample_usage(sample: Any) -> dict[str, Any]:
     usage = getattr(sample, "model_usage", None)
-    if isinstance(usage, Mapping):
-        return json.loads(json.dumps(usage, default=str))
-    return {}
+    normalized = _jsonable_usage(usage)
+    return normalized if isinstance(normalized, dict) else {}
 
 
 def _sample_duration(sample: Any) -> float | None:
@@ -748,6 +822,11 @@ def _arm_evidence(
             inspect_real_task_jev_context(item, prompt_text=prompt_text)
             for item in successful
         ]
+        resolved_models = sorted({
+            str(item.get("model")).strip()
+            for item in successful
+            if isinstance(item.get("model"), str) and str(item.get("model")).strip()
+        })
         evidence["jev"] = {
             "tool_calls": len(receipts),
             "successful_calls": len(successful),
@@ -756,6 +835,9 @@ def _arm_evidence(
                 if contexts
                 else None
             ),
+            "context_known_calls": len(contexts),
+            "context_complete_calls": sum(item.get("complete") is True for item in contexts),
+            "resolved_models": resolved_models,
             "request_hashes": [
                 str(item.get("request_sha256"))
                 for item in successful
@@ -805,7 +887,36 @@ def run_paired_swe_manager_study(
         "skill_commit": JEV_SKILL_COMMIT,
         "skill_sha256": decision_skill_sha256(),
         "codex_version": codex_version,
+        "benchmark_source": _benchmark_source_identity(),
+        "package_versions": _installed_versions(),
     }
+    run_start = {
+        "schema": RUN_START_SCHEMA,
+        "study_id": STUDY_ID,
+        "study_version": STUDY_VERSION,
+        "created_at": _utc(),
+        "cohort": {
+            "path": str(Path(cohort_path).resolve()),
+            "sha256": sha256_file(cohort_path),
+            "samples": len(cohort["tasks"]),
+        },
+        "source": source_common,
+        "runtime": {
+            **runtime_common,
+            "codex_cli": codex,
+            "model_args": MODEL_ARGS,
+            "requested_jev_model": jev_model,
+        },
+        "evidence_policy": {
+            "failed_or_partial_execution_preserved": True,
+            "inspect_logs_are_canonical_execution_evidence": True,
+            "raw_jev_context_public": False,
+            "credentials_public": False,
+        },
+    }
+    validate_instance(run_start, RUN_START_SCHEMA, artifact="paired SWE-Lancer Jev run start")
+    start_path = output_root / "run-start.json"
+    atomic_write_json(start_path, run_start)
 
     trials: list[dict[str, Any]] = []
     sample_artifacts: list[dict[str, Any]] = []
@@ -891,6 +1002,10 @@ def run_paired_swe_manager_study(
             "codex_cli": codex,
             "model_args": MODEL_ARGS,
             "jev_model": jev_model,
+        },
+        "start_manifest": {
+            "path": str(start_path),
+            "sha256": sha256_file(start_path),
         },
         "execution": {
             "paired_samples_expected": len(cohort["tasks"]),
