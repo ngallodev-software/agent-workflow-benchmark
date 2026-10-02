@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/lib.sh"
 
 aj_require_executable "$PYTHON"
 command -v git >/dev/null 2>&1 || aj_die "git is required"
 
-ROOT="\${AGENTIC_JEV_SWE_MANAGER_ROOT:-$AGENTIC_JEV_ROOT/swe-manager-v1}"
+ROOT="${AGENTIC_JEV_SWE_MANAGER_ROOT:-$AGENTIC_JEV_ROOT/swe-manager-v1}"
 CHECKOUT="$ROOT/inspect_evals"
 COHORT="$ROOT/cohort.json"
-PRIOR="\${AGENTIC_JEV_PRIOR_EXTERNAL_COHORT:-$AGENTIC_JEV_ROOT/external-eval-scout-v1/cohort.json}"
+PRIOR="${AGENTIC_JEV_PRIOR_EXTERNAL_COHORT:-$AGENTIC_JEV_ROOT/external-eval-scout-v1/cohort.json}"
 PIN="190dfa27bc2e9b3e966ea6e8a682626d55b513c0"
 URL="https://github.com/UKGovernmentBEIS/inspect_evals.git"
 
@@ -33,7 +33,7 @@ else
   trap - EXIT
 fi
 
-PYTHONPATH="$BENCH_REPO/src\${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON" - "$CHECKOUT" "$PRIOR" "$COHORT" <<'PY'
+PYTHONPATH="$BENCH_REPO/src${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON" - "$CHECKOUT" "$PRIOR" "$COHORT" <<'PY'
 import sys
 from pathlib import Path
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import freeze_swe_manager_cohort
