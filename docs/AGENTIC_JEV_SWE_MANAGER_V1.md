@@ -62,6 +62,8 @@ It does not parse `manager_data`, `correct_proposal_id`, or other gold-adjacent 
 
 Every SWE-Lancer manager task previously observed in the Agentic-Jev external scout is loaded from the immutable prior cohort manifest and excluded **before** selection. The freeze fails closed when that prior manifest is absent.
 
+Historical lineage was re-audited before first execution: the decision-skill v2 manager gate reused those same six frozen external-scout manager IDs, and the proposed v3 two-task manager canary was retired without creating a new manager-task exposure. At this preregistration point, the external cohort manifest therefore covers all prior official SWE-Lancer manager IDs. If any new manager task is observed before v1 freezes, the exclusion authority must be extended before selection rather than silently proceeding.
+
 The same selection digest also freezes which arm runs first for each pair, providing deterministic outcome-blind arm-order assignment. The hash-parity rule does not guarantee an exact 15/15 first-arm split; the paired primary analysis does not depend on exact order balance, and the frozen order distribution should be reported descriptively.
 
 ## Arms
