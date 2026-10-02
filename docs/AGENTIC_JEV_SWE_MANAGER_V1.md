@@ -62,7 +62,7 @@ It does not parse `manager_data`, `correct_proposal_id`, or other gold-adjacent 
 
 Every SWE-Lancer manager task previously observed in the Agentic-Jev external scout is loaded from the immutable prior cohort manifest and excluded **before** selection. The freeze fails closed when that prior manifest is absent.
 
-The same selection digest also freezes which arm runs first for each pair, providing deterministic counterbalancing without looking at outcomes.
+The same selection digest also freezes which arm runs first for each pair, providing deterministic outcome-blind arm-order assignment. The hash-parity rule does not guarantee an exact 15/15 first-arm split; the paired primary analysis does not depend on exact order balance, and the frozen order distribution should be reported descriptively.
 
 ## Arms
 
