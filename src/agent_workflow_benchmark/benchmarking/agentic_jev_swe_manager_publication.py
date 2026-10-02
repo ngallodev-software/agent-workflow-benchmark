@@ -370,8 +370,12 @@ def _public_readme(publication: Mapping[str, Any]) -> str:
     )
 
 
-def _scan_public_tree(root: Path, *, private_root: Path) -> None:
-    private_root_text = str(private_root.resolve())
+def _scan_public_tree(
+    root: Path,
+    *,
+    private_root: Path | None = None,
+) -> None:
+    private_root_text = str(private_root.resolve()) if private_root is not None else ""
     secret = os.environ.get("TYPESAFE_API_KEY")
     for path in root.rglob("*"):
         if path.is_symlink():
@@ -401,6 +405,159 @@ def _write_manifest(root: Path) -> None:
         relative = path.relative_to(root).as_posix()
         lines.append(f"{sha256_file(path)}  {relative}")
     _write_text(root / "MANIFEST.sha256", "\n".join(lines) + "\n")
+
+
+def _read_jsonl_objects(path: Path) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise WorkflowError(f"invalid JSONL at {path}:{number}: {exc}") from exc
+        if not isinstance(value, dict):
+            raise WorkflowError(f"expected JSON object at {path}:{number}")
+        result.append(value)
+    return result
+
+
+def _verify_manifest(root: Path) -> None:
+    manifest_path = root / "MANIFEST.sha256"
+    if not manifest_path.is_file():
+        raise WorkflowError("public bundle has no MANIFEST.sha256")
+    recorded: dict[str, str] = {}
+    for number, line in enumerate(
+        manifest_path.read_text(encoding="utf-8").splitlines(), 1
+    ):
+        if not line:
+            continue
+        digest, separator, relative = line.partition("  ")
+        if (
+            not separator
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
+            or not relative
+            or relative in recorded
+        ):
+            raise WorkflowError(f"invalid public manifest line {number}")
+        recorded[relative] = digest
+    actual = {
+        path.relative_to(root).as_posix(): sha256_file(path)
+        for path in root.rglob("*")
+        if path.is_file() and path.name != "MANIFEST.sha256"
+    }
+    if recorded != actual:
+        raise WorkflowError("public bundle manifest does not match file contents")
+
+
+def verify_swe_manager_publication(root: Path) -> dict[str, Any]:
+    root = Path(root)
+    expected_files = set(_PUBLIC_FILES) | {"MANIFEST.sha256"}
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+    if actual_files != expected_files:
+        raise WorkflowError(
+            "public bundle differs from the exact file allowlist: "
+            f"{sorted(actual_files)}"
+        )
+    if any(path.is_symlink() for path in root.rglob("*")):
+        raise WorkflowError("public bundle must not contain symlinks")
+
+    _verify_manifest(root)
+    publication = _load_json_object(root / "publication.json")
+    validate_instance(
+        publication,
+        PUBLICATION_SCHEMA,
+        artifact="Agentic-Jev SWE manager publication",
+    )
+    if publication.get("files") != list(_PUBLIC_FILES):
+        raise WorkflowError("publication file declaration differs from allowlist")
+    if publication.get("paired_n") != TARGET_TASKS:
+        raise WorkflowError("publication does not contain the complete 30-pair cohort")
+
+    trials = _read_jsonl_objects(root / "evidence" / "paired-trials.jsonl")
+    if len(trials) != TARGET_TASKS:
+        raise WorkflowError("public paired-trial count is not 30")
+    sample_ids: set[str] = set()
+    for trial in trials:
+        validate_paired_decision_trial(trial)
+        sample_id = str(trial.get("sample_id") or "")
+        if not sample_id or sample_id in sample_ids:
+            raise WorkflowError("public paired trials contain duplicate/empty sample IDs")
+        sample_ids.add(sample_id)
+
+    report = _load_json_object(root / "metrics" / "paired-report.json")
+    rebuilt = build_paired_decision_report(
+        trials,
+        study_id=STUDY_ID,
+        study_version=STUDY_VERSION,
+        minimum_interval_n=10,
+    )
+    if rebuilt != report:
+        raise WorkflowError("public paired report does not reproduce from public trials")
+    if report.get("cohort_sha256") != publication.get("cohort_sha256"):
+        raise WorkflowError("publication cohort identity differs from paired report")
+    if dict(trials[0]["source"]) != publication.get("source"):
+        raise WorkflowError("publication source identity differs from paired trials")
+
+    trial_runtime = trials[0]["runtime"]
+    public_runtime = publication.get("runtime")
+    if not isinstance(public_runtime, Mapping):
+        raise WorkflowError("publication runtime must be an object")
+    for key in (
+        "model",
+        "reasoning_effort",
+        "skill_commit",
+        "skill_sha256",
+        "codex_version",
+        "requested_jev_model",
+        "benchmark_source",
+        "package_versions",
+        "dependency_code_sha256",
+    ):
+        if public_runtime.get(key) != trial_runtime.get(key):
+            raise WorkflowError(
+                f"publication runtime field differs from paired trials: {key}"
+            )
+
+    private_hashes = _load_json_object(
+        root / "evidence" / "private-artifact-hashes.json"
+    )
+    if private_hashes.get("raw_private_artifacts_published") is not False:
+        raise WorkflowError("private evidence projection must publish hashes only")
+    private_samples = private_hashes.get("samples")
+    if (
+        not isinstance(private_samples, list)
+        or len(private_samples) != TARGET_TASKS
+        or {str(item.get("sample_id")) for item in private_samples} != sample_ids
+    ):
+        raise WorkflowError("private evidence hash projection is incomplete")
+    for item in private_samples:
+        for key in (
+            "control_inspect_log_sha256",
+            "treatment_inspect_log_sha256",
+            "paired_trial_sha256",
+        ):
+            if not re.fullmatch(r"[0-9a-f]{64}", str(item.get(key) or "")):
+                raise WorkflowError(f"invalid private evidence digest: {key}")
+        receipt_hash = item.get("treatment_jev_receipts_sha256")
+        if receipt_hash is not None and not re.fullmatch(
+            r"[0-9a-f]{64}", str(receipt_hash)
+        ):
+            raise WorkflowError("invalid private Jev receipt digest")
+
+    _scan_public_tree(root)
+    return {
+        "status": "pass",
+        "study_id": STUDY_ID,
+        "study_version": STUDY_VERSION,
+        "paired_n": len(trials),
+        "cohort_sha256": report["cohort_sha256"],
+        "manifest_sha256": sha256_file(root / "MANIFEST.sha256"),
+    }
 
 
 def prepare_swe_manager_publication(
@@ -498,10 +655,12 @@ def prepare_swe_manager_publication(
         )
     _scan_public_tree(destination, private_root=run_root)
     _write_manifest(destination)
+    verification = verify_swe_manager_publication(destination)
 
     return {
         "path": str(destination),
         "publication": publication,
+        "verification": verification,
         "manifest_sha256": sha256_file(destination / "MANIFEST.sha256"),
     }
 
