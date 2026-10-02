@@ -17,7 +17,12 @@ from agent_workflow_comparative_eval import (
     validate_paired_decision_trial,
 )
 
-from .agentic_jev_swe_manager_v1 import (\n    RUN_SCHEMA,\n    STUDY_ID,\n    STUDY_VERSION,\n    TARGET_TASKS,\n)
+from .agentic_jev_swe_manager_v1 import (
+    RUN_SCHEMA,
+    STUDY_ID,
+    STUDY_VERSION,
+    TARGET_TASKS,
+)
 from .schema_contracts import validate_instance
 
 PUBLICATION_SCHEMA = (
