@@ -37,6 +37,16 @@ def test_agentic_jev_scripts_are_portable_and_executable() -> None:
         assert mode & stat.S_IXOTH, script
 
 
+def test_phase7_scripts_do_not_escape_runtime_parameter_expansion() -> None:
+    for name in (
+        "p7-freeze-swe-manager-study.sh",
+        "p7-prepare-swe-manager-study.sh",
+        "p7-run-swe-manager-paired.sh",
+    ):
+        text = (AGENTIC / name).read_text(encoding="utf-8")
+        assert "\\${" not in text, name
+
+
 def test_agentic_pilot_requires_runtime_lock_then_live_tool_qualification() -> None:
     env = (AGENTIC / "env.sh").read_text(encoding="utf-8")
     archive = (AGENTIC / "p0-archive-attempt.sh").read_text(encoding="utf-8")
