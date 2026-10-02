@@ -119,6 +119,7 @@ def test_execute_jev_request_is_typed_redacted_and_receipted(tmp_path: Path):
         model="jev-test",
         client=client,
         receipt_path=receipt,
+        study_id="test-study",
     )
 
     assert result["status"] == "success"
@@ -134,6 +135,7 @@ def test_execute_jev_request_is_typed_redacted_and_receipted(tmp_path: Path):
     assert "also-secret" not in raw
     record = json.loads(raw)
     assert record["status"] == "success"
+    assert record["study_id"] == "test-study"
     assert record["privacy"]["credentials_in_sandbox"] is False
     assert record["primitive_counts"] == {"choice": 1, "noul": 1, "score": 1}
     assert record["request"]["state"]["api_key"] == "[redacted]"
