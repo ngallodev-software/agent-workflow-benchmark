@@ -13,6 +13,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import (
     COHORT_SALT,
     STUDY_ID,
     SYSTEM_PROMPT,
+    _arm_evidence,
     _build_solver,
     _sample_usage,
     inspect_real_task_jev_context,
@@ -189,3 +190,81 @@ def test_sample_usage_preserves_nested_token_fields() -> None:
             "total_tokens": 132,
         }
     }
+
+
+
+def test_treatment_evidence_projects_jev_service_usage_without_raw_context(
+    tmp_path: Path,
+) -> None:
+    prompt = """<title>Cache invalidation regression</title>
+<description>The shared cache helper now invalidates stale keys after a mutation and must preserve compatibility.</description>
+<proposals>
+Proposal 10 centralizes invalidation in the shared helper.
+Proposal 11 performs invalidation in each mutation caller.
+</proposals>"""
+    receipt = tmp_path / "jev-tool-receipts.jsonl"
+    receipt.write_text(
+        json.dumps(
+            {
+                "schema": "agent-workflow-benchmark/agentic-jev-tool-receipt/v1",
+                "study_id": STUDY_ID,
+                "status": "success",
+                "model": "jev-default-v1",
+                "request_sha256": "d" * 64,
+                "duration_ms": 125.0,
+                "primitive_counts": {"choice": 1, "noul": 0, "score": 0},
+                "response": {
+                    "usage": {
+                        "input_tokens": 7,
+                        "output_tokens": 3,
+                        "provider_total_tokens": 10,
+                    }
+                },
+                "purpose": "Choose the best implementation proposal.",
+                "request": {
+                    "state": {
+                        "requirement": (
+                            "Cache invalidation regression. The shared cache helper now "
+                            "invalidates stale keys after a mutation and must preserve compatibility."
+                        ),
+                        "candidates": (
+                            "Proposal 10 centralizes invalidation in the shared helper. "
+                            "Proposal 11 performs invalidation in each mutation caller."
+                        ),
+                    },
+                    "questions": {
+                        "best_proposal": {
+                            "type": "choice",
+                            "instructions": "Choose the best proposal.",
+                            "criteria": {"10": "central", "11": "local"},
+                        }
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sample = types.SimpleNamespace(
+        error=None,
+        scores=[],
+        model_usage={},
+        messages=[],
+        total_time=1.2,
+    )
+    log = types.SimpleNamespace(samples=[sample], location="inspect-log.eval")
+    evidence = _arm_evidence(
+        arm="treatment",
+        log=log,
+        prompt_text=prompt,
+        receipt_path=receipt,
+    )
+
+    jev = evidence["jev"]
+    assert jev["service_token_records"] == 1
+    assert jev["service_input_tokens"] == 7.0
+    assert jev["service_output_tokens"] == 3.0
+    assert jev["service_total_tokens"] == 10.0
+    assert jev["service_duration_known_n"] == 1
+    assert jev["service_duration_ms_total"] == 125.0
+    assert jev["resolved_models"] == ["jev-default-v1"]
