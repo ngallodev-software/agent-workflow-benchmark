@@ -47,6 +47,17 @@ def test_phase7_scripts_do_not_escape_runtime_parameter_expansion() -> None:
         assert "\\${" not in text, name
 
 
+def test_phase7_prepare_freezes_host_dependency_versions() -> None:
+    text = (AGENTIC / "p7-prepare-swe-manager-study.sh").read_text(encoding="utf-8")
+    assert "inspect-ai==0.3.268" in text
+    assert "inspect-swe==0.2.71" in text
+    assert "typesafe-sdk==0.6.0" in text
+    assert "agent-workflow-comparative-eval" in text
+    assert "70e2ee9442426d556bc4209997572d10094cab58" in text
+    assert '"agent-workflow": "0.12.0"' in text
+    assert '"agent-workflow-comparative-eval": "0.3.4"' in text
+
+
 def test_agentic_pilot_requires_runtime_lock_then_live_tool_qualification() -> None:
     env = (AGENTIC / "env.sh").read_text(encoding="utf-8")
     archive = (AGENTIC / "p0-archive-attempt.sh").read_text(encoding="utf-8")
