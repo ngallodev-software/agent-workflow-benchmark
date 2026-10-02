@@ -17,7 +17,7 @@ from agent_workflow_comparative_eval import (
     validate_paired_decision_trial,
 )
 
-from .agentic_jev_swe_manager_v1 import RUN_SCHEMA, STUDY_ID, STUDY_VERSION
+from .agentic_jev_swe_manager_v1 import (\n    RUN_SCHEMA,\n    STUDY_ID,\n    STUDY_VERSION,\n    TARGET_TASKS,\n)
 from .schema_contracts import validate_instance
 
 PUBLICATION_SCHEMA = (
@@ -180,9 +180,9 @@ def _require_complete_run(
         raise WorkflowError("run execution must be an object")
     expected = execution.get("paired_samples_expected")
     observed = execution.get("paired_samples_observed")
-    if expected != observed or observed != len(trials):
+    if expected != observed or observed != len(trials) or observed != TARGET_TASKS:
         raise WorkflowError(
-            "publication requires a complete paired cohort with expected == observed"
+            "publication requires the complete preregistered 30-pair cohort"
         )
     if execution.get("official_scoring_enabled") is not True:
         raise WorkflowError("publication requires official SWE-Lancer scoring")
