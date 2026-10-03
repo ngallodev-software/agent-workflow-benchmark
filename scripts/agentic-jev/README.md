@@ -420,3 +420,70 @@ These pre-run evidence changes do not alter study treatment or correctness seman
 
 Canonical design:
 `docs/AGENTIC_JEV_SWE_MANAGER_V1.md`.
+
+
+## Phase 8 — deterministic manager-request qualification
+
+The completed Phase 7 study showed 0 pp observed ITT accuracy difference, but the
+request-fidelity audit found that none of the 20 successful Jev calls met the frozen
+context-completeness threshold. The host bridge was not truncating those requests;
+the coding agent had summarized authoritative task/proposal context before dispatch.
+
+Benchmark 0.6.8 introduced a deterministic request builder and SWE-manager policy
+adapter. The policy reloads exact public task/proposal material from the pinned
+SWE-Lancer source and accepts only separately sourced repository evidence and
+verification scope from the coding agent.
+
+Offline and live qualification reuse already-observed `18796-manager-0`; they do
+not consume a fresh effectiveness task.
+
+The live qualification passed and is frozen in:
+
+~~~text
+src/agent_workflow_benchmark/assets/agentic-jev-request-v2/
+  live-qualification-lock.json
+~~~
+
+Canonical design/evidence is recorded in benchmark issue #96 and the lab notebook.
+
+## Phase 9 — preregistered manager v2 effectiveness study
+
+Phase 9 asks whether the qualified deterministic manager checkpoint improves official
+SWE-Lancer manager correctness on a fresh disjoint paired cohort.
+
+The new treatment is:
+
+~~~text
+control
+  GPT-6 Luna/high + decision-support skill v6
+  no live manager checkpoint
+
+treatment
+  identical model/skill
+  + jev_manager_decision
+  + deterministic request builder v2
+  + SWE-manager completeness policy v2
+~~~
+
+The committed observed-ID registry freezes 36 previously observed official manager
+tasks before cohort selection. Selection remains gold-blind and deterministic.
+
+Freeze, prepare, then run:
+
+~~~bash
+bash scripts/agentic-jev/p9-freeze-swe-manager-v2-study.sh
+bash scripts/agentic-jev/p9-prepare-swe-manager-v2-study.sh
+bash scripts/agentic-jev/p9-run-swe-manager-v2-paired.sh
+~~~
+
+Only after a complete 30-pair run:
+
+~~~bash
+bash scripts/agentic-jev/p9-prepare-swe-manager-v2-publication.sh
+~~~
+
+Do not inspect interim correctness, refreeze after seeing outcomes, silently exclude
+no-call/tool-failure cases, or overwrite partial evidence.
+
+Canonical preregistration:
+`docs/AGENTIC_JEV_SWE_MANAGER_V2.md`.
