@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jev Decision Support"
+  short_description: "Use the bounded manager semantic checkpoint"
+  default_prompt: "Use $jev-decision-support to inspect primary evidence first and, when jev_manager_decision is available, submit sourced repository evidence and verification scope to the host checkpoint before finalizing the manager proposal. Do not manually summarize authoritative task/proposal text."
