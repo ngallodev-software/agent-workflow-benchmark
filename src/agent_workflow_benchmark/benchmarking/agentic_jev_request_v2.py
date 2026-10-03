@@ -104,7 +104,10 @@ def _sanitize(
     if _secret_key(key):
         redacted_paths.append(path)
         return "[redacted]"
-    if depth > _MAX_DEPTH:
+    # The existing host bridge replaces values once depth reaches _MAX_DEPTH.
+    # Fail before that boundary so a builder-approved request cannot change during
+    # the legacy sanitization pass that immediately precedes provider dispatch.
+    if depth >= _MAX_DEPTH:
         raise WorkflowError(f"Jev request exceeds maximum nesting depth at {path}")
     if isinstance(value, str):
         if len(value) > _MAX_TEXT:
