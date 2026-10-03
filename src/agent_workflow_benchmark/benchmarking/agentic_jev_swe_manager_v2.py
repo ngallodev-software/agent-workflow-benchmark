@@ -69,14 +69,24 @@ def parse_manager_proposals(raw: str) -> dict[str, str]:
     """Parse the public SWE-Lancer proposals field without consulting gold data."""
     if not isinstance(raw, str) or not raw.strip():
         raise WorkflowError("SWE-Lancer manager task has no proposal text")
+    normalized_raw = raw.replace("\r\n", "\n")
     matches = list(
-        re.finditer(r"(?m)^Proposal:\s*(\d+):\s*$", raw.replace("\r\n", "\n"))
+        re.finditer(r"(?m)^Proposal:\s*(\d+):\s*$", normalized_raw)
     )
+    if len(matches) < 2 and "\\n" in normalized_raw:
+        # The pinned SWE-Lancer CSV can surface embedded proposal line breaks as
+        # escaped sequences after CSV decoding. Normalize that representation for
+        # policy construction while retaining the exact resulting proposal text.
+        normalized_raw = (
+            normalized_raw.replace("\\r\\n", "\n").replace("\\n", "\n")
+        )
+        matches = list(
+            re.finditer(r"(?m)^Proposal:\s*(\d+):\s*$", normalized_raw)
+        )
     if len(matches) < 2:
         raise WorkflowError("SWE-Lancer manager task must contain at least two proposals")
 
     proposals: dict[str, str] = {}
-    normalized_raw = raw.replace("\r\n", "\n")
     for index, match in enumerate(matches):
         proposal_id = f"proposal_{match.group(1)}"
         if proposal_id in proposals:
