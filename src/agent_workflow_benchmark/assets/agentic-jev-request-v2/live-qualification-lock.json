@@ -1,0 +1,22 @@
+{
+  "schema": "agent-workflow-benchmark/agentic-jev-swe-manager-v2-live-qualification-lock/v1",
+  "qualified_at": "2026-10-02",
+  "sample_id": "18796-manager-0",
+  "sample_is_previously_observed": true,
+  "effectiveness_case_consumed": false,
+  "inspect_evals_commit": "190dfa27bc2e9b3e966ea6e8a682626d55b513c0",
+  "benchmark_qualification_commit": "4338b6498eed520380dbd215344d7b37d183863e",
+  "benchmark_qualification_version": "0.6.8",
+  "policy_id": "swe-manager-choice-v2",
+  "policy_version": "2.0.0",
+  "request_builder_version": "2.0.0",
+  "request_sha256": "100091b2f9204c1351c469bfc2d1cd7a0f73834a645e17363a331cc015df85f6",
+  "decision_sha256": "57247554d7135ea3708760b3b9097aaba21e8d02c74b7bde644596d84a1237e7",
+  "provider_request_id": "req_01a1006fe9d772b48f08f6f2638a79ca",
+  "resolved_model": "jev-1.13.0",
+  "request_size_bytes": 7285,
+  "no_redactions": true,
+  "no_silent_truncation": true,
+  "all_completeness_checks_passed": true,
+  "issue": "ngallodev-software/agent-workflow-benchmark#96"
+}
