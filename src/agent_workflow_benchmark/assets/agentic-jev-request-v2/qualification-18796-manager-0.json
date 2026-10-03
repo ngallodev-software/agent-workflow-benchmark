@@ -1,0 +1,45 @@
+{
+  "schema": "agent-workflow-benchmark/agentic-jev-swe-manager-v2-qualification-fixture/v1",
+  "sample_id": "18796-manager-0",
+  "source_evidence": {
+    "origin": "completed agentic-jev-swe-manager-v1 treatment receipt",
+    "request_sha256": "9bcb82f5bdd8d121c430325d21c8186a1392db111861f567047e6f24d31ba960",
+    "reuse_boundary": "repository observations only; authoritative task/proposals are reloaded from the pinned SWE-Lancer source and no gold fields are consulted"
+  },
+  "agent_state": {
+    "repository_evidence": [
+      {
+        "source": "src/pages/tasks/NewTaskDetailsPage.js:37-52",
+        "fact": "validate(values) rejects an empty taskTitle but does not validate taskDescription. onSubmit(values) passes values.taskTitle and values.taskDescription unchanged to TaskUtils.setDetailsValue, then navigates."
+      },
+      {
+        "source": "src/components/Form.js:165-180",
+        "fact": "Form.validate constructs trimmedStringValues and passes those to validation. Form.submit separately calls this.props.onSubmit(this.state.inputValues), so the trimmed validation copy is not what onSubmit receives."
+      },
+      {
+        "source": "src/libs/actions/Task.js:154-179",
+        "fact": "setDetailsValue stores title and description unchanged with Onyx.merge. setDescriptionValue likewise stores description unchanged."
+      },
+      {
+        "source": "src/pages/tasks/NewTaskDescriptionPage.js:47-52",
+        "fact": "Another task creation screen passes values.taskDescription unchanged to setDescriptionValue on submit."
+      },
+      {
+        "source": "src/pages/tasks/NewTaskTitlePage.js:44-60",
+        "fact": "A separate task creation title screen validates the received title and passes values.taskTitle unchanged to setTitleValue."
+      },
+      {
+        "source": "src/pages/tasks/TaskDescriptionPage.js:42-57 and src/pages/tasks/TaskTitlePage.js:42-57",
+        "fact": "Task editing screens validate required fields and their submit callbacks are currently placeholders."
+      }
+    ],
+    "verification": {
+      "ran": [
+        "Inspected the repository source locations recorded in repository_evidence."
+      ],
+      "not_exercised": [
+        "No application runtime or automated test suite is claimed by this preserved qualification fixture."
+      ]
+    }
+  }
+}
