@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/lib.sh"
+
+aj_require_executable "$PYTHON"
+ROOT="${AGENTIC_JEV_SWE_MANAGER_V2_ROOT:-$AGENTIC_JEV_ROOT/swe-manager-v2}"
+CHECKOUT="$ROOT/inspect_evals"
+COHORT="$ROOT/cohort.json"
+aj_require_file "$COHORT"
+[[ -d "$CHECKOUT/.git" ]] || aj_die "run p9-freeze-swe-manager-v2-study.sh first"
+
+"$PYTHON" -m pip install \
+  "inspect-ai==0.3.268" \
+  "inspect-swe==0.2.71" \
+  "typesafe-sdk==0.6.0" \
+  "agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@70e2ee9442426d556bc4209997572d10094cab58" \
+  "$CHECKOUT[swe_lancer]"
+
+PYTHONPATH="$BENCH_REPO/src:$CHECKOUT/src${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON" - "$COHORT" "$CHECKOUT" <<'PY'
+import json
+import sys
+from importlib import metadata, resources
+from pathlib import Path
+from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v2_study import (
+    load_swe_manager_v2_cohort,
+)
+
+required = {
+    "agent-workflow-benchmark": "0.6.9",
+    "agent-workflow": "0.12.0",
+    "agent-workflow-comparative-eval": "0.3.4",
+    "inspect-ai": "0.3.268",
+    "inspect-swe": "0.2.71",
+    "typesafe-sdk": "0.6.0",
+}
+for name, expected in required.items():
+    observed = metadata.version(name)
+    if observed != expected:
+        raise SystemExit(f"{name}=={expected} is required; observed {observed}")
+
+lock_path = Path(str(resources.files("agent_workflow_benchmark").joinpath(
+    "assets/agentic-jev-request-v2/live-qualification-lock.json"
+)))
+lock = json.loads(lock_path.read_text(encoding="utf-8"))
+if lock.get("all_completeness_checks_passed") is not True:
+    raise SystemExit("live v2 qualification lock is not passing")
+if lock.get("resolved_model") != "jev-1.13.0":
+    raise SystemExit("unexpected qualified Jev model identity")
+
+cohort = load_swe_manager_v2_cohort(
+    Path(sys.argv[1]),
+    inspect_evals_checkout=Path(sys.argv[2]),
+)
+print("Paired SWE-Lancer v2 dependencies ready")
+print("benchmark:", metadata.version("agent-workflow-benchmark"))
+print("agent_workflow:", metadata.version("agent-workflow"))
+print("comparative_eval:", metadata.version("agent-workflow-comparative-eval"))
+print("inspect_ai:", metadata.version("inspect-ai"))
+print("inspect_swe:", metadata.version("inspect-swe"))
+print("inspect_evals:", metadata.version("inspect-evals"))
+print("typesafe_sdk:", metadata.version("typesafe-sdk"))
+print("tasks:", len(cohort["tasks"]))
+print("qualified_request_sha256:", lock["request_sha256"])
+PY
