@@ -52,6 +52,16 @@ jobs:
       - run: python -m pip install 'agent-workflow-comparative-eval @ git+https://github.com/ngallodev-software/agent-workflow-comparative-eval.git@70e2ee9442426d556bc4209997572d10094cab58' 'agent-workflow @ git+https://github.com/ngallodev-software/agent-workflow.git@4254f48a456535515b8e9e65d6c4952f90575c74'
       - run: python -m pip install '.[agentic-jev]'
       - run: python -m pip install 'inspect_evals[swe_lancer] @ git+https://github.com/UKGovernmentBEIS/inspect_evals.git@190dfa27bc2e9b3e966ea6e8a682626d55b513c0'
+      - run: python -m py_compile scripts/agentic-jev/p8-qualify-swe-manager-request-v2.py
+      - name: Materialize pinned Inspect Evals source for v2 request qualification
+        run: |
+          git init /tmp/inspect-evals-v2
+          git -C /tmp/inspect-evals-v2 remote add origin https://github.com/UKGovernmentBEIS/inspect_evals.git
+          git -C /tmp/inspect-evals-v2 fetch --depth 1 origin 190dfa27bc2e9b3e966ea6e8a682626d55b513c0
+          git -C /tmp/inspect-evals-v2 checkout --detach FETCH_HEAD
+      - name: Qualify deterministic Jev v2 request/history on observed manager task
+        run: |
+          python scripts/agentic-jev/p8-qualify-swe-manager-request-v2.py             --inspect-evals-checkout /tmp/inspect-evals-v2             --output-root /tmp/agentic-jev-v2-request-qualification
       - run: python -c "from inspect_evals.swe_lancer import swe_lancer; from inspect_evals.swe_lancer.scorers import swe_lancer_scorer; from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import _manager_decision_capture_scorer; t=swe_lancer(task_variant='swe_manager', scorer=[swe_lancer_scorer(), _manager_decision_capture_scorer()], use_user_tool=False, use_per_task_images=False); assert len(t.dataset) >= 30; assert t.version == 1; assert t.metadata['full_task_version'] == '1-B'; assert t.metadata['task_interface_version'] == 'B'"
       - run: python -c "from importlib import metadata; from typesafe_sdk import TypeSafeClient; import agent_workflow_benchmark.benchmarking.agentic_jev as a; assert metadata.version('typesafe-sdk') == '0.6.0'; assert a.agentic_jev_skill_path().is_file(); assert len(a.agentic_jev_skill_sha256()) == 64"
       - run: python -c "from agent_workflow_benchmark.benchmarking.agentic_jev import pilot_treatment_manifest; m=pilot_treatment_manifest(); assert [x['arm_id'] for x in m['arms']] == ['A-baseline','B-skill-only','C-skill-plus-jev']; assert m['tool']['execution_location'] == 'host'"
