@@ -146,7 +146,8 @@ def test_visible_decision_record_normalizes_structured_evidence_refs() -> None:
 def test_v6_skill_freezes_manager_checkpoint_contract() -> None:
     text = decision_skill_path().read_text(encoding="utf-8")
     assert "jev_manager_decision" in text
-    assert "Do not recreate the official task title, description, or proposal text" in text
+    assert "Do not recreate or summarize the" in text
+    assert "official task title, description, or proposal text" in text
     assert "repository_evidence" in text
     assert "verification" in text
     assert "at most one revised semantic request" in text
