@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-workflow-benchmark/agentic-jev-swe-manager-run/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "study_id",
+    "study_version",
+    "created_at",
+    "cohort",
+    "runtime",
+    "execution",
+    "report",
+    "evidence_policy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "agent-workflow-benchmark/agentic-jev-swe-manager-run/v2"
+    },
+    "study_id": {
+      "const": "agentic-jev-swe-manager-v2"
+    },
+    "study_version": {
+      "const": "2.0.0-preregistered"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cohort": {
+      "type": "object"
+    },
+    "runtime": {
+      "type": "object"
+    },
+    "start_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "execution": {
+      "type": "object"
+    },
+    "report": {
+      "type": "object"
+    },
+    "evidence_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspect_logs_are_canonical_execution_evidence",
+        "official_swe_lancer_score_is_canonical_correctness",
+        "hidden_chain_of_thought_exported",
+        "raw_jev_context_public",
+        "raw_provider_http_public",
+        "credentials_public"
+      ],
+      "properties": {
+        "inspect_logs_are_canonical_execution_evidence": {
+          "const": true
+        },
+        "official_swe_lancer_score_is_canonical_correctness": {
+          "const": true
+        },
+        "hidden_chain_of_thought_exported": {
+          "const": false
+        },
+        "raw_jev_context_public": {
+          "const": false
+        },
+        "raw_provider_http_public": {
+          "const": false
+        },
+        "credentials_public": {
+          "const": false
+        }
+      }
+    }
+  }
+}
