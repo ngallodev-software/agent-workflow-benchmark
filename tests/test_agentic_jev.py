@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import types
@@ -139,6 +140,38 @@ def test_execute_jev_request_is_typed_redacted_and_receipted(tmp_path: Path):
     assert record["privacy"]["credentials_in_sandbox"] is False
     assert record["primitive_counts"] == {"choice": 1, "noul": 1, "score": 1}
     assert record["request"]["state"]["api_key"] == "[redacted]"
+
+    # The private receipt is the exact sanitized request history: the same
+    # state/questions/model objects recorded in the receipt are the objects
+    # dispatched to TypeSafeClient.system_one.  This invariant lets a later
+    # audit reconstruct what Jev actually saw without relying on an agent
+    # transcript or a paraphrase.
+    assert len(client.calls) == 1
+    dispatched_state, dispatched_questions, dispatched_model = client.calls[0]
+    assert record["request"] == {
+        "state": dispatched_state,
+        "questions": dispatched_questions,
+    }
+    assert record["requested_model"] == dispatched_model
+
+    canonical = lambda value: json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    assert record["state_sha256"] == hashlib.sha256(
+        canonical(dispatched_state).encode("utf-8")
+    ).hexdigest()
+    assert record["questions_sha256"] == hashlib.sha256(
+        canonical(dispatched_questions).encode("utf-8")
+    ).hexdigest()
+    assert record["request_sha256"] == hashlib.sha256(
+        canonical(
+            {
+                "state": dispatched_state,
+                "questions": dispatched_questions,
+                "model": dispatched_model,
+            }
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def test_execute_jev_request_preserves_two_decimal_rounded_distribution():
