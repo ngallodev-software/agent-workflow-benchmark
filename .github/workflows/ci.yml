@@ -32,7 +32,7 @@ jobs:
       - run: python -m pip install '.[inspect]'
       - run: python scripts/compat/apply-inspect-swe-output-schema-patch.py
       - run: python scripts/compat/verify-inspect-swe-output-schema-patch.py
-      - run: bash -n scripts/adjudication/v2-qualify.sh scripts/adjudication/v2-oracle.sh scripts/adjudication/p0b-prepare-resolutions.sh scripts/agentic-jev/p7-freeze-swe-manager-study.sh scripts/agentic-jev/p7-prepare-swe-manager-study.sh scripts/agentic-jev/p7-run-swe-manager-paired.sh
+      - run: bash -n scripts/adjudication/v2-qualify.sh scripts/adjudication/v2-oracle.sh scripts/adjudication/p0b-prepare-resolutions.sh scripts/agentic-jev/p7-freeze-swe-manager-study.sh scripts/agentic-jev/p7-prepare-swe-manager-study.sh scripts/agentic-jev/p7-run-swe-manager-paired.sh scripts/agentic-jev/p9-freeze-swe-manager-v2-study.sh scripts/agentic-jev/p9-prepare-swe-manager-v2-study.sh scripts/agentic-jev/p9-run-swe-manager-v2-paired.sh scripts/agentic-jev/p9-prepare-swe-manager-v2-publication.sh
       - run: python -m py_compile scripts/adjudication/v2-diagnose.py scripts/adjudication/v2-codex-lb-ingress-capture.py scripts/adjudication/v2-verify-ingress.py
       - run: python scripts/adjudication/v2-diagnose.py --help
       - run: python scripts/adjudication/v2-codex-lb-ingress-capture.py --help
@@ -62,6 +62,29 @@ jobs:
       - name: Qualify deterministic Jev v2 request/history on observed manager task
         run: |
           python scripts/agentic-jev/p8-qualify-swe-manager-request-v2.py             --inspect-evals-checkout /tmp/inspect-evals-v2             --output-root /tmp/agentic-jev-v2-request-qualification
+      - name: Dry-run preregistered fresh manager v2 selection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v2_study import (
+              CSV_PATH,
+              TARGET_TASKS,
+              load_observed_manager_ids,
+              select_fresh_manager_tasks,
+          )
+          registry = load_observed_manager_ids()
+          selected = select_fresh_manager_tasks(
+              Path("/tmp/inspect-evals-v2") / CSV_PATH,
+              excluded_ids=registry["ids"],
+              count=TARGET_TASKS,
+          )
+          ids = [item["id"] for item in selected]
+          assert len(ids) == len(set(ids)) == 30
+          assert not set(ids).intersection(registry["ids"])
+          assert all(item["first_arm"] in {"control", "treatment"} for item in selected)
+          print("fresh_selection_n:", len(ids))
+          print("excluded_observed_n:", len(registry["ids"]))
+          PY
       - run: python -c "from inspect_evals.swe_lancer import swe_lancer; from inspect_evals.swe_lancer.scorers import swe_lancer_scorer; from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v1 import _manager_decision_capture_scorer; t=swe_lancer(task_variant='swe_manager', scorer=[swe_lancer_scorer(), _manager_decision_capture_scorer()], use_user_tool=False, use_per_task_images=False); assert len(t.dataset) >= 30; assert t.version == 1; assert t.metadata['full_task_version'] == '1-B'; assert t.metadata['task_interface_version'] == 'B'"
       - run: python -c "from importlib import metadata; from typesafe_sdk import TypeSafeClient; import agent_workflow_benchmark.benchmarking.agentic_jev as a; assert metadata.version('typesafe-sdk') == '0.6.0'; assert a.agentic_jev_skill_path().is_file(); assert len(a.agentic_jev_skill_sha256()) == 64"
       - run: python -c "from agent_workflow_benchmark.benchmarking.agentic_jev import pilot_treatment_manifest; m=pilot_treatment_manifest(); assert [x['arm_id'] for x in m['arms']] == ['A-baseline','B-skill-only','C-skill-plus-jev']; assert m['tool']['execution_location'] == 'host'"
