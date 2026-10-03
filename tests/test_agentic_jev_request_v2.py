@@ -21,6 +21,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v2 import (
     build_manager_jev_request,
     inspect_manager_built_request,
     load_manager_authoritative_context,
+    parse_manager_proposals,
 )
 
 
@@ -127,6 +128,19 @@ def _agent_state() -> dict[str, object]:
             "ran": ["Inspected the cited source paths."],
             "not_exercised": ["No runtime test was executed."],
         },
+    }
+
+
+def test_manager_proposal_parser_accepts_escaped_line_breaks_from_pinned_csv():
+    raw = (
+        "Proposal: 0:\\nFirst proposal\\n"
+        "--------------------------------------------\\n\\n"
+        "Proposal: 1:\\nSecond proposal\\n"
+        "--------------------------------------------\\n\\n---"
+    )
+    assert parse_manager_proposals(raw) == {
+        "proposal_0": "First proposal",
+        "proposal_1": "Second proposal",
     }
 
 
