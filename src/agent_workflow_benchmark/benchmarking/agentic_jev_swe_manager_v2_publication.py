@@ -88,6 +88,10 @@ def _safe_runtime(value: object) -> dict[str, Any]:
         "reasoning_effort",
         "skill_commit",
         "skill_sha256",
+        "skill_interface_sha256",
+        "manager_policy_id",
+        "manager_policy_version",
+        "request_builder_version",
         "codex_version",
         "benchmark_source",
         "package_versions",
@@ -348,7 +352,7 @@ def _private_evidence_hashes(
         raise WorkflowError("run-start manifest hash no longer matches run record")
 
     return {
-        "schema": "agent-workflow-benchmark/agentic-jev-swe-manager-private-hashes/v1",
+        "schema": "agent-workflow-benchmark/agentic-jev-swe-manager-private-hashes/v2",
         "run_manifest_sha256": sha256_file(run_root / "run-manifest.json"),
         "run_start_sha256": start_hash,
         "raw_private_artifacts_published": False,
@@ -528,6 +532,10 @@ def verify_swe_manager_publication(root: Path) -> dict[str, Any]:
         "reasoning_effort",
         "skill_commit",
         "skill_sha256",
+        "skill_interface_sha256",
+        "manager_policy_id",
+        "manager_policy_version",
+        "request_builder_version",
         "codex_version",
         "requested_jev_model",
         "benchmark_source",
