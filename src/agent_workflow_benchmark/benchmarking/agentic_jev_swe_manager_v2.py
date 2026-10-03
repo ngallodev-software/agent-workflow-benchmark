@@ -93,7 +93,13 @@ def parse_manager_proposals(raw: str) -> dict[str, str]:
             raise WorkflowError(f"duplicate SWE-Lancer proposal ID {proposal_id}")
         end = matches[index + 1].start() if index + 1 < len(matches) else len(normalized_raw)
         body = normalized_raw[match.end() : end].strip()
-        body = re.sub(r"\n-{10,}\s*$", "", body).strip()
+        # Remove SWE-Lancer's proposal separators, including the final long
+        # separator followed by the dataset's terminal "---" marker.
+        body = re.sub(
+            r"(?:\n-{10,}\s*)+(?:\n---\s*)?$",
+            "",
+            body,
+        ).strip()
         body = re.sub(r"\n---\s*$", "", body).strip()
         if not body:
             raise WorkflowError(f"SWE-Lancer proposal {proposal_id} is empty")
