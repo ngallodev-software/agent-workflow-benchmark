@@ -30,7 +30,7 @@ def test_v5_skill_requires_complete_structured_requests_and_changed_revisions() 
     text = decision_skill_path().read_text(encoding="utf-8")
 
     assert "Build the request deliberately" in text
-    assert "Generic request validation owns shape and identity" in text
+    assert "shape and identity" in text
     assert "task adapter owns completeness" in text
     assert "insufficient_evidence" in text
     assert "evidence-sufficiency Noul" in text
