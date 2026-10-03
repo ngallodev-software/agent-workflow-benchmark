@@ -123,46 +123,50 @@ a single request.
 Add missing primary evidence before re-asking; do not repeat an unchanged judgment
 merely to seek a preferred answer.
 
-## Benchmark transport: use the host tool only
+## Benchmark transport: use the host manager checkpoint only
 
-For this benchmark, live Jev inference must go through the exposed host-side
-`jev_manager_decision` tool. It may appear under a `jev` tool/MCP prefix.
+For this benchmark generation, live SWE-manager Jev inference goes through the
+host-side `jev_manager_decision` tool. It may appear under a `jev` tool/MCP
+prefix.
 
-Do **not** install or import `typesafe-sdk`, call the TypeSafe HTTP API directly,
-invoke the standalone skill's local helper, request credentials, or create another
-network path.
+Do **not** install or import `typesafe-sdk`, call TypeSafe directly, invoke the
+standalone helper, request credentials, or create another network path.
 
-The benchmark keeps `TYPESAFE_API_KEY` on the host and uses the bridge receipt
-stream as authoritative Jev-execution evidence. If the host tool is unavailable,
-continue via the benchmark's defined fallback and record semantic assistance as
-unavailable. Do not search the filesystem for credentials or attempt to recover
-them from the project.
+The host owns authoritative task projection. **Do not recreate or summarize the
+official task title, description, or proposal text in the tool call.** The host
+reloads those fields from the frozen SWE-Lancer source and injects them into the
+normalized Jev state.
 
-The tool accepts:
+After repository inspection and before finalizing `manager_decisions.json`, make
+one checkpoint call when `jev_manager_decision` is available.
 
-- `state`: a bounded JSON object containing relevant decision context;
-- `questions`: a nonempty map of typed questions;
-- optional `purpose`: a short explanation of why the semantic judgment is useful.
+Supply only:
 
-The host contract enforces:
+- `repository_evidence`: one or more sourced
+  `{"source":"path:line","fact":"observed fact"}` records;
+- `verification`: exactly `{"ran":[...],"not_exercised":[...]}`; empty arrays are
+  valid, but never claim a check ran when it did not;
+- optional `agent_observations`: explicitly labeled
+  `{"claim":"...","basis":"..."}` records;
+- optional `purpose`: a short explanation of why the bounded decision matters.
 
-- at most 16 questions per request;
-- at most 64 KiB of normalized state;
-- at most 48 KiB of normalized questions;
-- bounded nesting/item/text projection;
-- redaction of common secret-like fields before provider execution and persistence.
+Do not send your preferred proposal, selected proposal ID, verdict, or confidence in
+neutral evidence. The host constructs the proposal Choice and evidence-sufficiency
+Noul, validates semantic completeness, hashes the exact normalized request, dispatches
+it, and records both the provider receipt and v2 request-history record.
 
-These guards are not permission to send secrets. Keep credentials, tokens, private
-keys, cookies, and unrelated sensitive data out of requests.
+The response includes the bounded answer set plus an `assessment`. Treat it as
+advisory evidence and reconcile it against primary repository evidence.
 
-Every question needs:
+If `assessment.rebuild_permitted=true`, gather materially new repository evidence
+before making **at most one revised semantic request**. Supply the prior
+`decision_sha256` as `previous_decision_sha256` and a concrete
+`change_reason`. The host rejects unchanged state+questions. Low Choice confidence
+alone is not a rebuild trigger.
 
-- a unique nonempty ID;
-- `type`;
-- nonempty `instructions`.
-
-Choice and Score also require `criteria`. Question IDs are response keys, not
-instructions, so each question must state its judgment fully.
+If the host tool is unavailable or fails, continue under the benchmark's explicit
+fallback and state in the final reconciliation that live semantic evidence was
+unavailable. Do not search for credentials or attempt a direct provider call.
 
 ## Choice
 
