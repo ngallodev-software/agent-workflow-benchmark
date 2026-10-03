@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jev Decision Support"
+  short_description: "Build and use bounded Jev decisions"
+  default_prompt: "Use $jev-decision-support to collect primary evidence, construct a complete bounded request, batch independent judgments over shared state, use only host jev_system_one, and only make a second semantic call after materially new evidence or changed alternatives."
