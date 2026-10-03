@@ -21,6 +21,7 @@ from .agentic_jev_request_v2 import (
 POLICY_ID = "swe-manager-choice-v2"
 POLICY_VERSION = "2.0.0"
 QUALIFICATION_SAMPLE_ID = "18796-manager-0"
+EVIDENCE_SUFFICIENCY_REBUILD_THRESHOLD = 0.50
 DEFAULT_PURPOSE = (
     "Select the best supplied SWE-Lancer manager proposal using the authoritative "
     "task requirement, full proposal text, and inspected repository evidence."
@@ -410,6 +411,40 @@ def build_manager_jev_request(
     return built
 
 
+def _history_record_for_decision(
+    history_path: Path,
+    decision_sha256: str,
+) -> dict[str, object]:
+    if re.fullmatch(r"[0-9a-f]{64}", decision_sha256) is None:
+        raise WorkflowError("previous decision hash must be a lowercase SHA-256")
+    target = Path(history_path)
+    if not target.is_file():
+        raise WorkflowError(
+            "previous decision hash was supplied but no request history exists"
+        )
+    matches: list[dict[str, object]] = []
+    for line in target.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise WorkflowError("manager Jev request history is malformed") from exc
+        if (
+            isinstance(item, dict)
+            and item.get("status") == "success"
+            and item.get("decision_sha256") == decision_sha256
+            and item.get("policy_id") == POLICY_ID
+        ):
+            matches.append(item)
+    if len(matches) != 1:
+        raise WorkflowError(
+            "previous decision hash must identify exactly one successful "
+            "manager-policy request in the local history"
+        )
+    return matches[0]
+
+
 def assess_manager_response(result: Mapping[str, object]) -> dict[str, object]:
     answers = result.get("answers")
     if not isinstance(answers, Mapping):
@@ -422,15 +457,32 @@ def assess_manager_response(result: Mapping[str, object]) -> dict[str, object]:
     choice = best.get("choice")
     probability = sufficient.get("probability")
     explicit_insufficiency = choice == "insufficient_evidence"
+    noul_insufficiency = (
+        isinstance(probability, (int, float))
+        and not isinstance(probability, bool)
+        and float(probability) < EVIDENCE_SUFFICIENCY_REBUILD_THRESHOLD
+    )
+    rebuild_permitted = explicit_insufficiency or noul_insufficiency
+    reasons: list[str] = []
+    if explicit_insufficiency:
+        reasons.append("choice_insufficient_evidence")
+    if noul_insufficiency:
+        reasons.append("evidence_sufficiency_below_policy_threshold")
     return {
         "best_proposal": choice,
         "evidence_sufficient_probability": probability,
+        "evidence_sufficiency_rebuild_threshold": EVIDENCE_SUFFICIENCY_REBUILD_THRESHOLD,
         "explicit_insufficiency": explicit_insufficiency,
-        "rebuild_permitted": explicit_insufficiency,
+        "noul_insufficiency": noul_insufficiency,
+        "rebuild_permitted": rebuild_permitted,
+        "rebuild_reasons": reasons,
         "rebuild_rule": (
             "A second semantic request requires materially new evidence or changed "
-            "alternatives and must cite the prior decision_sha256. Low confidence "
-            "alone is not a rebuild trigger."
+            "alternatives and must cite the prior decision_sha256. The current "
+            "manager policy recommends rebuilding when Choice explicitly returns "
+            "insufficient_evidence or the evidence-sufficiency Noul falls below "
+            "the frozen policy threshold. Low Choice/Score confidence alone is not "
+            "a rebuild trigger."
         ),
     }
 
@@ -481,6 +533,14 @@ def manager_jev_bridged_tool_v2(
                 change_reason: Required with previous_decision_sha256; state what
                     materially changed. An unchanged revision is rejected.
             """
+            prior_hash = previous_decision_sha256.strip() or None
+            prior_record: dict[str, object] | None = None
+            if prior_hash is not None:
+                prior_record = _history_record_for_decision(
+                    history_path,
+                    prior_hash,
+                )
+
             agent_state: dict[str, object] = {
                 "repository_evidence": repository_evidence,
                 "verification": verification,
@@ -492,9 +552,7 @@ def manager_jev_bridged_tool_v2(
                 agent_state=agent_state,
                 purpose=purpose or DEFAULT_PURPOSE,
                 model=model,
-                previous_decision_sha256=(
-                    previous_decision_sha256.strip() or None
-                ),
+                previous_decision_sha256=prior_hash,
                 change_reason=change_reason.strip() or None,
             )
             result = await asyncio.to_thread(
@@ -511,6 +569,7 @@ def manager_jev_bridged_tool_v2(
                     "context_complete": True,
                     "policy_id": POLICY_ID,
                     "policy_version": POLICY_VERSION,
+                    "supersedes_verified_history": prior_record is not None,
                     "assessment": assessment,
                 },
                 ensure_ascii=False,
