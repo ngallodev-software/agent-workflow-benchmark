@@ -16,6 +16,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev_request_v2 import (
 from agent_workflow_benchmark.benchmarking.agentic_jev_swe_manager_v2 import (
     EVIDENCE_SUFFICIENCY_REBUILD_THRESHOLD,
     POLICY_ID,
+    _history_record_for_decision,
     assess_manager_response,
     build_manager_jev_request,
     inspect_manager_built_request,
@@ -331,6 +332,32 @@ def test_manager_policy_rejects_agent_verdicts_and_missing_verification(tmp_path
             authoritative=authoritative,
             agent_state=missing,
         )
+
+
+def test_manager_revision_hash_must_resolve_to_one_successful_local_history(tmp_path: Path):
+    decision_hash = "a" * 64
+    history = tmp_path / "history.jsonl"
+    history.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "policy_id": POLICY_ID,
+                "decision_sha256": decision_hash,
+                "request_sha256": "b" * 64,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    found = _history_record_for_decision(history, decision_hash)
+    assert found["request_sha256"] == "b" * 64
+
+    with pytest.raises(WorkflowError, match="exactly one"):
+        _history_record_for_decision(history, "c" * 64)
+
+    history.write_text(history.read_text(encoding="utf-8") * 2, encoding="utf-8")
+    with pytest.raises(WorkflowError, match="exactly one"):
+        _history_record_for_decision(history, decision_hash)
 
 
 def test_manager_response_rebuild_signal_uses_explicit_insufficiency_or_frozen_noul_threshold():
