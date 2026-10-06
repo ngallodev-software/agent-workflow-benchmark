@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
+from decimal import Decimal
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -264,7 +264,7 @@ def compose_m3(scores: Mapping[str, float], *, tie_epsilon: float = 0.0) -> dict
         raise WorkflowError("tie_epsilon must be non-negative")
     ordered = sorted(((str(k), float(v)) for k, v in scores.items()), key=lambda item: (-item[1], item[0]))
     top_id, top = ordered[0]
-    tied = len(ordered) > 1 and math.isclose(top, ordered[1][1], rel_tol=0.0, abs_tol=tie_epsilon)
+    tied = len(ordered) > 1 and (Decimal(str(top)) - Decimal(str(ordered[1][1]))) <= Decimal(str(tie_epsilon))
     return {
         "ranking": [{"proposal_id": pid, "score": score} for pid, score in ordered],
         "candidate": top_id,
