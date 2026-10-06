@@ -124,9 +124,17 @@ def _purpose(entry: Mapping[str, Any]) -> str:
     )
 
 
-def _model(request: Mapping[str, Any]) -> str | None:
+def _replay_model(entry: Mapping[str, Any], request: Mapping[str, Any]) -> str | None:
+    """Pin replay to the archived requested model or retained resolved model."""
     value = request.get("model")
-    return str(value) if isinstance(value, str) and value.strip() else None
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    recorded = entry.get("recorded")
+    if isinstance(recorded, Mapping):
+        resolved = recorded.get("resolved_model")
+        if isinstance(resolved, str) and resolved.strip():
+            return resolved.strip()
+    return None
 
 
 def _build(entry: Mapping[str, Any], mechanism: str, questions: Mapping[str, Any]) -> dict[str, Any]:
@@ -136,7 +144,7 @@ def _build(entry: Mapping[str, Any], mechanism: str, questions: Mapping[str, Any
         state=state,
         questions=questions,
         purpose=_purpose(entry),
-        model=_model(source),
+        model=_replay_model(entry, source),
         policy_id=f"swe-manager-right-seam/{mechanism}",
         transformation={"mechanism": mechanism, "source_first_call_dispatch_sha256": dispatch_sha256(source)},
     )
