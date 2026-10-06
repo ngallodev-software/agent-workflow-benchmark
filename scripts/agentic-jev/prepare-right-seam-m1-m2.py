@@ -64,6 +64,7 @@ def main() -> None:
         )
 
     variants: list[dict] = []
+    replay_models: set[str] = set()
     per_mechanism: dict[str, dict[str, int]] = {
         M1: {
             "samples": 0,
@@ -104,6 +105,13 @@ def main() -> None:
                 source_built,
                 proposal_order=cb_order,
             )
+
+            replay_model = source_built["request"].get("model")
+            if not isinstance(replay_model, str) or not replay_model.strip():
+                raise SystemExit(
+                    f"{sample_id}/{mechanism}: replay model is not explicitly pinned"
+                )
+            replay_models.add(replay_model.strip())
 
             source_hash = source_built["semantic_content_sha256"]
             cb_hash = cb_built["semantic_content_sha256"]
@@ -172,6 +180,8 @@ def main() -> None:
         "provider_calls_made": 0,
         "fresh_evaluation_tasks_consumed": 0,
         "gold_fields_loaded": False,
+        "replay_models": sorted(replay_models),
+        "all_replay_requests_model_pinned": True,
         "private_request_pack": str(args.output),
     }
 
