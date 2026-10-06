@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -22,12 +21,6 @@ RESULT_SCHEMA = "agent-workflow-benchmark/jev-right-seam-m1-m2-replay-result/v1"
 SUMMARY_SCHEMA = "agent-workflow-benchmark/jev-right-seam-m1-m2-replay-summary/v1"
 STUDY_ID = "agentic-jev-right-seam-m1-m2-replay"
 
-
-def _read_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise WorkflowError(f"{path}: expected JSON object")
-    return value
 
 
 def _variant_key(value: dict[str, Any]) -> str:
