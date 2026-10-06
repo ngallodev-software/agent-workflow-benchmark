@@ -6,6 +6,7 @@ an explicit operator action performed by the existing v2 request executor.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from decimal import Decimal
@@ -145,6 +146,68 @@ def _build(entry: Mapping[str, Any], mechanism: str, questions: Mapping[str, Any
     built["dispatch_body_sha256"] = dispatch_sha256(request)
     return built
 
+
+
+def reorder_mechanism_request(
+    built: Mapping[str, Any], *, proposal_order: Sequence[str]
+) -> dict[str, Any]:
+    """Return an order-only request variant with refreshed dispatch identity.
+
+    The semantic content must remain unchanged. Proposal state and matching Choice
+    criteria are reordered together; any non-proposal Choice criteria retain their
+    original relative order after the proposal criteria.
+    """
+    clone = copy.deepcopy(dict(built))
+    request = _mapping(clone.get("request"), "built.request")
+    state = _mapping(request.get("state"), "request.state")
+    authoritative = _mapping(state.get("authoritative_task"), "state.authoritative_task")
+    proposals = _mapping(authoritative.get("proposals"), "authoritative_task.proposals")
+
+    source_ids = [str(k) for k in proposals]
+    ordered_ids = [str(v) for v in proposal_order]
+    if len(ordered_ids) != len(source_ids) or set(ordered_ids) != set(source_ids):
+        raise WorkflowError("proposal_order must contain every proposal exactly once")
+
+    new_request = copy.deepcopy(dict(request))
+    new_state = _mapping(new_request.get("state"), "request.state")
+    new_authoritative = _mapping(
+        new_state.get("authoritative_task"), "state.authoritative_task"
+    )
+    new_authoritative["proposals"] = {
+        pid: copy.deepcopy(proposals[pid]) for pid in ordered_ids
+    }
+
+    questions = _mapping(new_request.get("questions"), "request.questions")
+    best = questions.get("best_proposal")
+    if isinstance(best, Mapping):
+        criteria = best.get("criteria")
+        if isinstance(criteria, Mapping):
+            proposal_criteria = {
+                pid: copy.deepcopy(criteria[pid])
+                for pid in ordered_ids
+                if pid in criteria
+            }
+            if len(proposal_criteria) != len(ordered_ids):
+                raise WorkflowError(
+                    "best_proposal criteria must contain every proposal"
+                )
+            suffix = {
+                str(k): copy.deepcopy(v)
+                for k, v in criteria.items()
+                if str(k) not in set(ordered_ids)
+            }
+            best["criteria"] = {**proposal_criteria, **suffix}
+
+    semantic_before = sha256_json(request)
+    semantic_after = sha256_json(new_request)
+    if semantic_before != semantic_after:
+        raise WorkflowError("order-only variant changed semantic request content")
+
+    clone["request"] = new_request
+    clone["semantic_content_sha256"] = semantic_after
+    clone["dispatch_body_sha256"] = dispatch_sha256(new_request)
+    clone["proposal_order"] = ordered_ids
+    return clone
 
 def build_m0(entry: Mapping[str, Any]) -> dict[str, Any]:
     """Materialize the exact archived first-call body; no semantic transformation."""
