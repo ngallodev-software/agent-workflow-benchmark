@@ -19,6 +19,7 @@ from agent_workflow_benchmark.benchmarking.agentic_jev_right_seam import (
     compose_m3,
     counterbalanced_ids,
     dispatch_sha256,
+    reorder_mechanism_request,
     validate_replay_manifest,
 )
 from agent_workflow_benchmark.benchmarking.agentic_jev_request_v2 import sha256_json
@@ -151,3 +152,25 @@ def test_counterbalanced_order_is_deterministic_and_not_source_order():
     assert first == second
     assert first != ids
     assert sorted(first) == sorted(ids)
+
+
+def test_order_variant_changes_only_dispatch_order():
+    built = build_m2(entry())
+    source = built["request"]
+    order = ["proposal_3", "proposal_1", "proposal_2"]
+    variant = reorder_mechanism_request(built, proposal_order=order)
+
+    assert sha256_json(variant["request"]) == sha256_json(source)
+    assert variant["semantic_content_sha256"] == built["semantic_content_sha256"]
+    assert variant["dispatch_body_sha256"] != built["dispatch_body_sha256"]
+
+    proposals = variant["request"]["state"]["authoritative_task"]["proposals"]
+    criteria = variant["request"]["questions"]["best_proposal"]["criteria"]
+    assert list(proposals) == order
+    assert list(criteria) == order
+
+    with pytest.raises(WorkflowError, match="every proposal exactly once"):
+        reorder_mechanism_request(
+            built,
+            proposal_order=["proposal_1", "proposal_2"],
+        )
