@@ -174,3 +174,15 @@ def test_order_variant_changes_only_dispatch_order():
             built,
             proposal_order=["proposal_1", "proposal_2"],
         )
+
+
+def test_replay_uses_retained_resolved_model_when_source_model_is_null():
+    item = entry()
+    item["request"]["model"] = None
+    item["recorded"] = {"resolved_model": "jev-1.13.0"}
+
+    built = build_m2(item)
+    assert built["request"]["model"] == "jev-1.13.0"
+
+    m0 = build_m0(item)
+    assert m0["request"]["model"] is None
