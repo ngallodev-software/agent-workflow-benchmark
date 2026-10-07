@@ -306,7 +306,7 @@ The development installer and value-smoke runner use the same shared Agent-Workf
 
 The installer writes a benchmark-owned, minimal venv-local Agent-Workflow config. It sets isolated `worktree_root`/`state_root`, enables only `agent-workflow-benchmark`, selects `semantic.provider = "typesafe"`, and sets `decision_policy.mode = "comparative"`. It does not mutate arbitrary user TOML. The smoke runner applies the XDG environment only to its own process, so the caller shell is automatically unchanged when the run exits.
 
-The benchmark runtime is intentionally comparative: `typesafe-sdk==0.6.0`, `TYPESAFE_API_KEY`, and `agent-workflow-comparative-eval==0.1.0` are required in the shared venv. The comparative-eval package is a shared library, not an `agent_workflow.plugins` entry point.
+The benchmark runtime is intentionally comparative: `typesafe-sdk==0.6.0`, `TYPESAFE_API_KEY`, and `agent-workflow-comparative-eval==0.3.4` are required in the current shared venv. The comparative-eval package is a shared library, not an `agent_workflow.plugins` entry point.
 
 ### TypeSafe request/response audit
 
