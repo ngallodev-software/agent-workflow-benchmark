@@ -1,13 +1,29 @@
-# Agent-Workflow Benchmark
+<p align="center">
+  <a href="https://ngallodev-software.uk/" title="Nate G. / ngallodev-software portfolio">
+    <img src="https://raw.githubusercontent.com/ngallodev-software/portfolio-site/master/public/icon-husky-r1-192.png" width="88" alt="Nate G. portfolio husky mark">
+  </a>
+</p>
 
-![Version](https://img.shields.io/badge/version-0.6.0-blue)
-![Agent--Workflow](https://img.shields.io/badge/Agent--Workflow-%3E%3D0.11.11%2C%3C0.12-2ea44f)
-![License](https://img.shields.io/badge/license-Apache--2.0-green)
+<h1 align="center">Agent-Workflow Benchmark</h1>
 
-**Agent-Workflow case study:** https://ngallodev-software.uk/projects/agent-workflow  
-**Published results:** https://github.com/ngallodev-software/agent-workflow-benchmark-results
+<p align="center"><strong>Reproducible comparative evaluation for Agent-Workflow: finished software, sealed evidence, scoring, timing, token usage, and bounded semantic studies.</strong></p>
+
+<p align="center">
+  <a href="https://ngallodev-software.uk/projects/agent-workflow">Agent-Workflow case study</a> ·
+  <a href="https://jevhunt.com/projects/ngallodev-software/agent-workflow-benchmark/">JevHunt listing</a> ·
+  <a href="https://github.com/ngallodev-software/agent-workflow-benchmark-results">Published results</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.6.9-blue" alt="">
+  <img src="https://img.shields.io/badge/Agent--Workflow-%3E%3D0.12%2C%3C0.13-2ea44f" alt="">
+  <img src="https://img.shields.io/badge/comparative--eval-0.3.4-6f42c1" alt="">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="">
+</p>
 
 ## Summary
+
+> **Evidence & chronology:** this repository is part of the wider Agent-Workflow engineering ecosystem. A private `agent-workflow-lab-notebook` preserves dated decisions, failures, corrections, and evidence lineage; public README and portfolio claims are curated from public artifacts and reviewed notebook history. JevHunt is an independent discovery/indexing surface, not an endorsement or independent validation.
 
 - **What it is:** the reproducible benchmark harness for comparing Agent-Workflow treatment runs with structured direct baselines.
 - **What it captures:** sealed execution evidence, finished software, timing/token usage, visual evidence, scoring, eligibility, and external scoring bundles.
@@ -105,7 +121,7 @@ agent-workflow commands --format markdown
 
 ## Core compatibility
 
-Plugin version `0.6.0` declares `agent-workflow>=0.11.11,<0.12` and `agent-workflow-comparative-eval==0.3.1`. Agent-Workflow `0.11.11` is the minimum supported core for the comparative-decision evidence boundary while preserving the existing BM3–BM6 workflow. Agent-Workflow's compatibility lane pins this repository by commit so the plugin/core pair is reproducible rather than resolving a moving default branch.
+Plugin version `0.6.9` declares `agent-workflow>=0.12,<0.13` and `agent-workflow-comparative-eval==0.3.4`. The benchmark, core, and comparative-evaluation versions are intentionally bound as a tested stack; release and study tooling record exact source/runtime identities rather than treating a moving default branch as reproducible evidence.
 
 ## Main workflow
 
