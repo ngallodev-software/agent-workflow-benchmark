@@ -5,7 +5,7 @@ build-backend="setuptools.build_meta"
 [project]
 name="agent-workflow-benchmark"
 version="0.6.9"
-description="Optional comparative benchmark plugin for Agent-Workflow"
+description="Reproducible comparative benchmark harness for Agent-Workflow with sealed evidence, scoring, timing/token capture, and semantic-decision studies."
 readme="README.md"
 authors=[{name="ngallodev-software"}]
 keywords=["agent-workflow","agentic-ai","coding-agents","benchmarking","evaluation","reproducibility","evidence"]
@@ -15,6 +15,8 @@ dependencies=["agent-workflow>=0.12,<0.13","agent-workflow-comparative-eval==0.3
 
 [project.urls]
 Homepage="https://ngallodev-software.uk/projects/agent-workflow"
+Portfolio="https://ngallodev-software.uk/"
+JevHunt="https://jevhunt.com/projects/ngallodev-software/agent-workflow-benchmark/"
 Repository="https://github.com/ngallodev-software/agent-workflow-benchmark"
 AgentWorkflow="https://github.com/ngallodev-software/agent-workflow"
 Results="https://github.com/ngallodev-software/agent-workflow-benchmark-results"
