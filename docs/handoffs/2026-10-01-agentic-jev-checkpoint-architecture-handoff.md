@@ -22,7 +22,7 @@ Do not reconstruct the experiment from memory and do not rewrite earlier evidenc
 | `ngallodev-software/agent-workflow` | `master` | `c4679d7552f28d2f3d21e776804e6c3139542309` |
 | `ngallodev-software/agent-workflow-comparative-eval` | `master` | `0d7510735958a00d1e12d3eb5277b5bb1964f6e9` |
 | `ngallodev-software/jev-decision-support` | `main` | `5b43c3f1cd289361cf7715588cbc3871f2f6947f` |
-| private `ngallodev-software/agent-workflow-lab-notebook` | `main` | read current HEAD; Jev history is additive and must not be rewritten |
+| a private lab notebook | `main` | read current HEAD; Jev history is additive and must not be rewritten |
 
 Benchmark PRs just completed:
 
