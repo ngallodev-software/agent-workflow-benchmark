@@ -197,7 +197,7 @@ Do not silently replace the frozen study semantics. The execution decision was a
 5. use Inspect for the real A/B/C oracle only after the pre-adjudication qualification gates pass;
 6. if qualification fails, restart fresh A/B sessions using the reference backend.
 
-The integrated plan is `docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
+The integrated plan is `docs/internal/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
 
 ## Future generic runner
 
