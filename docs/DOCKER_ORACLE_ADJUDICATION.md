@@ -1,6 +1,6 @@
 # Docker Oracle Adjudication Harness
 
-> **Reference/rollback backend:** As of 2026-09-25, the direct-Docker harness is retained as the frozen reference implementation while Inspect AI is integrated and qualified **before first real A/B adjudication**. Do not start the real 120-case A/B run from this document until the P0A Inspect qualification gate in [the integrated plan](plans/2026-09-25-inspect-adjudication-integration-plan.md) is resolved. If Inspect fails qualification, this harness is the approved rollback path using fresh A/B sessions.
+> **Reference/rollback backend:** As of 2026-09-25, the direct-Docker harness is retained as the frozen reference implementation while Inspect AI is integrated and qualified **before first real A/B adjudication**. Do not start the real 120-case A/B run from this document until the P0A Inspect qualification gate in [the integrated plan](internal/plans/2026-09-25-inspect-adjudication-integration-plan.md) is resolved. If Inspect fails qualification, this harness is the approved rollback path using fresh A/B sessions.
 
 
 This harness runs the frozen `routing-semantic-v1` independent oracle adjudication on a Debian Docker host without exposing Agent-Workflow treatment outputs to the adjudicators.
@@ -72,7 +72,7 @@ See:
 - [Isolated Agent Execution Architecture](architecture/ISOLATED_AGENT_EXECUTION.md)
 - [Prior Art and Standards](PRIOR_ART_AGENT_SANDBOXING.md)
 - [ADR-0001](decisions/ADR-0001-isolated-agent-sandboxing.md)
-- [Historical Record](history/2026-09-25-routing-semantic-oracle-containerization.md)
+- [Historical Record](internal/history/2026-09-25-routing-semantic-oracle-containerization.md)
 
 ## Prerequisites on the Debian host
 

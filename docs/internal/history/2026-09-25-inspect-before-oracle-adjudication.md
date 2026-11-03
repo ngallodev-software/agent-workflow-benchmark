@@ -89,4 +89,4 @@ If execution fails after only one real adjudicator pass completes, discard that 
 
 See:
 
-`docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`
+`docs/internal/plans/2026-09-25-inspect-adjudication-integration-plan.md`

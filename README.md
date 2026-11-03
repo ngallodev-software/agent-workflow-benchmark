@@ -23,7 +23,7 @@
 
 ## Summary
 
-> **Evidence & chronology:** this repository is part of the wider Agent-Workflow engineering ecosystem. A private `agent-workflow-lab-notebook` preserves dated decisions, failures, corrections, and evidence lineage; public README and portfolio claims are curated from public artifacts and reviewed notebook history. JevHunt is an independent discovery/indexing surface, not an endorsement or independent validation.
+> **Evidence & chronology:** this repository is part of the wider Agent-Workflow engineering ecosystem. A private lab notebook preserves dated decisions, failures, corrections, and evidence lineage; public README and portfolio claims are curated from public artifacts and reviewed notebook history. JevHunt is an independent discovery/indexing surface, not an endorsement or independent validation.
 
 - **What it is:** the reproducible benchmark harness for comparing Agent-Workflow treatment runs with structured direct baselines.
 - **What it captures:** sealed execution evidence, finished software, timing/token usage, visual evidence, scoring, eligibility, and external scoring bundles.
@@ -473,8 +473,8 @@ See [Comparative Decision Study](docs/COMPARATIVE_DECISION_STUDY.md) for the com
 
 For independent oracle production on a single Debian host, use the isolated [Docker Oracle Adjudication Harness](docs/DOCKER_ORACLE_ADJUDICATION.md). It runs A/B (and C when needed) in separate Codex containers without mounting the repository, treatment outputs, or TypeSafe credentials.
 
-The reusable design is documented in [Isolated Agent Execution Architecture](docs/architecture/ISOLATED_AGENT_EXECUTION.md), with the first declarative [A/B/C adjudication module](modules/abc-adjudication/README.md), the [sandboxing ADR](docs/decisions/ADR-0001-isolated-agent-sandboxing.md), and a [prior-art/standards review](docs/PRIOR_ART_AGENT_SANDBOXING.md). The historical routing-study implementation record is in [docs/history/2026-09-25-routing-semantic-oracle-containerization.md](docs/history/2026-09-25-routing-semantic-oracle-containerization.md).
+The reusable design is documented in [Isolated Agent Execution Architecture](docs/architecture/ISOLATED_AGENT_EXECUTION.md), with the first declarative [A/B/C adjudication module](modules/abc-adjudication/README.md), the [sandboxing ADR](docs/decisions/ADR-0001-isolated-agent-sandboxing.md), and a [prior-art/standards review](docs/PRIOR_ART_AGENT_SANDBOXING.md). The historical routing-study implementation record is in [docs/history/2026-09-25-routing-semantic-oracle-containerization.md](docs/internal/history/2026-09-25-routing-semantic-oracle-containerization.md).
 
-The current execution plan inserts an [Inspect AI pre-adjudication integration/parity gate](docs/plans/2026-09-25-inspect-adjudication-integration-plan.md) before any real A/B oracle labels are produced; the direct-Docker harness remains the rollback/reference backend.
+The current execution plan inserts an [Inspect AI pre-adjudication integration/parity gate](docs/internal/plans/2026-09-25-inspect-adjudication-integration-plan.md) before any real A/B oracle labels are produced; the direct-Docker harness remains the rollback/reference backend.
 
 The implemented operator path is documented in [Inspect Oracle Adjudication — Debian Operator Guide](docs/INSPECT_ORACLE_ADJUDICATION.md). Benchmark 0.4.1 resolves Codex `latest` once at cohort start, freezes the exact resolved CLI version in a runtime lock, runs a synthetic IA-1 through IA-8 qualification suite, and refuses real A/B/C execution unless the matching qualification manifest passes.

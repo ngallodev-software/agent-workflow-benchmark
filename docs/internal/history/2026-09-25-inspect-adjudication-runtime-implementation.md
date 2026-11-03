@@ -8,7 +8,7 @@
 
 This record documents the implementation of the Inspect AI / Inspect SWE adjudication backend planned in:
 
-`docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`
+`docs/internal/plans/2026-09-25-inspect-adjudication-integration-plan.md`
 
 The implementation occurred before any real `routing-semantic-v1` A/B oracle labels or live TypeSafe/Jev treatment inference.
 

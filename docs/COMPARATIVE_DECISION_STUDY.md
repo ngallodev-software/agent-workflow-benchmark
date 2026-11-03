@@ -73,7 +73,7 @@ This is an infrastructure gate only. It does not change the frozen corpus, autho
 
 The direct-Docker runner remains the rollback/reference backend. The preferred path is Inspect AI + Inspect SWE + Docker sandbox after qualification. Real A/B labels must not be produced during the P0A synthetic parity work.
 
-See [Inspect AI Integration Plan for Independent Oracle Adjudication](plans/2026-09-25-inspect-adjudication-integration-plan.md).
+See [Inspect AI Integration Plan for Independent Oracle Adjudication](internal/plans/2026-09-25-inspect-adjudication-integration-plan.md).
 
 Implementation is available in benchmark 0.4.1. Follow [Inspect Oracle Adjudication — Debian Operator Guide](INSPECT_ORACLE_ADJUDICATION.md). The real A/B and C commands require a passing qualification manifest bound to the same module and runtime-lock hashes.
 

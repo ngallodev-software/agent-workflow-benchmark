@@ -114,7 +114,7 @@ For `routing-semantic-v1`, the decision was amended on 2026-09-25 **before any r
 5. preserve the frozen corpus/view/oracle protocol unchanged;
 6. keep P0B real A/B adjudication blocked until the qualification gate passes.
 
-See `docs/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
+See `docs/internal/plans/2026-09-25-inspect-adjudication-integration-plan.md`.
 
 For later generalized benchmark execution, evaluate the same Inspect backend after the routing study is complete. For future software-engineering agent scaffolds, evaluate mini-SWE-agent before legacy SWE-agent. SWE-ReX remains a candidate when a lower-level portable runtime abstraction is preferable to Inspect's broader evaluation orchestration.
 

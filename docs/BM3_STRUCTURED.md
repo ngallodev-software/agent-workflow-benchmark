@@ -18,7 +18,7 @@ The study is Codex-only and uses the same provider/model/executor cohort for bot
 From the Agent-Workflow repository:
 
 ```bash
-export AGENT_WORKFLOW_VENV=/lump/apps/agent-workflow/.venv
+export AGENT_WORKFLOW_VENV=<workspace>/agent-workflow/.venv
 export TYPESAFE_API_KEY='...'
 
 bash scripts/build-install-all.sh --venv "$AGENT_WORKFLOW_VENV"
@@ -50,7 +50,7 @@ bash scripts/build-install-all.sh --verify-only --venv "$AGENT_WORKFLOW_VENV"
 ## Preflight
 
 ```bash
-source /lump/apps/agent-workflow/scripts/dev-env.sh on "$AGENT_WORKFLOW_VENV"
+source <workspace>/agent-workflow/scripts/dev-env.sh on "$AGENT_WORKFLOW_VENV"
 
 agent-workflow --version
 agent-workflow doctor
@@ -75,10 +75,10 @@ BM3 requires:
 From the benchmark repository:
 
 ```bash
-cd /lump/apps/agent-workflow-benchmark
+cd <workspace>/agent-workflow-benchmark
 
 bash scripts/run-bm3-structured.sh \
-  --root /lump/apps/agent-workflow-benchmark/artifacts/bm3-$(date -u +%Y%m%dT%H%M%SZ) \
+  --root <workspace>/agent-workflow-benchmark/artifacts/bm3-$(date -u +%Y%m%dT%H%M%SZ) \
   --repetitions 1
 ```
 
